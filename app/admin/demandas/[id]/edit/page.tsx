@@ -2,7 +2,7 @@
 "use client";
 
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/firebaseConfig";
@@ -14,12 +14,22 @@ import {
 import {
   Loader as LoaderIcon, ArrowLeft, Save, Trash2, Upload, Tag, Send, Users, Filter,
   DollarSign, ShieldCheck, Search, RefreshCw, CheckCircle2, LockOpen, CreditCard,
-  Undo2, XCircle, Ban,
+  Undo2, XCircle, Ban, Layers, FileText, Image as ImageIcon
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
+import nextDynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
+// ============ Lazy (mesma assinatura do create) ============
+const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), { ssr: false }) as any;
+const DrivePDFViewer = nextDynamic(() => import("@/components/DrivePDFViewer"), { ssr: false }) as any;
+
 /* ================== Tipos ================== */
+// Formato igual ao create: Cat -> Subcat -> Item
+type Item = { nome: string; slug?: string };
+type Subcat = { nome: string; slug?: string; itens?: Item[] };
+type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
+
 type Usuario = {
   id: string;
   nome?: string;
@@ -57,6 +67,7 @@ type Demanda = {
   descricao?: string;
   categoria?: string;
   subcategoria?: string;
+  itemFinal?: string; // 3º nível
   estado?: string;
   cidade?: string;
   prazo?: string;
@@ -64,6 +75,7 @@ type Demanda = {
   whatsapp?: string; // legado
   observacoes?: string;
   imagens?: string[];
+  pdfUrl?: string | null; // <— novo, compatível com create
   tags?: string[];
   pricingDefault?: { amount?: number; currency?: string };
   createdAt?: any;
@@ -85,12 +97,6 @@ type Demanda = {
   contatoWhatsappMasked?: string; // exibição "+55 (31) 9xxxx-xxxx"
 };
 
-type CategoriaTax = {
-  nome: string;
-  slug?: string;
-  subcategorias?: { nome: string; slug?: string }[];
-};
-
 /* ================== Constantes ================== */
 const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"] as const;
 
@@ -99,7 +105,7 @@ const toReais = (cents?: number) =>
   `R$ ${((Number(cents || 0) / 100) || 0).toFixed(2).replace(".", ",")}`;
 
 const reaisToCents = (val: string) => {
-  const n = Number(String(val || "0").replace(/\./g, "").replace(",", "."));
+  const n = Number(String(val || "0").replace(/\./g, "").replace(",", ".")); // "19,90" -> 19.90
   if (Number.isNaN(n)) return 0;
   return Math.round(n * 100);
 };
@@ -112,7 +118,6 @@ const chip = (bg: string, fg: string): React.CSSProperties => ({
 
 const isNonEmptyString = (v: any): v is string => typeof v === "string" && v.trim() !== "";
 
-// Normaliza string para comparação robusta
 const norm = (s?: string) =>
   (s || "")
     .normalize("NFD")
@@ -121,7 +126,6 @@ const norm = (s?: string) =>
     .trim()
     .toLowerCase();
 
-// Monta o token usado em pairsSearch: cat::sub
 function pairToken(cat?: string, sub?: string) {
   const c = norm(cat);
   const s = norm(sub);
@@ -131,14 +135,11 @@ function pairToken(cat?: string, sub?: string) {
 /* ========= Helpers de telefone/WhatsApp BR (+55) ========= */
 const onlyDigits = (v: string) => (v || "").replace(/\D/g, "");
 
-// Garante que sempre começa por "+55 " no campo visível
 function ensurePlus55Prefix(masked: string) {
   const t = (masked || "").trim();
   if (!t) return "+55 ";
   return t.startsWith("+55") ? t : `+55 ${t.replace(/^\+?/, "")}`;
 }
-
-// Formata como "+55 (31) 99999-9999" a partir do input livre
 function formatWhatsappBRIntl(v: string) {
   let t = (v || "").trim();
   if (!t.startsWith("+55")) t = `+55 ${t.replace(/^\+?/, "")}`;
@@ -148,16 +149,11 @@ function formatWhatsappBRIntl(v: string) {
   if (d.length <= 9) return `+55 (${d.slice(2, 4)}) ${d.slice(4)}`;
   return `+55 (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9)}`;
 }
-
-// Extrai dígitos iniciando por 55 (para salvar em E164 sem +)
 function extractDigits55FromMasked(masked?: string) {
   const dig = onlyDigits(masked || "");
   if (!dig) return "";
-  // força iniciar em 55
   return dig.startsWith("55") ? dig : `55${dig.replace(/^55?/, "")}`;
 }
-
-// Valida: 55 + DDD(2) + número(8/9) => 12 ou 13 dígitos
 function isValidBRWhatsappDigits(d55: string) {
   if (!d55 || !d55.startsWith("55")) return false;
   const total = d55.length;
@@ -178,8 +174,11 @@ export default function EditDemandaPage() {
       ? params!.id[0]
       : "";
 
-  // 🔗 taxonomia central
-  const { categorias, loading: taxLoading } = useTaxonomia() as { categorias: CategoriaTax[]; loading: boolean };
+  // 🔗 Taxonomia (3 níveis, igual ao create)
+  const { categorias, loading: taxLoading } = useTaxonomia() as {
+    categorias: Cat[];
+    loading: boolean;
+  };
 
   /** ------- Estados principais ------- */
   const [loading, setLoading] = useState(true);
@@ -187,14 +186,17 @@ export default function EditDemandaPage() {
   const [removendo, setRemovendo] = useState(false);
 
   const [imagens, setImagens] = useState<string[]>([]);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null); // <— novo
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
-  const [form, setForm] = useState<Required<Pick<
-    Demanda, "titulo"|"descricao"|"categoria"|"subcategoria"|"estado"|"cidade"|"prazo"|"observacoes"
-  >> & { orcamento: string; whatsapp: string; contatoNome: string; contatoEmail: string; contatoWhatsappMasked: string }>({
-    titulo: "", descricao: "", categoria: "", subcategoria: "", estado: "", cidade: "",
-    prazo: "", orcamento: "", whatsapp: "", observacoes: "",
+  const [form, setForm] = useState<{
+    titulo: string; descricao: string; categoria: string; subcategoria: string; itemFinal: string;
+    estado: string; cidade: string; prazo: string; orcamento: string; whatsapp: string; observacoes: string;
+    contatoNome: string; contatoEmail: string; contatoWhatsappMasked: string;
+  }>({
+    titulo: "", descricao: "", categoria: "", subcategoria: "", itemFinal: "",
+    estado: "", cidade: "", prazo: "", orcamento: "", whatsapp: "", observacoes: "",
     contatoNome: "", contatoEmail: "", contatoWhatsappMasked: "",
   });
 
@@ -225,14 +227,18 @@ export default function EditDemandaPage() {
 
   const debounceRef = useRef<any>(null);
 
-  // Subcategorias dinâmicas do FORM (categoria da demanda)
-  const subcatsForm = useMemo(
+  // ======= Taxonomia (3 níveis) – para o FORM (demanda) =======
+  const subsForm: Subcat[] = useMemo(
     () => (categorias.find(c => c.nome === form.categoria)?.subcategorias ?? []),
     [categorias, form.categoria]
   );
+  const itemsForm: Item[] = useMemo(
+    () => (subsForm.find(s => s.nome === form.subcategoria)?.itens ?? []),
+    [subsForm, form.subcategoria]
+  );
 
-  // Subcategorias dinâmicas do FILTRO (enviar para usuários)
-  const subcatsFiltro = useMemo(
+  // ======= Taxonomia – para o FILTRO (usuários) [apenas 2 níveis] =======
+  const sub1Filtro: Subcat[] = useMemo(
     () => (categorias.find(c => c.nome === fCat)?.subcategorias ?? []),
     [categorias, fCat]
   );
@@ -250,12 +256,12 @@ export default function EditDemandaPage() {
       }
       const d = snap.data() as Demanda;
 
-      // preencher formulário com fallback entre novos e legados
       setForm({
         titulo: d.titulo || "",
         descricao: d.descricao || "",
         categoria: d.categoria || "",
         subcategoria: d.subcategoria || "",
+        itemFinal: d.itemFinal || "",
         estado: d.estado || "",
         cidade: d.cidade || "",
         prazo: d.prazo || "",
@@ -279,6 +285,7 @@ export default function EditDemandaPage() {
 
       setTags(d.tags || []);
       setImagens(d.imagens || []);
+      setPdfUrl(d.pdfUrl ?? null); // <— carrega PDF
       setUserId(d.userId || "");
 
       setCreatedAt(
@@ -570,11 +577,17 @@ export default function EditDemandaPage() {
   /** ================== Handlers básicos ================== */
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     const { name, value } = e.target;
-    // reseta subcategoria ao trocar a categoria
+
+    // resets em cascata na taxonomia (3 níveis)
     if (name === "categoria") {
-      setForm((f) => ({ ...f, categoria: value, subcategoria: "" }));
+      setForm(f => ({ ...f, categoria: value, subcategoria: "", itemFinal: "" }));
       return;
     }
+    if (name === "subcategoria") {
+      setForm(f => ({ ...f, subcategoria: value, itemFinal: "" }));
+      return;
+    }
+
     setForm({ ...form, [name]: value });
   }
   function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -609,6 +622,7 @@ export default function EditDemandaPage() {
         descricao: form.descricao,
         categoria: form.categoria,
         subcategoria: form.subcategoria,
+        itemFinal: form.itemFinal || "",
         estado: form.estado,
         cidade: form.cidade,
         prazo: form.prazo,
@@ -616,6 +630,7 @@ export default function EditDemandaPage() {
         observacoes: form.observacoes || "",
         tags,
         imagens,
+        pdfUrl: pdfUrl || null, // <— salva PDF
         pricingDefault: { amount: cents, currency: "BRL" },
         unlockCap: unlockCap ?? null,
 
@@ -836,9 +851,10 @@ export default function EditDemandaPage() {
             <label style={label}>Descrição</label>
             <textarea name="descricao" value={form.descricao} onChange={handleChange} required placeholder="Detalhe sua necessidade..." style={{ ...input, minHeight: 110, resize: "vertical" }} />
 
+            {/* ===== Taxonomia 3 níveis (Cat -> Subcat -> Item) ===== */}
             <div style={twoCols}>
               <div style={{ flex: 1 }}>
-                <label style={label}>Categoria</label>
+                <label style={label}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><Layers size={16}/> Categoria</span></label>
                 <select
                   name="categoria"
                   value={form.categoria}
@@ -861,11 +877,28 @@ export default function EditDemandaPage() {
                   style={input}
                   disabled={!form.categoria}
                 >
-                  <option value="">{form.categoria ? "Selecione" : "Selecione a categoria"}</option>
-                  {subcatsForm.map((s) => (
+                  <option value="">{form.categoria ? "Selecione a subcategoria" : "Selecione a categoria"}</option>
+                  {subsForm.map((s) => (
                     <option key={s.slug || s.nome} value={s.nome}>{s.nome}</option>
                   ))}
                 </select>
+
+                {/* 3º nível: itens da subcategoria */}
+                {itemsForm.length > 0 && (
+                  <select
+                    name="itemFinal"
+                    value={form.itemFinal}
+                    onChange={handleChange}
+                    required
+                    style={input}
+                    disabled={!form.subcategoria}
+                  >
+                    <option value="">{form.subcategoria ? "Selecione o item final" : "Selecione a subcategoria"}</option>
+                    {itemsForm.map((it) => (
+                      <option key={it.slug || it.nome} value={it.nome}>{it.nome}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -880,6 +913,55 @@ export default function EditDemandaPage() {
               <div style={{ flex: 1 }}>
                 <label style={label}>Cidade</label>
                 <input name="cidade" value={form.cidade} onChange={handleChange} placeholder="Ex.: Belo Horizonte" style={input} />
+              </div>
+            </div>
+
+            {/* ===== Anexos (Imagens + PDF) ===== */}
+            <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <Upload size={16} color="#2563eb" /> Anexos
+            </span></label>
+            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr", border: "1px solid #eaeef4", borderRadius: 12, padding: 12 }}>
+              {/* Imagens */}
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #eef6ff 0%, transparent 60%), #ffffff" }}>
+                <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-sky-700" />
+                  <strong className="text-[#0f172a]">Imagens (opcional)</strong>
+                </div>
+                <div className="px-4 pb-4">
+                  <div className="rounded-lg border border-dashed p-3">
+                    <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">Adicione até 5 imagens.</p>
+                </div>
+              </div>
+
+              {/* PDF */}
+              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #fff1e6 0%, transparent 60%), #ffffff" }}>
+                <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-orange-600" />
+                  <strong className="text-[#0f172a]">Anexo PDF (opcional)</strong>
+                </div>
+                <div className="px-4 pb-4 space-y-3">
+                  <div className="rounded-lg border border-dashed p-3">
+                    {/* Mesmo contrato do create: onUploaded -> string (URL) */}
+                    <PDFUploader onUploaded={setPdfUrl} />
+                  </div>
+
+                  {pdfUrl ? (
+                    <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                      <DrivePDFViewer
+                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
+                        height={300}
+                      />
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <a href={pdfUrl} target="_blank" rel="noreferrer" style={ghostBtn}>Abrir em nova aba</a>
+                        <button type="button" onClick={() => setPdfUrl(null)} style={dangerBtn}>Remover PDF</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500">Envie orçamento, memorial ou ficha técnica (até ~8MB).</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -974,10 +1056,7 @@ export default function EditDemandaPage() {
               )}
             </div>
 
-            <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Upload size={16} color="#2563eb" /> Anexar imagens (opcional)
-            </span></label>
-            <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+            {/* Imagens já está acima nos anexos */}
 
             <label style={label}>Observações (opcional)</label>
             <textarea name="observacoes" value={form.observacoes} onChange={handleChange} placeholder="Alguma observação extra?" style={{ ...input, minHeight: 70 }} />
@@ -1015,14 +1094,20 @@ export default function EditDemandaPage() {
             </div>
           </div>
 
-          {/* Filtros */}
-          <div style={{ ...twoCols, marginTop: 10, alignItems: "flex-end", position:"sticky", top: 0, background:"#fff", zIndex: 1, paddingTop: 10 }}>
+          {/* Filtros (busca mais limpa e sticky) */}
+          <div style={{ ...twoCols, marginTop: 10, alignItems: "flex-end", position:"sticky", top: 0, background:"#fff", zIndex: 1, paddingTop: 10, borderBottom: "1px solid #eef2f7", paddingBottom: 8 }}>
             <div style={{ flex: 1 }}>
               <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <Search size={16} /> Buscar por nome, e-mail ou ID
               </span></label>
               <div style={{ position: "relative" }}>
-                <input value={busca} onChange={(e)=>setBusca(e.target.value)} onKeyDown={(e)=> e.key === "Enter" ? smartFetchUsuarios(true) : undefined} placeholder="Digite e tecle Enter" style={{ ...input, paddingLeft: 36 }} />
+                <input
+                  value={busca}
+                  onChange={(e)=>setBusca(e.target.value)}
+                  onKeyDown={(e)=> e.key === "Enter" ? smartFetchUsuarios(true) : undefined}
+                  placeholder="Digite e tecle Enter"
+                  style={{ ...input, paddingLeft: 36 }}
+                />
                 <Search size={16} style={{ position: "absolute", left: 10, top: 12, color: "#a3a3a3" }} />
               </div>
             </div>
@@ -1047,7 +1132,7 @@ export default function EditDemandaPage() {
                   disabled={!fCat}
                 >
                   <option value="">{fCat ? "Todas" : "Selecione a Cat."}</option>
-                  {subcatsFiltro.map((s) => <option key={s.slug || s.nome} value={s.nome}>{s.nome}</option>)}
+                  {sub1Filtro.map((s) => <option key={s.slug || s.nome} value={s.nome}>{s.nome}</option>)}
                 </select>
               </div>
               <div>
@@ -1057,7 +1142,7 @@ export default function EditDemandaPage() {
                   {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
                 </select>
               </div>
-              <button type="button" onClick={()=>smartFetchUsuarios(true)} style={ghostBtn}><RefreshCw size={16} /> Atualizar lista</button>
+              <button type="button" onClick={()=>smartFetchUsuarios(true)} style={ghostBtn}><RefreshCw size={16} /> Atualizar</button>
               <button type="button" onClick={()=>smartFetchUsuarios(false)} style={ghostBtn}><Search size={16} /> Carregar mais</button>
             </div>
           </div>
@@ -1328,7 +1413,7 @@ const miniBtnYellow: React.CSSProperties = {
   borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #f59e0b22"
 };
 const miniBtnBlue: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#2563eb", color: "#fff",
+  display: "inline-flex", alignItems: "center", gap:  6, background: "#2563eb", color: "#fff",
   border: "1px solid #2563eb", fontWeight: 800, fontSize: 12, padding: "8px 10px",
   borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #2563eb22"
 };

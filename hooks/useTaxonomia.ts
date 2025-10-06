@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// Firestore fica opcional — só usamos se você quiser no futuro
+// Firestore opcional — use se quiser no futuro
 import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -11,7 +11,8 @@ import { collection, getDocs } from "firebase/firestore";
 const USE_ONLY_LOCAL = true;
 
 /** ===================== Tipos ===================== */
-export type Subcat = { nome: string; slug: string };
+export type Item = { nome: string; slug: string };
+export type Subcat = { nome: string; slug: string; itens: Item[] };
 export type Cat = { nome: string; slug: string; subcategorias: Subcat[] };
 
 /** slug simples e estável */
@@ -25,428 +26,514 @@ function slugify(s: string) {
     .toLowerCase();
 }
 
-/** Converte quaisquer formatos vindos do Firestore p/ o formato Cat/Subcat */
-function normalizeCats(input: any[]): Cat[] {
+/** Normalização robusta: aceita formatos antigos e converte para Cat/Subcat/Item (3 níveis) */
+function normalizeCats3(input: any[]): Cat[] {
+  const toItem = (v: any): Item => {
+    const nome = (v?.nome ?? v?.name ?? v ?? "").toString().trim();
+    return { nome, slug: slugify(nome) };
+  };
+
+  const toSubcat = (v: any): Subcat => {
+    const nome = (v?.nome ?? v?.name ?? "").toString().trim();
+
+    // Detecta possíveis formatos de "itens" no segundo nível
+    const rawItens =
+      Array.isArray(v?.itens) ? v.itens :
+      Array.isArray(v?.subitens) ? v.subitens :
+      Array.isArray(v?.items) ? v.items :
+      Array.isArray(v) ? v : // se vier como array direto
+      // fallback: se vier como strings simples no lugar de itens
+      (typeof v === "string" ? [v] : []);
+
+    // Se não houver "itens" mas houver strings diretas, converte
+    let itens: Item[] = [];
+    if (Array.isArray(rawItens) && rawItens.length > 0) {
+      itens = rawItens.filter(Boolean).map(toItem);
+    } else if (Array.isArray(v?.subcategorias)) {
+      // Caso legado: subcategoria veio com "subcategorias" (strings) — tratamos como itens
+      itens = v.subcategorias.filter(Boolean).map(toItem);
+    }
+
+    return { nome, slug: slugify(nome), itens };
+  };
+
   return (input || [])
     .map((c) => {
       const nome = (c?.nome ?? c?.name ?? "").toString().trim();
-      const subRaw =
+
+      // Busca o segundo nível em chaves comuns
+      const rawSubs =
         Array.isArray(c?.subcategorias) ? c.subcategorias :
         Array.isArray(c?.subs) ? c.subs :
-        Array.isArray(c?.itens) ? c.itens :
+        Array.isArray(c?.grupos) ? c.grupos :
+        Array.isArray(c?.itens) ? c.itens : // caso antigo: usaram 'itens' como subcats
         [];
 
-      const subcategorias: Subcat[] = subRaw
-        .filter(Boolean)
-        .map((s: any) => {
-          const n = (s?.nome ?? s?.name ?? s ?? "").toString().trim();
-          return { nome: n, slug: slugify(n) };
-        });
+      // Se subcategorias vierem como array de strings, viram itens de um "Outros" automático
+      // Mas aqui queremos 3 níveis; então se vier string, encapsulamos em uma subcat genérica.
+      let subcategorias: Subcat[] = [];
+      if (rawSubs.every((s: any) => typeof s === "string")) {
+        subcategorias = [{
+          nome: "Geral",
+          slug: slugify("Geral"),
+          itens: rawSubs.map(toItem),
+        }];
+      } else {
+        subcategorias = rawSubs
+          .filter(Boolean)
+          .map((s: any) => {
+            // Se "s" for string, vira subcat com um item igual
+            if (typeof s === "string") {
+              const item = toItem(s);
+              return {
+                nome: item.nome,
+                slug: item.slug,
+                itens: [item],
+              } as Subcat;
+            }
+            // Se "s" for objeto, normaliza
+            return toSubcat(s);
+          });
+      }
 
-      return {
-        nome,
-        slug: slugify(nome),
-        subcategorias,
-      } as Cat;
+      return { nome, slug: slugify(nome), subcategorias } as Cat;
     })
-    .filter((c) => c.nome && c.subcategorias?.length >= 0);
+    .filter((c) => c.nome);
 }
 
-/** ===================== TAXONOMIA LOCAL (COMPLETA) ===================== */
+/** ===================== TAXONOMIA LOCAL (3 NÍVEIS) ===================== */
 /**
- * Lista completa embutida (merge Pedra Um + Pedreira Mineradora).
- * Se quiser voltar a usar Firestore no futuro, basta ajustar a flag USE_ONLY_LOCAL.
+ * Estrutura: Categoria → Subcategoria → Itens
+ * "Outros (Caixa para escrever)" foi padronizado como:
+ * { nome: "Outros", itens: ["Caixa para escrever"] }
  */
-export const TAXONOMIA_LOCAL: Cat[] = normalizeCats([
+export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
+  /* 1. Britagem */
   {
-    nome: "Perfuração e Detonação",
+    nome: "Britagem",
     subcategorias: [
-      "Perfuratrizes - Rotativas",
-      "Perfuratrizes - Pneumáticas",
-      "Perfuratrizes - Hidráulica",
-      "Perfuratrizes - Elétrica",
-      "Perfuratrizes - Superfície",
-      "Perfuratrizes - Subterrânea",
-      "Martelos Demolidores - Hidráulicos",
-      "Martelos Demolidores - Pneumáticos",
-      "Brocas para Rocha",
-      "Coroas Diamantadas",
-      "Varetas de Extensão",
-      "Hastes",
-      "Explosivos - Dinamite",
-      "Explosivos - ANFO",
-      "Explosivos - Civis",
-      "Explosivos - Industriais",
-      "Detonadores - Elétricos",
-      "Detonadores - Não Elétricos",
-      "Cordéis Detonantes",
-      "Sistemas de Controle de Detonação",
-      // Itens específicos do seu fluxo (mantidos)
-      "Drop ball",
-      "Esferas",
+      {
+        nome: "Britadores",
+        itens: [
+          "Britador de Mandíbulas",
+          "Britador Cônico",
+          "Britador de Impacto",
+          "Britador de Rolos",
+          "Rebritador",
+          "Britador Giratório",
+          "Britador Móvel",
+        ],
+      },
+      {
+        nome: "Peças",
+        itens: [
+          "Mandíbulas",
+          "Revestimentos de britador",
+          "Barras de impacto",
+          "Chapas de desgaste",
+          "Engrenagens (Coroa e Pinhão)",
+          "Eixos",
+          "Buchas de bronze",
+          "Polias",
+          "Molas",
+          "Mancais",
+        ],
+      },
+      { nome: "Serviços", itens: ["Manutenção", "Revisão", "Reformas", "Motores"] },
+      {
+        nome: "Aluguel",
+        itens: [
+          "Britador móvel",
+          "Planta móvel (Unidade Móvel de Britagem)",
+          "Britador",
+          "Planta Britagem",
+        ],
+      },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 2. Peneiramento */
   {
-    nome: "Britagem e Peneiramento",
+    nome: "Peneiramento",
     subcategorias: [
-      "Britadores - Mandíbulas",
-      "Britadores - Cônicos",
-      "Britadores - Impacto",
-      "Britadores - Giratório",
-      "Britadores - Rolos",
-      "Britadores - Portátil/Móvel",
-      "Rebritadores",
-      "Trituradores Secundários e Terciários",
-      "Peneiras - Vibratórias",
-      "Peneiras - Rotativas",
-      "Peneiras - Trommels",
-      "Peneiras - De Tambor",
-      "Peneiras - Fixas",
-      "Peneiras - Móveis",
-      "Peneiras - Finas",
-      "Classificação - Hidrociclones",
-      "Classificação - Classificadores",
-      "Moinhos - Bolas",
-      "Moinhos - Barras",
-      "Moinhos - SAG",
-      "Moinhos - Verticais (roller mills)",
-      "Trituradores - Rocha Fina",
-      "Lavadores de Areia",
-      "Silos e Chutes",
-      "Carcaças e Bases Metálicas",
-      "Telas",
-      "Telas de Borracha",
+      {
+        nome: "Peneiras",
+        itens: [
+          "Peneira Vibratória",
+          "Peneira Trommel",
+          "Peneira Fixa",
+          "Peneira Rotativa",
+          "Peneira Móvel",
+        ],
+      },
+      {
+        nome: "Peças",
+        itens: [
+          "Telas metálicas",
+          "Telas de borracha",
+          "Grelhas",
+          "Engrenagens",
+          "Eixos",
+          "Buchas",
+          "Mancais",
+          "Molas",
+          "Motovibrador",
+        ],
+      },
+      { nome: "Serviços", itens: ["Manutenção preventiva e corretiva"] },
+      { nome: "Aluguel", itens: ["Peneira móvel"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 3. Moinhos */
   {
-    nome: "Beneficiamento e Processamento Mineral",
+    nome: "Moinhos",
     subcategorias: [
-      "Separadores Magnéticos - Tambor",
-      "Separadores Magnéticos - Overband",
-      "Flotação - Células",
-      "Flotação - Espumantes",
-      "Flotação - Coletores",
-      "Filtragem e Secagem - Filtros Prensa",
-      "Filtragem e Secagem - Espessadores",
-      "Filtragem e Secagem - Secadores Rotativos",
+      { nome: "Moinhos", itens: ["Moinho de Barra", "Moinho Vertical", "Moinho de Bolas", "Moinho SAG, FAG"] },
+      { nome: "Serviços", itens: ["Manutenção", "Reforma", "Revisão"] },
+      { nome: "Aluguel", itens: ["Moinhos"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 4. Perfuração */
   {
-    nome: "Transporte Interno e Logística",
+    nome: "Perfuração",
     subcategorias: [
-      "Caminhões Basculantes e Fora de Estrada",
-      "Carretas e Reboques",
-      "Caminhões Tanque",
-      "Veículos Utilitários e Tratores Industriais",
-      "Guinchos e Guindastes Móveis",
-      "Transportadores Internos - Esteiras",
-      "Transportadores Internos - Correias",
-      "Transportadores Internos - Elevadores de Caçamba",
-      "Trenes Internos de Minério",
-      "Esteiras Transportadoras",
-      "Correias Transportadoras",
+      {
+        nome: "Perfuratrizes",
+        itens: [
+          "Perfuratriz Rotativa",
+          "Perfuratriz Hidráulica",
+          "Perfuratriz Pneumática",
+          "Perfuratriz Elétrica",
+          "Perfuratriz Subterrânea",
+          "Rompedor Hidráulico",
+          "Rompedor Pneumático",
+        ],
+      },
+      {
+        nome: "Peças",
+        itens: [
+          "Brocas para rochas",
+          "Varetas de extensão",
+          "Coroas diamantadas",
+          "Hastes",
+          "Pastilhas de desgaste",
+          "Engrenagens",
+          "Eixos",
+          "Buchas",
+          "Mancais",
+          "Molas",
+          "Pontas",
+          "Martelos",
+        ],
+      },
+      { nome: "Serviços", itens: ["Manutenção", "Revisão", "Reforma"] },
+      { nome: "Aluguel", itens: ["Perfuratrizes", "Rompedores"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 5. Detonação */
   {
-    nome: "Linha Amarela e Maquinário Pesado",
+    nome: "Detonação",
     subcategorias: [
-      "Escavadeiras e Miniescavadeiras",
-      "Pás Carregadeiras",
-      "Retroescavadeiras",
-      "Motoniveladoras",
-      "Rolo Compactador",
-      "Carregadeiras de Esteira",
-      "Empilhadeiras Industriais",
-      "Plataformas de Manutenção e Acesso",
+      {
+        nome: "Produtos",
+        itens: [
+          "Explosivo Dinamite",
+          "Explosivo Civis",
+          "Explosivo ANFO",
+          "Explosivo Industrial",
+          "Detonador Elétrico",
+          "Detonador Não Elétrico",
+          "Cordéis detonadores",
+          "Drop Ball",
+          "Esferas",
+        ],
+      },
     ],
   },
 
+  /* 6. Linha Amarela / Fora de Estrada */
   {
-    nome: "Motores, Compressores e Sistemas Hidráulicos",
+    nome: "Linha Amarela / Fora de Estrada",
     subcategorias: [
-      "Motores Elétricos e Diesel",
-      "Compressores Industriais e Portáteis",
-      "Bombas Hidráulicas e Peças",
-      "Bombas de Água (centrífugas, submersíveis)",
-      "Bombas de Lama",
-      "Turbinas e Ventiladores Industriais",
-      "Geradores Elétricos",
-      "Sistemas de Ar Comprimido",
-      "Sistemas Hidráulicos Completos",
+      {
+        nome: "Máquinas",
+        itens: [
+          "Carregadeiras",
+          "Escavadeiras",
+          "Retroescavadeiras",
+          "Tratores",
+          "Motoniveladoras",
+          "Caminhões Fora-de-Estrada",
+          "Caminhões de Apoio",
+          "Rolo Compactador",
+        ],
+      },
+      {
+        nome: "Peças e Componentes",
+        itens: [
+          "Caçambas",
+          "Braços e lanças",
+          "Lâminas",
+          "Ripper / Subsolador",
+          "Cabines",
+          "Esteira",
+          "Chassis",
+          "Tanques",
+          "Cilindros hidráulicos",
+          "Bombas",
+          "Motores",
+          "Caixas de câmbio",
+          "Caixas de Transmissão",
+          "Eixos",
+          "Eixos diferenciais",
+          "Faróis",
+          "Painéis elétricos / ECU",
+          "Joysticks",
+          "Cabos e chicotes elétricos",
+          "Pneus OTR",
+          "Rodas",
+          "Assentos",
+          "Cintos de segurança",
+          "Quick couplers e acopladores de implementos",
+          "Martelos hidráulicos",
+          "Implementos",
+        ],
+      },
+      { nome: "Serviços", itens: ["Manutenção", "Revisão", "Reforma"] },
+      { nome: "Aluguel", itens: ["Máquinas de linha amarela"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 7. Motores */
   {
-    nome: "Peças, Componentes e Consumíveis",
+    nome: "Motores",
     subcategorias: [
-      "Correias Transportadoras e Industriais",
-      "Polias",
-      "Engrenagens",
-      "Rolamentos",
-      "Eixos",
-      "Mancais",
-      "Buchas",
-      "Esticadores de Correia",
-      "Parafusos, Porcas, Arruelas e Fixadores",
-      "Parafusos e Porcas de Alta Resistência",
-      "Filtros de Óleo, Ar e Combustível",
-      "Cilindros e Mangueiras Hidráulicas",
-      "Ferramentas Especializadas",
-      "Lubrificantes, Graxas e Aditivos",
-      "Componentes de Britadores, Peneiras e Perfuratrizes",
-      "Cabos Elétricos e Conectores Industriais",
-      "Kits de Reparo Hidráulico",
-      "Molas Industriais",
+      {
+        nome: "Tipos",
+        itens: [
+          "Motores Diesel",
+          "Motores Eletricos",
+          "Motores Para exaustores industriais",
+          "Motores Para planta de britagem",
+          "Motores Para peneiramento",
+        ],
+      },
+      {
+        nome: "Peças de Reposição",
+        itens: [
+          "Bloco do motor",
+          "Cabeçote",
+          "Válvulas",
+          "Pistões",
+          "Kits de pistão e anéis, bielas, bronzinas",
+          "Bombas",
+          "Injetores e bicos de combustível",
+          "Turbo / supercharger",
+          "Alternadores e motor de arranque",
+          "Correias",
+          "Polias",
+          "Filtros",
+          "Selos",
+          "Retentores",
+        ],
+      },
+      {
+        nome: "Serviços",
+        itens: [
+          "Manutenção",
+          "Reforma",
+          "Revisão",
+          "Rebuild",
+          "Retífica",
+          "Testes e diagnósticos",
+        ],
+      },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 8. Compressores */
   {
-    nome: "Desgaste e Revestimento",
+    nome: "Compressores",
     subcategorias: [
-      "Mandíbulas",
-      "Martelos",
-      "Revestimentos de Britadores",
-      "Chapas de Desgaste",
-      "Barras de Impacto",
-      "Grelhas",
-      "Telas Metálicas",
-      "Telas em Borracha",
-      "Pastilhas de Desgaste",
+      {
+        nome: "Compressores",
+        itens: [
+          "De ar para ferramentas pneumáticas",
+          "De ar para perfuratrizes",
+          "Compressores de parafuso",
+          "Compressores de pistão",
+          "Portáteis diesel",
+          "Portáteis elétricos",
+        ],
+      },
+      {
+        nome: "Peças",
+        itens: [
+          "Pistões",
+          "Bielas",
+          "Rolamentos",
+          "Válvulas",
+          "Selos",
+          "Retentores",
+          "Correias",
+          "Polias",
+          "Filtros de ar",
+          "Filtros de óleo",
+          "Filtros de combustível",
+        ],
+      },
+      {
+        nome: "Serviços",
+        itens: ["Manutenção", "Rebuild", "Troca de rolamentos", "Lubrificação"],
+      },
+      { nome: "Aluguel", itens: ["Compressores móveis"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 9. Geradores */
   {
-    nome: "Automação, Monitoramento e TI",
+    nome: "Geradores",
     subcategorias: [
-      "Motores (Automação)",
-      "Inversores de Frequência",
-      "Soft Starters",
-      "Painéis Elétricos",
-      "Controladores ASRi",
-      "CLPs e Módulos de Automação",
-      "SCADA",
-      "Sensores - Nível",
-      "Sensores - Fluxo",
-      "Sensores - Pressão",
-      "Sensores e Detectores Diversos",
-      "Detectores de Metais",
-      "Sistemas de Controle Remoto",
-      "IoT e Telemetria para Máquinas",
-      "Câmeras de Monitoramento",
-      "Rádios e Comunicação Industrial",
-      "Softwares de Planejamento de Produção",
+      {
+        nome: "Tipos",
+        itens: ["Diesel estacionários e portáteis", "Elétricos AC / DC", "Grupos geradores (Gensets)"],
+      },
+      {
+        nome: "Peças de reposição",
+        itens: [
+          "Motor diesel",
+          "Alternador",
+          "Painel",
+          "Conectores",
+          "Baterias",
+          "Filtros",
+          "Correias",
+          "Rolamentos",
+          "Selos",
+        ],
+      },
+      {
+        nome: "Serviços",
+        itens: ["Manutenção", "Rebuild", "Teste de carga", "Substituição de baterias"],
+      },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 10. Transformadores */
   {
-    nome: "Lubrificação e Produtos Químicos",
+    nome: "Transformadores",
     subcategorias: [
-      "Óleos Lubrificantes",
-      "Graxas Industriais",
-      "Selantes Industriais",
-      "Desengripantes",
-      "Produtos Químicos para Peneiramento",
-      "Reagentes Químicos",
+      { nome: "Tipos", itens: ["Potência", "Distribuição a seco", "Distribuição a óleo", "Móveis"] },
+      { nome: "Peças", itens: ["Núcleo", "Bobinas", "Buchas", "Conectores", "Radiadores"] },
+      { nome: "Consumíveis", itens: ["Óleo isolante", "Graxas", "Líquidos dielétricos"] },
+      { nome: "Serviços", itens: ["Instalação", "Manutenção", "Teste de isolamento"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 11. Automação */
   {
-    nome: "Equipamentos Auxiliares e Ferramentas",
+    nome: "Automação",
     subcategorias: [
-      "Compressores - Estacionários",
-      "Compressores - Móveis",
-      "Geradores de Energia - Diesel",
-      "Geradores de Energia - Elétricos",
-      "Transformadores",
-      "Ferramentas Manuais - Picaretas, Marretas, Alavancas",
-      "Ferramentas Manuais - Chaves e Ajustes",
-      "Serras para Metais e Rochas",
-      "Ferramentas Elétricas",
-      "Mangueiras e Conexões Hidráulicas",
-      "Iluminação Industrial",
-      "Abraçadeiras e Fixadores",
-      "Soldas e Eletrodos",
-      "Equipamentos de Limpeza Industrial",
-      "Gruas e Guindastes Fixos",
-      "Plataformas de Acesso",
-      "Balanças Industriais",
-      "Equipamentos de Pesagem de Caminhões",
-      "Kits de Ferramentas Manuais",
+      {
+        nome: "Equipamentos",
+        itens: ["CLP / PLC", "SCADA / supervisórios", "Sensores", "Atuadores", "Inversores / VFD", "Painéis de comando e proteção"],
+      },
+      {
+        nome: "Peças de reposição",
+        itens: [
+          "Módulos de CLP",
+          "Relés",
+          "Contactores",
+          "Sensores",
+          "Cabos",
+          "Displays HMI",
+          "Pilhas de memória",
+          "Ventoinhas",
+        ],
+      },
+      { nome: "Serviços", itens: ["Programação", "Instalação", "Calibração", "Manutenção", "Revisão", "Reforma"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 12. Rolamentos */
   {
-    nome: "EPIs, Segurança e Sinalização",
+    nome: "Rolamentos",
     subcategorias: [
-      "EPI - Capacetes",
-      "EPI - Luvas",
-      "EPI - Botas",
-      "EPI - Óculos",
-      "EPI - Respiradores",
-      "EPI - Protetores Auriculares",
-      "EPI - Colete Refletivo",
-      "Sinalização - Placas",
-      "Sinalização - Barreiras Físicas",
-      "Sinalização - Alarmes Sonoros e Visuais",
-      "Sistemas de Combate a Incêndio - Extintores",
-      "Sistemas de Combate a Incêndio - Hidrantes",
-      "Sistemas de Combate a Incêndio - Mangueiras",
-      "Monitoramento de Gases e Riscos",
-      "Barreiras de Contenção de Áreas de Risco",
+      {
+        nome: "Tipos",
+        itens: [
+          "Esferas",
+          "Rolos cilíndricos, cônicos",
+          "Esféricos",
+          "Agulhas",
+          "Autocompensadores",
+          "Cruzados",
+          "Alta carga",
+          "Selados e blindados",
+        ],
+      },
+      { nome: "Serviços", itens: ["Substituição", "Realinhamento", "Lubrificação", "Inspeção de desgaste"] },
     ],
   },
 
+  /* 13. Separadores Magnéticos e Detectores */
   {
-    nome: "Instrumentos de Medição e Controle",
+    nome: "Separadores Magnéticos e Detectores",
     subcategorias: [
-      "Monitoramento de Estabilidade - Inclinômetros",
-      "Monitoramento de Estabilidade - Extensômetros",
-      "Análise de Material - Teor de Umidade",
-      "Análise de Material - Granulometria (peneiras de ensaio)",
-      "Sensores de Nível e Vazão",
-      "Sistemas de Controle Remoto",
+      {
+        nome: "Equipamentos",
+        itens: [
+          "Separadores de tambor magnético",
+          "Overband",
+          "Fluxo contínuo",
+          "Eletroímãs suspensos",
+          "Ímãs permanentes",
+          "Detector de metais (manual, industrial, alta frequência)",
+          "Transportadores magnéticos",
+          "Correias magnéticas",
+        ],
+      },
+      {
+        nome: "Peças de reposição",
+        itens: ["Bobinas de cobre", "Cabos", "Chicotes", "Placas magnéticas", "Grades", "Rolos"],
+      },
+      { nome: "Serviços", itens: ["Manutenção", "Reforma", "Revisão", "Troca de componentes"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
   },
 
+  /* 15. Pneus */
   {
-    nome: "Serviços e Manutenção",
+    nome: "Pneus",
     subcategorias: [
-      "Manutenção de Britadores e Peneiras",
-      "Revisão de Perfuratrizes",
-      "Troca de Correias Transportadoras",
-      "Manutenção de Linha Amarela",
-      "Revisão Elétrica e Hidráulica",
-      "Transporte de Equipamentos",
-      "Consultoria de Processos",
-      "Planejamento de Pedreiras",
-      "Treinamento de Operadores",
-      "Instalação de Equipamentos",
-      "Inspeção de Segurança Industrial",
-      "Usinagem e Caldeiraria",
+      { nome: "Tipos", itens: ["Pneus OTR", "Industriais", "Sólidos", "Radiais e diagonais"] },
+      { nome: "Peças de reposição", itens: ["Câmaras de ar", "Válvulas", "Sensores TPMS", "Flanges", "Aros"] },
+      {
+        nome: "Serviços",
+        itens: [
+          "Montagem",
+          "Balanceamento",
+          "Recapagem",
+          "Inspeção",
+          "Rotação",
+          "Substituição de válvulas",
+        ],
+      },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
     ],
-  },
-
-  {
-    nome: "Veículos e Pneus",
-    subcategorias: [
-      "Pneus Industriais (Caminhão, Pá Carregadeira, Empilhadeira)",
-      "Rodas e Aros",
-      "Recapagens e Reformas de Pneus",
-      "Serviços de Montagem e Balanceamento",
-    ],
-  },
-
-  {
-    nome: "Infraestrutura e Armazenamento",
-    subcategorias: [
-      "Silos de Minério",
-      "Depósitos de Agregados",
-      "Armazéns e Galpões Industriais",
-      "Tanques de Combustíveis e Químicos",
-      "Pátios de Estocagem",
-      "Estruturas Metálicas e Civis",
-      "Plataformas de Carregamento",
-      "Sistemas de Drenagem e Contenção de Resíduos",
-      "Estradas Internas e Ramais Ferroviários",
-    ],
-  },
-
-  {
-    nome: "Laboratório e Controle de Qualidade",
-    subcategorias: [
-      "Análise de Minérios",
-      "Ensaios Físicos e Químicos",
-      "Granulometria",
-      "Testes de Abrasividade e Dureza",
-      "Análise de Umidade",
-      "Pesagem e Amostragem",
-      "Equipamentos de Calibração",
-      "Testes de Densidade e Composição Química",
-    ],
-  },
-
-  {
-    nome: "Energia e Utilidades",
-    subcategorias: [
-      "Geradores e Transformadores",
-      "Painéis Elétricos e Sistemas de Distribuição",
-      "Sistemas de Água Industrial",
-      "Ar Comprimido e Compressores",
-      "Sistemas de Drenagem e Esgoto Industrial",
-      "Iluminação Industrial",
-      "Sistemas de Ventilação e Exaustão",
-    ],
-  },
-
-  {
-    nome: "Meio Ambiente e Sustentabilidade",
-    subcategorias: [
-      "Estações de Tratamento de Água e Efluentes",
-      "Contenção de Rejeitos e Barragens",
-      "Monitoramento de Poeira e Ruído",
-      "Reaproveitamento de Materiais",
-      "Gestão Ambiental e Licenciamento",
-      "Sistemas de Reciclagem de Água e Lama",
-    ],
-  },
-
-  {
-    nome: "Transporte Externo",
-    subcategorias: [
-      "Caminhões e Carretas de Transporte de Minério",
-      "Vagões Ferroviários",
-      "Equipamentos de Carga e Descarga",
-      "Transporte Especializado de Explosivos e Químicos",
-    ],
-  },
-
-  {
-    nome: "Aluguel e Locação de Equipamentos",
-    subcategorias: [
-      "Britadores Móveis",
-      "Peneiras Móveis",
-      "Perfuratrizes",
-      "Linha Amarela",
-      "Caminhões e Guindastes",
-      "Geradores e Compressores Portáteis",
-      "Plataformas de Carregamento e Manutenção",
-    ],
-  },
-
-  {
-    nome: "Equipamentos Auxiliares",
-    subcategorias: [
-      "Gruas e Guindastes Fixos",
-      "Plataformas de Acesso e Manutenção",
-      "Balanças Industriais",
-      "Equipamentos de Pesagem de Caminhões",
-      "Equipamentos de Limpeza Industrial",
-      "Kits de Ferramentas Manuais",
-    ],
-  },
-
-  {
-    nome: "Materiais e Insumos",
-    subcategorias: [
-      "Minérios e Agregados",
-      "Produtos Químicos para Beneficiamento",
-      "Lubrificantes e Óleos Industriais",
-      "Explosivos",
-      "Combustíveis",
-      "Água Industrial",
-      "Areia, Cascalho, Brita",
-      "Reagentes Químicos",
-      "Graxas e Aditivos",
-    ],
-  },
-
-  {
-    nome: "Outros",
-    subcategorias: ["Diversos"],
   },
 ]);
 
@@ -470,7 +557,7 @@ export function useTaxonomia() {
 
         if (!snap.empty) {
           const server = snap.docs.map((d) => d.data());
-          const norm = normalizeCats(server);
+          const norm = normalizeCats3(server);
           if (norm.length > 0) {
             setCategorias(norm);
           } else {

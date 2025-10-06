@@ -1,7 +1,6 @@
-// app/create-produto/page.tsx
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import AuthGateRedirect from "@/components/AuthGateRedirect";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
@@ -23,6 +22,7 @@ import {
   BookOpen,
   Package,
   List,
+  Layers,
   FileText,
   Upload,
   Image as ImageIcon,
@@ -53,12 +53,82 @@ export default function CreateProdutoPage() {
   );
 }
 
+/* ===================== Helpers de busca ===================== */
+// normaliza texto: sem acentos, minúsculo, sem pontuação
+function normalize(s: string) {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+type Item = { nome: string; slug?: string };
+type Subcat = { nome: string; slug?: string; itens?: Item[] };
+type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
+
+type TaxIndexRow = {
+  label: string;     // "Britador de Mandíbulas"
+  path: string[];    // ["Britagem","Britadores","Britador de Mandíbulas"] (1..3 níveis)
+  haystack: string;  // texto normalizado para busca
+};
+
+// achata a taxonomia em linhas pesquisáveis
+function buildTaxIndex(categorias: Cat[]): TaxIndexRow[] {
+  const rows: TaxIndexRow[] = [];
+  for (const cat of categorias) {
+    const catName = cat?.nome || "";
+    const subs = Array.isArray(cat?.subcategorias) ? cat.subcategorias : [];
+    if (subs.length) {
+      for (const sub of subs) {
+        const subName = sub?.nome || "";
+        const itens = Array.isArray(sub?.itens) ? sub.itens : [];
+        if (itens.length) {
+          for (const it of itens) {
+            const itemName = it?.nome || "";
+            const hay = normalize([catName, subName, itemName].join(" "));
+            rows.push({ label: itemName || subName || catName, path: [catName, subName, itemName], haystack: hay });
+          }
+        } else {
+          const hay = normalize([catName, subName].join(" "));
+          rows.push({ label: subName || catName, path: [catName, subName], haystack: hay });
+        }
+      }
+    } else {
+      rows.push({ label: catName, path: [catName], haystack: normalize(catName) });
+    }
+  }
+  return rows;
+}
+
+// busca com ranking simples
+function searchTaxIndex(index: TaxIndexRow[], q: string): TaxIndexRow[] {
+  const nq = normalize(q);
+  if (!nq) return [];
+  const scored = index.map(r => {
+    const labelN = normalize(r.label);
+    let score = 0;
+    if (labelN === nq) score += 100;
+    if (labelN.startsWith(nq)) score += 40;
+    if (r.haystack.includes(nq)) score += 25;
+    if (r.path[2] && normalize(r.path[2]).includes(nq)) score += 30;
+    return { row: r, score };
+  });
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a,b) => b.score - a.score)
+    .slice(0, 8)
+    .map(s => s.row);
+}
+
 /* ===================== Form Component ===================== */
 function CreateProdutoForm() {
   const router = useRouter();
 
   // 🔗 Taxonomia unificada (Firestore > fallback local)
-  const { categorias, loading: taxLoading } = useTaxonomia();
+  const { categorias, loading: taxLoading } = useTaxonomia() as { categorias: Cat[]; loading: boolean };
 
   // imagens e PDF
   const [imagens, setImagens] = useState<string[]>([]);
@@ -69,6 +139,8 @@ function CreateProdutoForm() {
     nome: "",
     categoria: "",
     subcategoria: "",
+    itemFinal: "",            // ⭐ novo: 3º nível
+    outraCategoriaTexto: "",  // ⭐ texto livre p/ "Outros"
     preco: "",
     estado: "",
     cidade: "",
@@ -83,11 +155,82 @@ function CreateProdutoForm() {
   const [cidades, setCidades] = useState<string[]>([]);
   const [carregandoCidades, setCarregandoCidades] = useState(false);
 
-  // loading do submit (⚠️ nome diferente de taxLoading para não conflitar)
+  // loading do submit
   const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // ======= opções por nível =======
+  const categoriaSelecionada = useMemo(
+    () => categorias.find((c) => c.nome === form.categoria),
+    [categorias, form.categoria]
+  );
+  const subcategoriasDisponiveis: Subcat[] = useMemo(
+    () => categoriaSelecionada?.subcategorias ?? [],
+    [categoriaSelecionada]
+  );
+  const subcategoriaSelecionada = useMemo(
+    () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
+    [subcategoriasDisponiveis, form.subcategoria]
+  );
+  const itensDisponiveis: Item[] = useMemo(
+    () => subcategoriaSelecionada?.itens ?? [],
+    [subcategoriaSelecionada]
+  );
+
+  const catEhOutros = form.categoria === "Outros";
+  const subcatEhOutros = form.subcategoria === "Outros";
+
+  // ======= busca (autocomplete) =======
+  const [searchTerm, setSearchTerm] = useState("");
+  const [results, setResults] = useState<TaxIndexRow[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+
+  const taxIndex = useMemo(() => buildTaxIndex(categorias), [categorias]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
+    const r = searchTaxIndex(taxIndex, searchTerm);
+    setResults(r);
+    setShowResults(true);
+    setHighlight(0);
+  }, [searchTerm, taxIndex]);
+
+  function selectTaxonomyPath(path: string[]) {
+    const [c1, c2, c3] = path;
+    setForm(prev => ({
+      ...prev,
+      categoria: c1 || "",
+      subcategoria: c2 || "",
+      itemFinal: c3 || "",
+      outraCategoriaTexto: "",
+    }));
+    setSearchTerm("");
+    setShowResults(false);
+  }
+
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showResults || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight(h => Math.min(h + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight(h => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = results[highlight];
+      if (chosen) selectTaxonomyPath(chosen.path);
+    } else if (e.key === "Escape") {
+      setShowResults(false);
+    }
+  }
 
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -99,22 +242,30 @@ function CreateProdutoForm() {
       return;
     }
 
-    // Ajuste automático (opcional) com base na condição
     if (name === "condicao") {
       const v = value as string;
       const autoHas = v.includes("com garantia")
         ? true
         : v.includes("sem garantia")
         ? false
-        : form.hasWarranty; // mantém se for "Reformado" ou "No estado..."
+        : form.hasWarranty;
       setForm((f) => ({ ...f, condicao: v, hasWarranty: autoHas }));
+      return;
+    }
+
+    // resets em cascata
+    if (name === "categoria") {
+      setForm((f) => ({ ...f, categoria: value, subcategoria: "", itemFinal: "", outraCategoriaTexto: "" }));
+      return;
+    }
+    if (name === "subcategoria") {
+      setForm((f) => ({ ...f, subcategoria: value, itemFinal: "" }));
       return;
     }
 
     setForm((f) => ({
       ...f,
-      [name]: value,
-      ...(name === "categoria" ? { subcategoria: "" } : null),
+      [name]: type === "checkbox" ? checked : value,
       ...(name === "estado" ? { cidade: "" } : null),
     }));
   }
@@ -137,7 +288,6 @@ function CreateProdutoForm() {
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        // Ordena com acentos corretamente
         const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
         setCidades(nomes);
       } catch {
@@ -167,16 +317,19 @@ function CreateProdutoForm() {
     }
 
     // validações
-    if (
-      !form.nome ||
-      !form.estado ||
-      !form.cidade ||
-      !form.descricao ||
-      !form.categoria ||
-      !form.subcategoria ||
-      !form.ano ||
-      !form.condicao
-    ) {
+    const baseOk =
+      !!(form.nome && form.estado && form.cidade && form.descricao && form.ano && form.condicao);
+
+    let taxOk = false;
+    if (catEhOutros) {
+      taxOk = !!form.outraCategoriaTexto.trim();
+    } else if (subcatEhOutros) {
+      taxOk = !!form.outraCategoriaTexto.trim();
+    } else {
+      taxOk = !!(form.categoria && form.subcategoria && form.itemFinal);
+    }
+
+    if (!(baseOk && taxOk)) {
       setError("Preencha todos os campos obrigatórios.");
       setSubmitting(false);
       return;
@@ -202,11 +355,26 @@ function CreateProdutoForm() {
       const expiresAt = new Date(now);
       expiresAt.setDate(now.getDate() + 45); // 45 dias
 
+      const finalItem = (catEhOutros || subcatEhOutros)
+        ? form.outraCategoriaTexto.trim()
+        : form.itemFinal;
+
+      const categoriaPath = catEhOutros
+        ? ["Outros", finalItem]
+        : subcatEhOutros
+          ? [form.categoria, "Outros", finalItem]
+          : [form.categoria, form.subcategoria, finalItem];
+
       await addDoc(collection(db, "produtos"), {
-        tipo: "produto", // força tipo
+        tipo: "produto",
         nome: form.nome,
-        categoria: form.categoria,
-        subcategoria: form.subcategoria,
+
+        // taxonomia 3 níveis + path
+        categoria: form.categoria || "Outros",
+        subcategoria: subcatEhOutros ? "Outros" : (form.subcategoria || (catEhOutros ? "—" : "")),
+        itemFinal: finalItem,
+        categoriaPath,
+
         preco: form.preco ? parseFloat(form.preco) : null,
         estado: form.estado,
         cidade: form.cidade,
@@ -231,6 +399,8 @@ function CreateProdutoForm() {
         nome: "",
         categoria: "",
         subcategoria: "",
+        itemFinal: "",
+        outraCategoriaTexto: "",
         preco: "",
         estado: "",
         cidade: "",
@@ -250,9 +420,6 @@ function CreateProdutoForm() {
       setSubmitting(false);
     }
   }
-
-  const subcategoriasDisponiveis =
-    categorias.find((c) => c.nome === form.categoria)?.subcategorias || [];
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#f7f9fb] via-white to-[#e0e7ef] flex flex-col items-center py-8 px-2 sm:px-4">
@@ -301,7 +468,6 @@ function CreateProdutoForm() {
             Cadastrar Produto
           </h1>
 
-          {/* 🔙 Voltar */}
           <button
             type="button"
             onClick={() => router.back()}
@@ -409,6 +575,96 @@ function CreateProdutoForm() {
               />
             </FormField>
 
+          {/* ===== Busca rápida por item/caminho (fica acima dos selects) ===== */}
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+          >
+            <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do item (atalho)
+            </h3>
+
+            <div className="relative">
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => searchTerm && setShowResults(true)}
+                onKeyDown={onSearchKeyDown}
+                onBlur={() => setTimeout(() => setShowResults(false), 120)}
+                placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+                style={inputStyle}
+                aria-autocomplete="list"
+                aria-expanded={showResults}
+              />
+
+              {showResults && results.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: "calc(100% + 8px)",
+                    background: "#ffffff",
+                    border: "1px solid #e6ebf2",
+                    borderRadius: 12,
+                    boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+                    zIndex: 9999,
+                    maxHeight: 320,
+                    overflowY: "auto",
+                  }}
+                  onMouseLeave={() => setHighlight(0)}
+                >
+                  <ul style={{ listStyle: "none", margin: 0, padding: 6 }}>
+                    {results.map((r, i) => {
+                      const [c1, c2, c3] = r.path;
+                      const active = i === highlight;
+                      return (
+                        <li
+                          key={r.label + i}
+                          onMouseEnter={() => setHighlight(i)}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectTaxonomyPath(r.path)}
+                          style={{
+                            cursor: "pointer",
+                            borderRadius: 10,
+                            padding: "8px 10px",
+                            background: active ? "rgba(251,133,0,0.08)" : "transparent",
+                          }}
+                        >
+                          <div className="text-sm font-semibold text-slate-800">{r.label}</div>
+                          <div className="text-xs text-slate-500">
+                            {[c1, c2, c3].filter(Boolean).join(" › ")}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {showResults && results.length === 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    top: "calc(100% + 8px)",
+                    background: "#ffffff",
+                    border: "1px solid #e6ebf2",
+                    borderRadius: 12,
+                    boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+                    zIndex: 9999,
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: "#64748b",
+                  }}
+                >
+                  Nada encontrado. Tente “mandibulas”, “mandíbula”, “mandibula”…
+                </div>
+              )}
+            </div>
+          </div>
+
             {/* Categoria */}
             <FormField label="Categoria *" icon={<List size={15} />}>
               <select
@@ -428,24 +684,71 @@ function CreateProdutoForm() {
             </FormField>
 
             {/* Subcategoria */}
-            <FormField label="Subcategoria *" icon={<Tag size={15} />}>
-              <select
-                name="subcategoria"
-                value={form.subcategoria}
-                onChange={handleChange}
-                style={inputStyle}
-                required
-                disabled={!form.categoria}
-              >
-                <option value="">
-                  {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
-                </option>
-                {subcategoriasDisponiveis.map((sub) => (
-                  <option key={sub.slug ?? sub.nome} value={sub.nome}>
-                    {sub.nome}
+            <FormField label="Subcategoria *" icon={<Layers size={15} />}>
+              {catEhOutros ? (
+                <input
+                  name="outraCategoriaTexto"
+                  value={form.outraCategoriaTexto}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="Descreva com suas palavras o que você precisa"
+                  required
+                />
+              ) : (
+                <select
+                  name="subcategoria"
+                  value={form.subcategoria}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  required
+                  disabled={!form.categoria}
+                >
+                  <option value="">
+                    {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
                   </option>
-                ))}
-              </select>
+                  {subcategoriasDisponiveis.map((sub) => (
+                    <option key={sub.slug ?? sub.nome} value={sub.nome}>
+                      {sub.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+
+            {/* Item final */}
+            <FormField label="Item final *" icon={<Layers size={15} />}>
+              {(catEhOutros || subcatEhOutros) ? (
+                <input
+                  name="outraCategoriaTexto"
+                  value={form.outraCategoriaTexto}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="Ex.: Descreva exatamente o que precisa"
+                  required
+                />
+              ) : (
+                <select
+                  name="itemFinal"
+                  value={form.itemFinal}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  required
+                  disabled={!form.subcategoria || itensDisponiveis.length === 0}
+                >
+                  <option value="">
+                    {!form.subcategoria
+                      ? "Selecione a subcategoria primeiro"
+                      : itensDisponiveis.length
+                      ? "Selecione"
+                      : "Sem itens disponíveis"}
+                  </option>
+                  {itensDisponiveis.map((it) => (
+                    <option key={it.slug ?? it.nome} value={it.nome}>
+                      {it.nome}
+                    </option>
+                  ))}
+                </select>
+              )}
             </FormField>
 
             {/* Preço */}

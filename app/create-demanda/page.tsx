@@ -1,4 +1,3 @@
-// app/create-demanda/page.tsx
 "use client";
 
 import AuthGateRedirect from "@/components/AuthGateRedirect";
@@ -14,38 +13,134 @@ import {
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
+/** ============ SSR/ISR ============ */
 export const dynamic = "force-dynamic";
-
 const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), { ssr: false });
 const DrivePDFViewer = nextDynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
 
 /* ================== Tipos e Constantes ================== */
-type Subcat = { nome: string; slug?: string };
+// O hook useTaxonomia expõe Cat/Subcat com `itens` (Item[]).
+type Item = { nome: string; slug?: string };
+type Subcat = { nome: string; slug?: string; itens?: Item[] };
 type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
 
 type FormState = {
   titulo: string;
   descricao: string;
+
+  /** Nível 1 */
   categoria: string;
+
+  /** Nível 2 */
   subcategoria: string;
+
+  /** Nível 3 (item final) */
+  itemFinal: string;
+
+  /** Texto livre quando o usuário seleciona "Outros" (cat ou subcat) */
+  outraCategoriaTexto: string;
+
   estado: string;
   cidade: string;
   prazo: string;
+
   autorNome: string;
   autorEmail: string;
   autorWhatsapp: string;
   whatsapp?: string;
-  outraCategoriaTexto: string;
 };
 
-const ESTADOS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"] as const;
-const RASCUNHO_KEY = "pedraum:create-demandas:draft_v2";
+const ESTADOS = [
+  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR",
+  "PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
+] as const;
 
-/* ===== Componente interno com toda a lógica ===== */
+const RASCUNHO_KEY = "pedraum:create-demandas:draft_v3";
+
+/* ================== Helpers de busca ================== */
+// Normaliza texto (sem acentos, caixa baixa, sem pontuação)
+function normalize(s: string) {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\w\s-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+type TaxIndexRow = {
+  label: string;
+  path: string[]; // 1 a 3 elementos
+  haystack: string;
+};
+
+// Achata a taxonomia em linhas pesquisáveis
+function buildTaxIndex(
+  categorias: { nome: string; subcategorias?: { nome: string; itens?: { nome: string }[] }[] }[]
+): TaxIndexRow[] {
+  const rows: TaxIndexRow[] = [];
+  for (const cat of categorias) {
+    const catName = cat?.nome || "";
+    const subs = Array.isArray(cat?.subcategorias) ? cat.subcategorias : [];
+
+    if (subs.length) {
+      for (const sub of subs) {
+        const subName = sub?.nome || "";
+        const itens = Array.isArray(sub?.itens) ? sub.itens : [];
+
+        if (itens.length) {
+          for (const it of itens) {
+            const itemName = it?.nome || "";
+            const label = itemName || subName || catName;
+            const hay = normalize([catName, subName, itemName].filter(Boolean).join(" "));
+            rows.push({ label, path: [catName, subName, itemName], haystack: hay });
+          }
+        } else {
+          // se não há itens, indexa a própria sub como final
+          const label = subName || catName;
+          const hay = normalize([catName, subName].filter(Boolean).join(" "));
+          rows.push({ label, path: [catName, subName], haystack: hay });
+        }
+      }
+    } else {
+      // categoria sem subcategorias
+      const hay = normalize(catName);
+      rows.push({ label: catName, path: [catName], haystack: hay });
+    }
+  }
+  return rows;
+}
+
+// Busca com ranking simples
+function searchTaxIndex(index: TaxIndexRow[], q: string): TaxIndexRow[] {
+  const nq = normalize(q);
+  if (!nq) return [];
+
+  const scored = index.map(r => {
+    const labelN = normalize(r.label);
+    let score = 0;
+
+    if (labelN === nq) score += 100;           // match exato no label
+    if (labelN.startsWith(nq)) score += 40;    // começa com
+    if (r.haystack.includes(nq)) score += 25;  // aparece no caminho completo
+    if (r.path[2] && normalize(r.path[2]).includes(nq)) score += 30; // bônus no item final
+
+    return { row: r, score };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(s => s.row);
+}
+
+/* ================== Página interna ================== */
 function CreateDemandaContent() {
   const router = useRouter();
 
-  // 🔗 Taxonomia unificada (Firestore > fallback local)
+  // 🔗 Taxonomia (Firestore > fallback local)
   const { categorias, loading: taxLoading } = useTaxonomia() as {
     categorias: Cat[];
     loading: boolean;
@@ -57,27 +152,29 @@ function CreateDemandaContent() {
   const [form, setForm] = useState<FormState>({
     titulo: "",
     descricao: "",
-    categoria: "",
-    subcategoria: "",
+
+    categoria: "",      // nivel 1
+    subcategoria: "",   // nivel 2
+    itemFinal: "",      // nivel 3
+    outraCategoriaTexto: "",
+
     estado: "",
     cidade: "",
     prazo: "",
+
     autorNome: "",
     autorEmail: "",
     autorWhatsapp: "",
     whatsapp: "",
-    outraCategoriaTexto: "",
   });
 
   const [cidades, setCidades] = useState<string[]>([]);
   const [carregandoCidades, setCarregandoCidades] = useState(false);
 
-  // loading do submit (renomeado para não conflitar com taxLoading)
   const [submitting, setSubmitting] = useState(false);
-
+  const [savingDraft, setSavingDraft] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [savingDraft, setSavingDraft] = useState(false);
 
   /* ---------- Autosave local ---------- */
   useEffect(() => {
@@ -91,10 +188,9 @@ function CreateDemandaContent() {
             ...Object.fromEntries(
               Object.entries(p.form).filter(([k]) =>
                 [
-                  "titulo","descricao","categoria","subcategoria",
-                  "estado","cidade","prazo",
+                  "titulo","descricao","categoria","subcategoria","itemFinal",
+                  "outraCategoriaTexto","estado","cidade","prazo",
                   "autorNome","autorEmail","autorWhatsapp","whatsapp",
-                  "outraCategoriaTexto",
                 ].includes(k)
               )
             ),
@@ -170,39 +266,133 @@ function CreateDemandaContent() {
     return () => { abort = true; };
   }, [form.estado]);
 
+  /* ---------- Helpers de seleção (3 níveis) ---------- */
+  const categoriaSelecionada = useMemo(
+    () => categorias.find((c) => c.nome === form.categoria),
+    [categorias, form.categoria]
+  );
+
+  const subcategoriasDisponiveis: Subcat[] = useMemo(
+    () => categoriaSelecionada?.subcategorias ?? [],
+    [categoriaSelecionada]
+  );
+
+  const subcategoriaSelecionada = useMemo(
+    () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
+    [subcategoriasDisponiveis, form.subcategoria]
+  );
+
+  const itensDisponiveis: Item[] = useMemo(
+    () => subcategoriaSelecionada?.itens ?? [],
+    [subcategoriaSelecionada]
+  );
+
+  /* ---------- Flags "Outros" ---------- */
+  const catEhOutros = form.categoria === "Outros";
+  const subcatEhOutros = form.subcategoria === "Outros";
+
+  /* ---------- Busca de taxonomia (autocomplete) ---------- */
+  const [searchTerm, setSearchTerm] = useState("");
+  const [results, setResults] = useState<TaxIndexRow[]>([]);
+  const [showResults, setShowResults] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+
+  const taxIndex = useMemo(() => buildTaxIndex(categorias as any), [categorias]);
+
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
+    const r = searchTaxIndex(taxIndex, searchTerm);
+    setResults(r);
+    setShowResults(true);
+    setHighlight(0);
+  }, [searchTerm, taxIndex]);
+
+  function selectTaxonomyPath(path: string[]) {
+    const [c1, c2, c3] = path;
+    setForm(prev => ({
+      ...prev,
+      categoria: c1 || "",
+      subcategoria: c2 || "",
+      itemFinal: c3 || "",
+      outraCategoriaTexto: "",
+    }));
+    setSearchTerm("");
+    setShowResults(false);
+  }
+
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showResults || results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight(h => Math.min(h + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight(h => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = results[highlight];
+      if (chosen) selectTaxonomyPath(chosen.path);
+    } else if (e.key === "Escape") {
+      setShowResults(false);
+    }
+  }
+
   /* ---------- Handlers ---------- */
   function handleChange(
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target as any;
+
+    // Reset em cascata
+    if (name === "categoria") {
+      setForm((prev) => ({
+        ...prev,
+        categoria: value,
+        subcategoria: "",
+        itemFinal: "",
+        outraCategoriaTexto: "",
+      }));
+      return;
+    }
+    if (name === "subcategoria") {
+      setForm((prev) => ({
+        ...prev,
+        subcategoria: value,
+        itemFinal: "",
+        outraCategoriaTexto: prev.outraCategoriaTexto,
+      }));
+      return;
+    }
+
     setForm((prev) => ({
       ...prev,
       [name]: value,
       ...(name === "estado" ? { cidade: "" } : null),
-      ...(name === "categoria" ? { subcategoria: "", outraCategoriaTexto: "" } : null),
     }));
   }
-
-  const isOutros = form.categoria === "Outros";
-
-  /* ---------- Subcategorias disponíveis ---------- */
-  const subcategoriasDisponiveis: Subcat[] =
-    (categorias.find((c) => c.nome === form.categoria)?.subcategorias ?? []);
 
   /* ---------- Preview ---------- */
   const preview = useMemo(() => {
     const local = form.estado ? `${form.cidade ? form.cidade + ", " : ""}${form.estado}` : "—";
+    const caminho =
+      catEhOutros
+        ? `Outros > ${form.outraCategoriaTexto?.trim() || "—"}`
+        : subcatEhOutros
+          ? `${form.categoria} > Outros > ${form.outraCategoriaTexto?.trim() || "—"}`
+          : `${form.categoria || "—"} > ${form.subcategoria || "—"} > ${form.itemFinal || "—"}`;
+
     return {
       titulo: form.titulo?.trim() || "—",
-      categoria: form.categoria || "—",
-      subcategoria: isOutros
-        ? (form.outraCategoriaTexto?.trim() || "—")
-        : (form.subcategoria || "—"),
+      caminho,
       local,
       prazo: form.prazo || "—",
       imagens: imagens.length,
     };
-  }, [form, imagens, isOutros]);
+  }, [form, imagens, catEhOutros, subcatEhOutros]);
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: React.FormEvent) {
@@ -218,18 +408,46 @@ function CreateDemandaContent() {
       return;
     }
 
-    const subcategoriaOk = isOutros ? !!form.outraCategoriaTexto.trim() : !!form.subcategoria;
+    // Regras de obrigatórios
+    const baseOk = !!(form.titulo && form.descricao && form.prazo && form.estado && form.cidade);
+    let categoriaOk = false;
+    let subcategoriaOk = false;
+    let itemOk = false;
 
-    if (!form.titulo || !form.descricao || !form.categoria || !subcategoriaOk || !form.prazo || !form.estado || !form.cidade) {
+    if (catEhOutros) {
+      categoriaOk = true;
+      subcategoriaOk = true; // subcategoria desconsiderada
+      itemOk = !!form.outraCategoriaTexto.trim(); // texto livre obrigatório
+    } else if (subcatEhOutros) {
+      categoriaOk = !!form.categoria;
+      subcategoriaOk = true;
+      itemOk = !!form.outraCategoriaTexto.trim(); // texto livre obrigatório
+    } else {
+      categoriaOk = !!form.categoria;
+      subcategoriaOk = !!form.subcategoria;
+      itemOk = !!form.itemFinal;
+    }
+
+    if (!(baseOk && categoriaOk && subcategoriaOk && itemOk)) {
       setError("Preencha todos os campos obrigatórios (*).");
       setSubmitting(false);
       return;
     }
 
     try {
+      const finalItem = catEhOutros || subcatEhOutros
+        ? form.outraCategoriaTexto.trim()
+        : form.itemFinal;
+
+      const categoriaPath = catEhOutros
+        ? ["Outros", finalItem]
+        : subcatEhOutros
+          ? [form.categoria, "Outros", finalItem]
+          : [form.categoria, form.subcategoria, finalItem];
+
       const searchBase = [
-        form.titulo, form.descricao, form.categoria,
-        isOutros ? form.outraCategoriaTexto : form.subcategoria,
+        form.titulo, form.descricao,
+        ...categoriaPath,
         form.estado, form.cidade,
       ]
         .filter(Boolean)
@@ -239,26 +457,36 @@ function CreateDemandaContent() {
         .replace(/[\u0300-\u036f]/g, "");
 
       const payload = {
+        // Conteúdo
         titulo: form.titulo,
         descricao: form.descricao,
-        categoria: form.categoria,
-        subcategoria: isOutros ? "Outros (livre)" : form.subcategoria,
-        outraCategoriaTexto: isOutros ? form.outraCategoriaTexto.trim() : "",
+
+        // Taxonomia 3 níveis
+        categoria: form.categoria || "Outros",
+        subcategoria: subcatEhOutros ? "Outros" : (form.subcategoria || (catEhOutros ? "—" : "")),
+        itemFinal: finalItem,
+        categoriaPath, // útil para filtros/indexação
+
+        // Local
         estado: form.estado,
         cidade: form.cidade,
         prazo: form.prazo,
 
+        // Autor
         autorNome: form.autorNome || "",
         autorEmail: form.autorEmail || "",
         autorWhatsapp: form.autorWhatsapp || "",
         whatsapp: form.whatsapp || form.autorWhatsapp || "",
 
+        // Anexos
         imagens,
         pdfUrl: pdfUrl || null,
-
         imagesCount: imagens.length,
-        searchKeywords: searchBase.split(/\s+/).slice(0, 60),
 
+        // Busca
+        searchKeywords: searchBase.split(/\s+/).slice(0, 80),
+
+        // Meta
         status: "Aberta",
         statusHistory: [{ status: "Aberta", at: new Date() }],
 
@@ -339,6 +567,7 @@ function CreateDemandaContent() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          {/* Anexos */}
           <div
             className="rounded-2xl border"
             style={{ background: "linear-gradient(180deg,#f8fbff, #ffffff)", borderColor: "#e6ebf2", padding: 18 }}
@@ -388,6 +617,7 @@ function CreateDemandaContent() {
             </div>
           </div>
 
+
           {/* Principais */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -430,12 +660,112 @@ function CreateDemandaContent() {
               <div style={smallInfoStyle}>{form.descricao.length}/2000</div>
             </div>
           </div>
+   {/* ===== Busca rápida por item/caminho ===== */}
+<div
+  className="rounded-2xl border p-4"
+  style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+>
+  <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
+    <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do item (atalho)
+  </h3>
 
-          {/* Categoria / Subcategoria */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {/* wrapper relativo para posicionar o dropdown */}
+  <div className="relative">
+    <input
+      value={searchTerm}
+      onChange={(e) => setSearchTerm(e.target.value)}
+      onFocus={() => searchTerm && setShowResults(true)}
+      onKeyDown={onSearchKeyDown}
+      onBlur={() => setTimeout(() => setShowResults(false), 120)} // permite clicar no item
+      placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+      style={inputStyle}
+      aria-autocomplete="list"
+      aria-expanded={showResults}
+    />
+
+    {/* Dropdown sólido (portal local) */}
+    {showResults && results.length > 0 && (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "calc(100% + 8px)",
+          background: "#ffffff",
+          border: "1px solid #e6ebf2",
+          borderRadius: 12,
+          boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+          zIndex: 9999,
+          maxHeight: 320,
+          overflowY: "auto",
+        }}
+        onMouseLeave={() => setHighlight(0)}
+      >
+        <ul style={{ listStyle: "none", margin: 0, padding: 6 }}>
+          {results.map((r, i) => {
+            const [c1, c2, c3] = r.path;
+            const active = i === highlight;
+            return (
+              <li
+                key={r.label + i}
+                onMouseEnter={() => setHighlight(i)}
+                onMouseDown={(e) => e.preventDefault()} // evita blur antes do click
+                onClick={() => selectTaxonomyPath(r.path)}
+                style={{
+                  cursor: "pointer",
+                  borderRadius: 10,
+                  padding: "8px 10px",
+                  background: active ? "rgba(251,133,0,0.08)" : "transparent",
+                }}
+              >
+                <div className="text-sm font-semibold text-slate-800">{r.label}</div>
+                <div className="text-xs text-slate-500">
+                  {[c1, c2, c3].filter(Boolean).join(" › ")}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    )}
+
+    {showResults && results.length === 0 && (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: "calc(100% + 8px)",
+          background: "#ffffff",
+          border: "1px solid #e6ebf2",
+          borderRadius: 12,
+          boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+          zIndex: 9999,
+          padding: "10px 12px",
+          fontSize: 12,
+          color: "#64748b",
+        }}
+      >
+        Nada encontrado. Tente “mandibulas”, “mandíbula”, “mandibula”…
+      </div>
+    )}
+  </div>
+</div>
+
+
+
+          {/* Categoria / Subcategoria / Item final */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Nível 1 */}
             <div>
               <label style={labelStyle}><List size={15} /> Categoria *</label>
-              <select name="categoria" value={form.categoria} onChange={handleChange} style={inputStyle} required>
+              <select
+                name="categoria"
+                value={form.categoria}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
                 <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
                 {categorias.map((cat) => (
                   <option key={cat.slug ?? cat.nome} value={cat.nome}>{cat.nome}</option>
@@ -443,9 +773,11 @@ function CreateDemandaContent() {
               </select>
             </div>
 
+            {/* Nível 2 */}
             <div>
-              <label style={labelStyle}><Layers size={15} /> {form.categoria === "Outros" ? "Descreva sua necessidade *" : "Subcategoria *"}</label>
-              {form.categoria === "Outros" ? (
+              <label style={labelStyle}><Layers size={15} /> Subcategoria *</label>
+
+              {catEhOutros ? (
                 <input
                   name="outraCategoriaTexto"
                   value={form.outraCategoriaTexto}
@@ -464,9 +796,41 @@ function CreateDemandaContent() {
                   disabled={!form.categoria}
                 >
                   <option value="">{form.categoria ? "Selecione" : "Selecione a categoria primeiro"}</option>
-                  {/* ✅ AQUI estava o erro: precisa estar dentro de { ... } */}
                   {subcategoriasDisponiveis.map((sub) => (
                     <option key={sub.slug ?? sub.nome} value={sub.nome}>{sub.nome}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Nível 3 */}
+            <div>
+              <label style={labelStyle}><Layers size={15} /> Item final *</label>
+
+              {(catEhOutros || subcatEhOutros) ? (
+                <input
+                  name="outraCategoriaTexto"
+                  value={form.outraCategoriaTexto}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="Ex.: Descreva exatamente o que precisa"
+                  required
+                />
+              ) : (
+                <select
+                  name="itemFinal"
+                  value={form.itemFinal}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  required
+                  disabled={!form.subcategoria || itensDisponiveis.length === 0}
+                >
+                  <option value="">
+                    {!form.subcategoria ? "Selecione a subcategoria primeiro" :
+                      itensDisponiveis.length ? "Selecione" : "Sem itens disponíveis"}
+                  </option>
+                  {itensDisponiveis.map((it) => (
+                    <option key={it.slug ?? it.nome} value={it.nome}>{it.nome}</option>
                   ))}
                 </select>
               )}
@@ -536,8 +900,7 @@ function CreateDemandaContent() {
             <div style={{ fontWeight: 800, color: "#023047", marginBottom: 8 }}>Pré-visualização</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
               <div><span style={muted}>Título:</span> {preview.titulo}</div>
-              <div><span style={muted}>Categoria:</span> {preview.categoria}</div>
-              <div><span style={muted}>Subcategoria/Texto:</span> {preview.subcategoria}</div>
+              <div><span style={muted}>Caminho:</span> {preview.caminho}</div>
               <div><span style={muted}>Local:</span> {preview.local}</div>
               <div><span style={muted}>Prazo:</span> {preview.prazo}</div>
               <div><span style={muted}>Imagens:</span> {preview.imagens}</div>
