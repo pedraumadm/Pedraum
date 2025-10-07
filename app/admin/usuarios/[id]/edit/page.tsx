@@ -33,6 +33,10 @@ import {
   Trash2,
   FileText,
   Upload,
+  Search,
+  X,
+  Plus,
+  Lock,
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
@@ -61,6 +65,7 @@ const diasSemana = [
 /** ====== Tipos ====== */
 type AgendaDia = { ativo: boolean; das: string; ate: string };
 type CategoriaPair = { categoria: string; subcategoria: string };
+type CategoriaTriplet = { categoria: string; subcategoria: string; item: string };
 
 type PerfilForm = {
   id: string;
@@ -83,11 +88,16 @@ type PerfilForm = {
   prestaServicos: boolean;
   vendeProdutos: boolean;
 
-  // Fonte da verdade
+  // Fonte da verdade (2 níveis)
   categoriasAtuacaoPairs: CategoriaPair[];
+  // 3 níveis (NOVO)
+  categoriasAtuacaoTriplets?: CategoriaTriplet[];
 
   // Legado
   categoriasAtuacao: string[];
+
+  // Lock opcional herdado do perfil
+  categoriasLocked?: boolean;
 
   atendeBrasil: boolean;
   ufsAtendidas: string[];
@@ -130,7 +140,7 @@ type PerfilForm = {
 };
 
 /** =========================
- * Helpers compartilhados (harmonizados com /perfil)
+ * Helpers (harmonizados com /perfil)
  * ========================= */
 const norm = (s: string = "") =>
   s.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -158,25 +168,47 @@ function dedupPairs(pairs: CategoriaPair[]) {
   for (const p of pairs) m.set(`${norm(p.categoria)}::${norm(p.subcategoria)}`, p);
   return Array.from(m.values());
 }
-const buildCategoriesAll = (pairs: CategoriaPair[], legacy: string[] = []) => {
+function dedupTriplets(tris: CategoriaTriplet[]) {
+  const m = new Map<string, CategoriaTriplet>();
+  for (const t of tris) m.set(`${norm(t.categoria)}::${norm(t.subcategoria)}::${norm(t.item)}`, t);
+  return Array.from(m.values());
+}
+
+const buildCategoriesAll = (
+  pairs: CategoriaPair[],
+  legacy: string[] = [],
+  tris: CategoriaTriplet[] = []
+) => {
   const set = new Set<string>((legacy || []).filter(Boolean));
-  for (const p of pairs) set.add(p.categoria);
+  for (const p of pairs) if (p.categoria) set.add(p.categoria);
+  for (const t of tris) if (t.categoria) set.add(t.categoria);
   return Array.from(set);
 };
 const buildPairsSearch = (pairs: CategoriaPair[] = []) =>
   pairs
     .filter((p) => p.categoria && p.subcategoria)
     .map((p) => `${norm(p.categoria)}::${norm(p.subcategoria)}`);
+const buildTripletsSearch = (tris: CategoriaTriplet[] = []) =>
+  tris
+    .filter((t) => t.categoria && t.subcategoria && t.item)
+    .map((t) => `${norm(t.categoria)}::${norm(t.subcategoria)}::${norm(t.item)}`);
 const buildUfsSearch = (atendeBrasil: boolean, ufsAtendidas: string[] = []) => {
   const arr = (ufsAtendidas || []).map((u) => String(u).trim().toUpperCase());
   if (atendeBrasil && !arr.includes("BRASIL")) arr.push("BRASIL");
   return Array.from(new Set(arr));
 };
 
-// traduz estrutura do hook para nomes de subcategorias (igual ao /perfil)
+// traduz estrutura do hook para nomes de subcategorias
 function toSubcatNames(arr: any[] | undefined): string[] {
   if (!Array.isArray(arr)) return [];
   return arr.map((s) => (typeof s === "string" ? s : (s?.nome ?? ""))).filter(Boolean);
+}
+// aceita itens|items|subitens
+function toItemNamesFromAnyKeys(entry: any): string[] {
+  if (!entry) return [];
+  const raw = entry?.itens ?? entry?.items ?? entry?.subitens ?? [];
+  const arr = Array.isArray(raw) ? raw : [];
+  return arr.map((i) => (typeof i === "string" ? i : (i?.nome ?? ""))).filter(Boolean);
 }
 
 /** =========================
@@ -196,14 +228,55 @@ export default function AdminEditarUsuarioPage() {
   const { categorias, loading: taxLoading } = useTaxonomia();
   const nomesCategorias = useMemo(() => categorias.map((c) => c.nome), [categorias]);
 
-  // ====== UI: seleção de pares (categoria + várias subcategorias) ======
+  // ===== Busca unificada (cat/sub/item) =====
+  const [busca, setBusca] = useState("");
+  const termo = useMemo(() => norm(busca), [busca]);
+  const categoriasFiltradas = useMemo(() => {
+    if (!termo) return nomesCategorias;
+    const t = termo;
+    return nomesCategorias.filter((nome) => {
+      const cat = categorias.find((c) => c.nome === nome);
+      if (!cat) return false;
+      if (norm(cat.nome).includes(t)) return true;
+      const subs = toSubcatNames(cat.subcategorias);
+      if (subs.some((s) => norm(s).includes(t))) return true;
+      const temItem = (cat.subcategorias || []).some((s: any) =>
+        toItemNamesFromAnyKeys(s).some((i) => norm(i).includes(t))
+      );
+      return temItem;
+    });
+  }, [nomesCategorias, categorias, termo]);
+
+  // ====== UI: seleção 3 níveis (categoria + sub + itens) ======
   const [selCategoria, setSelCategoria] = useState("");
-  const [selSubcats, setSelSubcats] = useState<string[]>([]);
+  const [selSubcat, setSelSubcat] = useState("");
+  const [selItens, setSelItens] = useState<string[]>([]);
+  const [novoItem, setNovoItem] = useState("");
+
   const subcatsDaSelecionada = useMemo(() => {
     if (!selCategoria) return [];
     const cat = categorias.find((c) => c.nome === selCategoria);
-    return toSubcatNames(cat?.subcategorias);
-  }, [selCategoria, categorias]);
+    if (!cat) return [];
+    const subs = toSubcatNames(cat.subcategorias);
+    if (!termo) return subs;
+    const t = termo;
+    return subs.filter((s) => {
+      const matchSub = norm(s).includes(t);
+      if (matchSub) return true;
+      const subEntry = (cat.subcategorias || []).find((x: any) => (typeof x === "string" ? x : x?.nome) === s);
+      return toItemNamesFromAnyKeys(subEntry).some((i) => norm(i).includes(t));
+    });
+  }, [selCategoria, categorias, termo]);
+
+  const itensDaSubSelecionada = useMemo(() => {
+    if (!selCategoria || !selSubcat) return [];
+    const cat = categorias.find((c) => c.nome === selCategoria);
+    const sub = (cat?.subcategorias || []).find((s: any) => (typeof s === "string" ? s : s?.nome) === selSubcat);
+    const itens = toItemNamesFromAnyKeys(sub);
+    if (!termo) return itens;
+    const t = termo;
+    return itens.filter((i) => norm(i).includes(t));
+  }, [selCategoria, selSubcat, categorias, termo]);
 
   // PDFs
   const [pdfExpandido, setPdfExpandido] = useState<string | null>(null);
@@ -239,8 +312,11 @@ export default function AdminEditarUsuarioPage() {
         const categoriasAtuacaoPairs: CategoriaPair[] = Array.isArray(data.categoriasAtuacaoPairs)
           ? data.categoriasAtuacaoPairs
           : [];
+        const categoriasAtuacaoTriplets: CategoriaTriplet[] = Array.isArray(data.categoriasAtuacaoTriplets)
+          ? data.categoriasAtuacaoTriplets
+          : [];
 
-        // Normaliza PDFs: aceita tanto string única (portfolioPdfUrl) quanto array (portfolioPDFs)
+        // Normaliza PDFs: aceita string (portfolioPdfUrl) ou array (portfolioPDFs)
         const pdfs: string[] = Array.isArray(data.portfolioPDFs)
           ? data.portfolioPDFs
           : data.portfolioPdfUrl
@@ -270,7 +346,9 @@ export default function AdminEditarUsuarioPage() {
           vendeProdutos: !!data.vendeProdutos,
 
           categoriasAtuacaoPairs,
+          categoriasAtuacaoTriplets,
           categoriasAtuacao: Array.isArray(data.categoriasAtuacao) ? data.categoriasAtuacao : [],
+          categoriasLocked: !!data.categoriasLocked,
 
           atendeBrasil: !!data.atendeBrasil,
           ufsAtendidas: data.ufsAtendidas || [],
@@ -325,7 +403,7 @@ export default function AdminEditarUsuarioPage() {
     setForm({ ...form, [key]: value });
   }
 
-  /** ======= MIGRAÇÃO LEGADO → NOVO (igual conceito do /perfil) ======= */
+  /** ======= MIGRAÇÃO LEGADO → NOVO (mapeia pares) ======= */
   function migrarEsteUsuarioLocalmente() {
     if (!form) return;
 
@@ -343,8 +421,7 @@ export default function AdminEditarUsuarioPage() {
 
     const mapped = legacyStrings.map((txt) => mapAntigoParaNovo(String(txt)));
 
-    const key = (c: string, s: string) =>
-      `${norm(c)}::${norm(s)}`;
+    const key = (c: string, s: string) => `${norm(c)}::${norm(s)}`;
     const map = new Map<string, { categoria: string; subcategoria: string }>();
     for (const p of mapped) map.set(key(p.categoria, p.subcategoria), p);
     const dedup = Array.from(map.values());
@@ -367,64 +444,109 @@ export default function AdminEditarUsuarioPage() {
       categoriasAtuacao: catsUsadas,
     });
 
-    setMsg("Categorias antigas mapeadas para a taxonomia nova. Revise e clique em “Salvar Alterações”.");
+    setMsg("Categorias antigas mapeadas para a taxonomia nova. Revise e salve.");
     setTimeout(() => setMsg(""), 4000);
   }
 
-  // ======= Subcategorias — UI helpers =======
-  const selectedCategoriasSet = useMemo(
-    () => new Set((form?.categoriasAtuacaoPairs || []).map((p) => p.categoria)),
-    [form?.categoriasAtuacaoPairs]
-  );
+  // ======= contagens e agrupamentos =======
+  const selectedCategoriasSet = useMemo(() => {
+    const set = new Set<string>((form?.categoriasAtuacaoPairs || []).map((p) => p.categoria));
+    (form?.categoriasAtuacaoTriplets || []).forEach(t => set.add(t.categoria));
+    return set;
+  }, [form?.categoriasAtuacaoPairs, form?.categoriasAtuacaoTriplets]);
   const selectedCategorias = useMemo(() => Array.from(selectedCategoriasSet), [selectedCategoriasSet]);
 
-  function toggleSubcat(sc: string) {
-    setSelSubcats((curr) => (curr.includes(sc) ? curr.filter((s) => s !== sc) : [...curr, sc]));
-  }
-  function marcarTodas() {
-    setSelSubcats(subcatsDaSelecionada);
-  }
-  function limparSelecao() {
-    setSelSubcats([]);
-  }
+  const subcatsCountByCategoria = useMemo(() => {
+    const m = new Map<string, number>();
+    (form?.categoriasAtuacaoPairs || []).forEach((p) => {
+      if (!p.categoria || !p.subcategoria) return;
+      m.set(p.categoria, (m.get(p.categoria) || 0) + 1);
+    });
+    return m;
+  }, [form?.categoriasAtuacaoPairs]);
 
-  function addParesSelecionados() {
+  const itensCountByCategoria = useMemo(() => {
+    const m = new Map<string, number>();
+    (form?.categoriasAtuacaoTriplets || []).forEach((t) => {
+      if (!t.categoria || !t.item) return;
+      m.set(t.categoria, (m.get(t.categoria) || 0) + 1);
+    });
+    return m;
+  }, [form?.categoriasAtuacaoTriplets]);
+
+  // ======= ações UI 3º nível =======
+  function addTripletsSelecionados() {
     if (!form) return;
-    if (!selCategoria) {
-      setMsg("Selecione uma categoria.");
-      return;
-    }
-    if (!selSubcats.length) {
-      setMsg("Marque uma ou mais subcategorias.");
-      return;
-    }
+    if (!selCategoria) { setMsg("Selecione uma categoria."); return; }
+    if (!selSubcat) { setMsg("Selecione uma subcategoria."); return; }
+    if (!selItens.length) { setMsg("Marque um ou mais itens."); return; }
 
-    // limite de 5 categorias
-    const isCategoriaNova = !selectedCategoriasSet.has(selCategoria);
-    if (isCategoriaNova && selectedCategoriasSet.size >= MAX_CATEGORIAS) {
-      setMsg(`Você já tem ${MAX_CATEGORIAS}/${MAX_CATEGORIAS} categorias. Remova uma para adicionar outra.`);
-      return;
-    }
+    const novos: CategoriaTriplet[] = selItens.map((item) => ({ categoria: selCategoria, subcategoria: selSubcat, item }));
+    const tripFuturos = dedupTriplets([...(form.categoriasAtuacaoTriplets || []), ...novos]);
 
-    const novos = selSubcats.map((s) => ({ categoria: selCategoria, subcategoria: s }));
-    const futuros = dedupPairs([...(form.categoriasAtuacaoPairs || []), ...novos]);
-    const categoriasDistintas = Array.from(new Set(futuros.map((p) => p.categoria)));
+    // manter par legado para filtros antigos
+    const par = { categoria: selCategoria, subcategoria: selSubcat };
+    const paresFuturos = dedupPairs([...(form.categoriasAtuacaoPairs || []), par]);
+
+    // limite de 5 categorias (considerando triplets também)
+    const categoriasDistintas = Array.from(new Set([
+      ...paresFuturos.map(p => p.categoria),
+      ...tripFuturos.map(t => t.categoria),
+    ]));
     if (categoriasDistintas.length > MAX_CATEGORIAS) {
       setMsg(`Máximo de ${MAX_CATEGORIAS} categorias distintas.`);
       return;
     }
-    setForm({ ...form, categoriasAtuacaoPairs: futuros, categoriasAtuacao: categoriasDistintas });
+
+    setForm({
+      ...form,
+      categoriasAtuacaoTriplets: tripFuturos,
+      categoriasAtuacaoPairs: paresFuturos,
+      categoriasAtuacao: categoriasDistintas,
+    });
+
+    setSelItens([]);
+    setSelSubcat("");
     setSelCategoria("");
-    setSelSubcats([]);
+    setNovoItem("");
   }
 
+  function addItemManual() {
+    if (!form) return;
+    const v = (novoItem || "").trim();
+    if (!selCategoria) { setMsg("Selecione uma categoria."); return; }
+    if (!selSubcat) { setMsg("Selecione uma subcategoria."); return; }
+    if (!v) { setMsg("Digite o nome do item."); return; }
+    setSelItens((curr) => Array.from(new Set([...curr, v])));
+    setNovoItem("");
+  }
+  function usarSubcategoriaComoItem() {
+    if (!selCategoria || !selSubcat) return;
+    setSelItens((curr) => Array.from(new Set([...curr, selSubcat])));
+  }
+
+  // ======= 2 níveis helpers =======
   function removeParCategoria(par: CategoriaPair) {
     if (!form) return;
     const futuros = (form.categoriasAtuacaoPairs || []).filter(
       (p) => !(p.categoria === par.categoria && p.subcategoria === par.subcategoria)
     );
-    const categoriasDistintas = Array.from(new Set(futuros.map((p) => p.categoria)));
+    const categoriasDistintas = Array.from(new Set([
+      ...futuros.map((p) => p.categoria),
+      ...(form.categoriasAtuacaoTriplets || []).map(t => t.categoria),
+    ]));
     setForm({ ...form, categoriasAtuacaoPairs: futuros, categoriasAtuacao: categoriasDistintas });
+  }
+  function removeTriplet(t: CategoriaTriplet) {
+    if (!form) return;
+    const futuros = (form.categoriasAtuacaoTriplets || []).filter(
+      (x) => !(x.categoria === t.categoria && x.subcategoria === t.subcategoria && x.item === t.item)
+    );
+    const categoriasDistintas = Array.from(new Set([
+      ...(form.categoriasAtuacaoPairs || []).map(p => p.categoria),
+      ...futuros.map(tt => tt.categoria),
+    ]));
+    setForm({ ...form, categoriasAtuacaoTriplets: futuros, categoriasAtuacao: categoriasDistintas });
   }
 
   // ======= PDFs =======
@@ -446,7 +568,7 @@ export default function AdminEditarUsuarioPage() {
     setForm({ ...form, portfolioImagens: (form.portfolioImagens || []).filter((u) => u !== url) });
   }
 
-  // === salvar SINCRONIZANDO com os campos que o /perfil usa ===
+  // === salvar SINCRONIZANDO como /perfil ===
   async function salvar(e?: React.FormEvent) {
     e?.preventDefault();
     if (!form || saving) return;
@@ -454,9 +576,13 @@ export default function AdminEditarUsuarioPage() {
     setMsg("");
 
     try {
-      // Validar pares
       const paresDedup = dedupPairs(form.categoriasAtuacaoPairs || []);
-      const categoriasDistintas = Array.from(new Set(paresDedup.map((p) => p.categoria)));
+      const triplets = dedupTriplets(form.categoriasAtuacaoTriplets || []);
+
+      const categoriasDistintas = Array.from(new Set([
+        ...paresDedup.map((p) => p.categoria),
+        ...triplets.map((t) => t.categoria),
+      ]));
       if (categoriasDistintas.length > MAX_CATEGORIAS) {
         setMsg(`Máximo de ${MAX_CATEGORIAS} categorias distintas.`);
         setSaving(false);
@@ -477,8 +603,9 @@ export default function AdminEditarUsuarioPage() {
       const ufsSearch = buildUfsSearch(atendeBrasil, ufsAtendidas);
 
       // Materializações
-      const categoriesAll = buildCategoriesAll(paresDedup, form.categoriasAtuacao);
+      const categoriesAll = buildCategoriesAll(paresDedup, form.categoriasAtuacao, triplets);
       const pairsSearch = buildPairsSearch(paresDedup);
+      const tripletsSearch = buildTripletsSearch(triplets);
 
       // PDFs (compat c/ página de perfil)
       const pdfList = form.portfolioPDFs || [];
@@ -494,7 +621,6 @@ export default function AdminEditarUsuarioPage() {
         email: form.email,
         telefone: form.telefone || "",
 
-        // WhatsApp normalizado (harmonia com /perfil)
         whatsapp: wDigits55 || "",
         whatsappE164: wE164 || "",
 
@@ -509,13 +635,18 @@ export default function AdminEditarUsuarioPage() {
         prestaServicos: form.prestaServicos,
         vendeProdutos: form.vendeProdutos,
 
-        // ===== Fonte da verdade + compatibilidade =====
+        // ===== Fonte da verdade =====
         categoriasAtuacaoPairs: paresDedup,
-        categoriasAtuacao: categoriasDistintas,
+        categoriasAtuacaoTriplets: triplets,
 
-        // ===== Campos materializados p/ filtros =====
+        // ===== Compat =====
+        categoriasAtuacao: categoriasDistintas,
+        categorias: categoriasDistintas,
+
+        // ===== Materializações =====
         categoriesAll,
         pairsSearch,
+        tripletsSearch,
         ufsSearch,
 
         // Cobertura
@@ -526,7 +657,7 @@ export default function AdminEditarUsuarioPage() {
         portfolioImagens: form.portfolioImagens || [],
         portfolioVideos: form.portfolioVideos || [],
         portfolioPDFs: pdfList, // lista completa
-        portfolioPdfUrl: firstPdf, // compat com /perfil (PDF único)
+        portfolioPdfUrl: firstPdf, // compat
 
         // Preferências de lead
         leadPreferencias: {
@@ -778,7 +909,7 @@ export default function AdminEditarUsuarioPage() {
           </div>
         </div>
 
-        {/* Atuação (categorias + SUBCATEGORIAS) */}
+        {/* Atuação (categorias + SUBCATEGORIAS + ITENS) */}
         <div className="card">
           <div className="card-title">Atuação</div>
 
@@ -818,109 +949,248 @@ export default function AdminEditarUsuarioPage() {
               </label>
               <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
                 Categorias selecionadas:{" "}
-                <b>{new Set((form.categoriasAtuacaoPairs || []).map((p) => p.categoria)).size}/{MAX_CATEGORIAS}</b>
+                <b>{selectedCategoriasSet.size}/{MAX_CATEGORIAS}</b>
               </div>
+              {form.categoriasLocked && (
+                <div className="lock-banner">
+                  <Lock size={14}/> Conjunto de <b>CATEGORIAS</b> travado. (subcategorias/itens liberados)
+                </div>
+              )}
             </div>
 
             <div>
-              <div className="label">Categoria (até {MAX_CATEGORIAS})</div>
+              <div className="label">Categorias (até {MAX_CATEGORIAS})</div>
+
+              {/* BUSCA acima das categorias */}
+              <div className="searchbox">
+                <Search size={16} />
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por categoria, subcategoria ou item…"
+                />
+                {!!busca && (
+                  <button type="button" aria-label="Limpar busca" onClick={() => setBusca("")}>
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* 1) Categoria */}
               <select
                 className="input"
                 value={selCategoria}
                 onChange={(e) => {
                   setSelCategoria(e.target.value);
-                  setSelSubcats([]);
+                  setSelSubcat("");
+                  setSelItens([]);
+                  setNovoItem("");
                 }}
                 disabled={taxLoading}
               >
                 <option value="">
                   {taxLoading ? "Carregando categorias..." : "Selecionar categoria..."}
                 </option>
-                {nomesCategorias.map((c) => (
+                {categoriasFiltradas.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
 
-              {/* Subcategorias multi-seleção */}
+              {/* 2) Subcategoria */}
               <div style={{ marginTop: 8 }}>
                 <div className="label" style={{ marginBottom: 8 }}>
-                  Subcategorias da categoria selecionada
+                  Subcategoria
                 </div>
-                <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
-                  <button type="button" className="btn-sec" disabled={!selCategoria || taxLoading} onClick={marcarTodas}>
-                    Marcar tudo
-                  </button>
-                  <button type="button" className="btn-sec" disabled={!selCategoria} onClick={limparSelecao}>
-                    Limpar seleção
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-sec"
-                    disabled={!selCategoria || !selSubcats.length}
-                    onClick={addParesSelecionados}
-                  >
-                    + Adicionar selecionadas
-                  </button>
+                <select
+                  className="input"
+                  value={selSubcat}
+                  onChange={(e) => {
+                    setSelSubcat(e.target.value);
+                    setSelItens([]);
+                    setNovoItem("");
+                  }}
+                  disabled={!selCategoria}
+                >
+                  <option value="">
+                    {selCategoria ? "Selecionar subcategoria..." : "Selecione a categoria"}
+                  </option>
+                  {subcatsDaSelecionada.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3) Itens (multi) + FALLBACK */}
+              <div style={{ marginTop: 8 }}>
+                <div className="label" style={{ marginBottom: 8 }}>
+                  Itens da subcategoria selecionada
                 </div>
 
-                <div className="subcat-grid">
-                  {selCategoria ? (
-                    (subcatsDaSelecionada.length ? subcatsDaSelecionada : []).map((s) => {
-                      const checked = selSubcats.includes(s);
-                      return (
-                        <button
-                          key={s}
-                          type="button"
-                          className="subcat-pill"
-                          onClick={() => toggleSubcat(s)}
-                          aria-pressed={checked}
-                          title={checked ? "Clique para desmarcar" : "Clique para marcar"}
-                          style={{
-                            background: checked ? "#ecfdf5" : "#f7f9fc",
-                            borderColor: checked ? "#baf3cd" : "#e0ecff",
-                            color: checked ? "#059669" : "#2563eb",
-                          }}
-                        >
-                          {checked ? <CheckSquare size={16} /> : <Square size={16} />} {s}
-                        </button>
-                      );
-                    })
-                  ) : (
-                    <div style={{ color: "#64748b", fontSize: 14 }}>
-                      Selecione uma categoria para listar as subcategorias.
+                {/* Existe 3º nível na taxonomia */}
+                {selSubcat && itensDaSubSelecionada.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-8" style={{ marginBottom: 8 }}>
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        disabled={!selSubcat || !itensDaSubSelecionada.length}
+                        onClick={() => setSelItens(itensDaSubSelecionada)}
+                      >
+                        Marcar tudo
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        disabled={!selSubcat}
+                        onClick={() => setSelItens([])}
+                      >
+                        Limpar seleção
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        disabled={!selCategoria || !selSubcat || !selItens.length}
+                        onClick={addTripletsSelecionados}
+                      >
+                        + Adicionar selecionados
+                      </button>
                     </div>
-                  )}
-                </div>
+
+                    <div className="subcat-grid">
+                      {itensDaSubSelecionada.map((i) => {
+                        const checked = selItens.includes(i);
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className="subcat-pill"
+                            onClick={() =>
+                              setSelItens((curr) =>
+                                curr.includes(i) ? curr.filter((x) => x !== i) : [...curr, i]
+                              )
+                            }
+                            aria-pressed={checked}
+                            title={checked ? "Clique para desmarcar" : "Clique para marcar"}
+                            style={{
+                              background: checked ? "#ecfdf5" : "#f7f9fc",
+                              borderColor: checked ? "#baf3cd" : "#e0ecff",
+                              color: checked ? "#059669" : "#2563eb",
+                            }}
+                          >
+                            {checked ? <CheckSquare size={16} /> : <Square size={16} />} {i}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* FALLBACK: sem 3º nível */}
+                {selSubcat && itensDaSubSelecionada.length === 0 && (
+                  <div className="rounded-lg border p-3" style={{ borderColor: "#e6ebf2", background: "#f9fbff" }}>
+                    <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 700, marginBottom: 8 }}>
+                      Esta subcategoria não possui itens cadastrados. Você pode:
+                    </div>
+
+                    <div className="grid gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="input"
+                          placeholder="Criar item manual (ex.: Modelo X 110x750)"
+                          value={novoItem}
+                          onChange={(e) => setNovoItem(e.target.value)}
+                        />
+                        <button type="button" className="btn-sec" onClick={addItemManual}>
+                          <Plus size={14}/> Adicionar item
+                        </button>
+                      </div>
+
+                      <button type="button" className="btn-sec" onClick={usarSubcategoriaComoItem}>
+                        <Plus size={14}/> Usar a própria subcategoria como item
+                      </button>
+
+                      {selItens.length > 0 && (
+                        <div className="flex items-center justify-between mt-2">
+                          <div style={{ fontSize: 13, color: "#334155" }}>
+                            Selecionados: <b>{selItens.join(", ")}</b>
+                          </div>
+                          <button type="button" className="btn-sec" onClick={addTripletsSelecionados}>
+                            + Adicionar selecionados
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Agrupamento por categoria com chips das subcategorias já salvas */}
+          {/* Agrupamento por categoria com chips das subcategorias e itens já salvos */}
           {selectedCategorias.length > 0 && (
             <div style={{ marginTop: 14, display: "grid", gap: 12 }}>
               {selectedCategorias.map((cat) => {
                 const paresDaCat = (form.categoriasAtuacaoPairs || []).filter((p) => p.categoria === cat);
+                const itensDaCat = (form.categoriasAtuacaoTriplets || []).filter((t) => t.categoria === cat);
                 return (
                   <div
                     key={cat}
                     style={{ border: "1px solid #e6edf6", borderRadius: 12, padding: 10, background: "#f8fbff" }}
                   >
-                    <div style={{ fontWeight: 900, color: "#023047", marginBottom: 6 }}>
-                      {cat}{" "}
-                      <span style={{ color: "#2563eb", fontWeight: 800 }}>
-                        ({paresDaCat.length})
+                    <div style={{ fontWeight: 900, color: "#023047", marginBottom: 6, display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                      {cat}
+                      <span style={{ color: "#2563eb", fontWeight: 800, fontSize: 12 }}>
+                        subcats: {subcatsCountByCategoria.get(cat) || 0}
+                      </span>
+                      <span style={{ color: "#059669", fontWeight: 800, fontSize: 12 }}>
+                        itens: {itensCountByCategoria.get(cat) || 0}
                       </span>
                     </div>
-                    <div className="chips">
-                      {paresDaCat.map((p, idx) => (
-                        <span key={`${p.categoria}__${p.subcategoria}__${idx}`} className="chip">
-                          <Tag size={14} /> {p.subcategoria}
-                          <button type="button" onClick={() => removeParCategoria(p)} title="Remover">
-                            ×
-                          </button>
-                        </span>
-                      ))}
-                    </div>
+
+                    {/* Chips de subcategorias */}
+                    {paresDaCat.length > 0 && (
+                      <>
+                        <div style={{ fontSize: 12, color: "#334155", margin: "4px 0 6px" }}>Subcategorias</div>
+                        <div className="chips">
+                          {paresDaCat.map((p, idx) => (
+                            p.subcategoria ? (
+                              <span key={`${p.categoria}__${p.subcategoria}__${idx}`} className="chip">
+                                <Tag size={14} /> {p.subcategoria}
+                                <button type="button" onClick={() => removeParCategoria(p)} title="Remover">×</button>
+                              </span>
+                            ) : null
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Itens agrupados por subcategoria */}
+                    {(itensDaCat.length > 0) && (
+                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        {(() => {
+                          const mapSub = new Map<string, string[]>();
+                          itensDaCat.forEach(t => {
+                            if (!mapSub.has(t.subcategoria)) mapSub.set(t.subcategoria, []);
+                            mapSub.get(t.subcategoria)!.push(t.item);
+                          });
+                          return Array.from(mapSub.entries()).map(([sub, itens]) => (
+                            <div key={`sub-${cat}-${sub}`} style={{ paddingLeft: 2 }}>
+                              <div style={{ fontWeight: 800, color: "#0f172a", margin: "4px 0" }}>
+                                {sub} <span style={{ color: "#2563eb" }}>({itens.length})</span>
+                              </div>
+                              <div className="chips">
+                                {itens.map((item, iidx) => (
+                                  <span key={`${cat}__${sub}__${item}__${iidx}`} className="chip">
+                                    <Tag size={14} /> {item}
+                                    <button type="button" onClick={() => removeTriplet({ categoria: cat, subcategoria: sub, item })} title="Remover">×</button>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ));
+                        })()}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1543,9 +1813,17 @@ export default function AdminEditarUsuarioPage() {
         .btn-sec { background: #f7f9fc; color: #2563eb; border: 1px solid #e0ecff; font-weight: 800; border-radius: 10px; padding: 8px 12px; }
         .btn-gradient { background: linear-gradient(90deg,#fb8500,#fb8500); color: #fff; font-weight: 900; border: none; border-radius: 14px; padding: 14px 26px; font-size: 1.08rem; box-shadow: 0 4px 18px #fb850033; }
 
-        /* Subcategorias */
+        /* Subcategorias/itens */
         .subcat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .subcat-pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid; border-radius: 10px; padding: 8px 10px; font-weight: 800; }
+
+        /* Busca */
+        .searchbox { display:flex; align-items:center; gap:8px; border:1.6px solid #e5e7eb; border-radius:10px; background:#fff; padding:8px 10px; margin-bottom:8px; }
+        .searchbox input { flex:1; border:none; outline:none; font-size:14px; }
+        .searchbox button { border:none; background:transparent; cursor:pointer; color:#64748b; }
+
+        .lock-banner { display: flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #ffedd5; color: #9a3412; padding: 8px 10px; border-radius: 10px; font-weight: 800; }
+
         @media (max-width: 650px) {
           .card { padding: 18px 14px; border-radius: 14px; }
           .subcat-grid { grid-template-columns: 1fr; }
@@ -1580,7 +1858,7 @@ export default function AdminEditarUsuarioPage() {
   );
 }
 
-/** ===== Componente auxiliar para vídeos (mantém o corpo principal limpo) ===== */
+/** ===== Componente auxiliar para vídeos ===== */
 function VideoList({
   form,
   setField,
