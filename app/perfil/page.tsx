@@ -29,6 +29,7 @@ import {
   Plus,
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
+import TaxonomyQuickSearch, { TaxonomyPath } from "@/components/TaxonomyQuickSearch";
 
 /** ==== PDF (SSR desativado para evitar erro no Next) ==== */
 const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false }) as any;
@@ -38,11 +39,11 @@ const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ss
  *  Constantes auxiliares
  *  ========================= */
 const SUPPORT_WHATSAPP = "5531990903613";
-const estados = [
-  "BRASIL",
+const UFS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
-  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
-];
+  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+] as const;
+const UFS_SET = new Set<string>(UFS);
 
 type AgendaDia = { ativo: boolean; das: string; ate: string };
 type CategoriaPair = { categoria: string; subcategoria: string };
@@ -100,11 +101,7 @@ export default function PerfilPage() {
   // Taxonomia centralizada (3 níveis; Firestore > fallback local)
   const { categorias, loading: taxLoading } = useTaxonomia();
 
-  // ===== Busca
-  const [busca, setBusca] = useState("");
-  const norm = (s: string = "") =>
-    s.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
-  const termo = useMemo(() => norm(busca), [busca]);
+  
 
   const nomesCategoriasTodos = useMemo(() => categorias.map((c) => c.nome), [categorias]);
 
@@ -304,17 +301,56 @@ export default function PerfilPage() {
     const d = onlyDigits(input || "");
     return d.startsWith("55") ? d : `55${d}`;
   }
+function onPickTaxonomy(path: TaxonomyPath) {
+  const [c1, c2, c3] = path;
+
+  // Preenche os selects
+  setSelCategoria(c1 || "");
+  setSelSubcat(c2 || "");
+  setSelItens([]);
+
+  // Se vier item final, já adiciona automaticamente ao perfil
+  if (c1 && c2 && c3) {
+    // Respeita travas e limite de categorias
+    const isCategoriaNova = !selectedCategoriasSet.has(c1);
+    if (categoriasLocked && isCategoriaNova) {
+      setMsg("Categorias travadas: adicione itens apenas das categorias já escolhidas.");
+      return;
+    }
+    if (!categoriasLocked && isCategoriaNova && selectedCategoriasSet.size >= MAX_CATEGORIAS) {
+      setMsg(`Você já tem ${MAX_CATEGORIAS}/${MAX_CATEGORIAS} categorias. Use uma existente.`);
+      return;
+    }
+
+    const novoTriplet = { categoria: c1, subcategoria: c2, item: c3 };
+
+    setForm((f) => ({
+      ...f,
+      categoriasAtuacaoPairs: dedupPairs([
+        ...f.categoriasAtuacaoPairs,
+        { categoria: c1, subcategoria: c2 }
+      ]),
+      categoriasAtuacaoTriplets: dedupTriplets([
+        ...(f.categoriasAtuacaoTriplets || []),
+        novoTriplet
+      ]),
+    }));
+
+    setMsg(`Adicionado: ${c1} › ${c2} › ${c3}`);
+  }
+}
 
   function dedupPairs(pairs: CategoriaPair[]) {
-    const m = new Map<string, CategoriaPair>();
-    for (const p of pairs) m.set(`${norm(p.categoria)}::${norm(p.subcategoria)}`, p);
-    return Array.from(m.values());
-  }
-  function dedupTriplets(tris: CategoriaTriplet[]) {
-    const m = new Map<string, CategoriaTriplet>();
-    for (const t of tris) m.set(`${norm(t.categoria)}::${norm(t.subcategoria)}::${norm(t.item)}`, t);
-    return Array.from(m.values());
-  }
+  const m = new Map<string, CategoriaPair>();
+  for (const p of pairs) m.set(`${p.categoria.trim().toLowerCase()}::${p.subcategoria.trim().toLowerCase()}`, p);
+  return Array.from(m.values());
+}
+
+function dedupTriplets(tris: CategoriaTriplet[]) {
+  const m = new Map<string, CategoriaTriplet>();
+  for (const t of tris) m.set(`${t.categoria.trim().toLowerCase()}::${t.subcategoria.trim().toLowerCase()}::${t.item.trim().toLowerCase()}`, t);
+  return Array.from(m.values());
+}
 
   function toSubcatNames(arr: any[] | undefined): string[] {
     if (!Array.isArray(arr)) return [];
@@ -343,15 +379,16 @@ export default function PerfilPage() {
     return Array.from(set);
   }
   function buildPairsSearch(pairs: CategoriaPair[]) {
-    return pairs
-      .filter((p) => p.categoria && p.subcategoria)
-      .map((p) => `${norm(p.categoria)}::${norm(p.subcategoria)}`);
-  }
-  function buildTripletsSearch(tris: CategoriaTriplet[]) {
-    return tris
-      .filter((t) => t.categoria && t.subcategoria && t.item)
-      .map((t) => `${norm(t.categoria)}::${norm(t.subcategoria)}::${norm(t.item)}`);
-  }
+  return pairs
+    .filter((p) => p.categoria && p.subcategoria)
+    .map((p) => `${p.categoria.trim().toLowerCase()}::${p.subcategoria.trim().toLowerCase()}`);
+}
+
+function buildTripletsSearch(tris: CategoriaTriplet[]) {
+  return tris
+    .filter((t) => t.categoria && t.subcategoria && t.item)
+    .map((t) => `${t.categoria.trim().toLowerCase()}::${t.subcategoria.trim().toLowerCase()}::${t.item.trim().toLowerCase()}`);
+}
   function buildUfsSearch(atendeBrasil: boolean, ufsAtendidas: string[] = []) {
     const arr = (ufsAtendidas || []).map((u) => String(u).trim().toUpperCase());
     if (atendeBrasil && !arr.includes("BRASIL")) arr.push("BRASIL");
@@ -376,53 +413,26 @@ export default function PerfilPage() {
 
   // Filtro da busca na categoria
   const categoriasFiltradas = useMemo(() => {
-    if (!termo) return categoriasDropdownBase;
-    const t = termo;
-    return categoriasDropdownBase.filter((catNome) => {
-      const cat = categorias.find((c) => c.nome === catNome);
-      if (!cat) return false;
+  return categoriasDropdownBase;
+}, [categoriasDropdownBase]);
 
-      const hitNome = norm(cat.nome).includes(t);
-      if (hitNome) return true;
-
-      const subcats = toSubcatNames(cat.subcategorias);
-      if (subcats.some((s) => norm(s).includes(t))) return true;
 
       // Se o termo bater em algum item, também mantém a categoria visível
-      const temItem = (cat.subcategorias || []).some((s: any) => {
-        const itens = toItemNamesFromAnyKeys(s);
-        return itens.some((i: string) => norm(i).includes(t));
-      });
-      return temItem;
-    });
-  }, [categoriasDropdownBase, categorias, termo]);
+     const subcatsDaSelecionada = useMemo(() => {
+  if (!selCategoria) return [];
+  const cat = categorias.find((c) => c.nome === selCategoria);
+  return toSubcatNames(cat?.subcategorias);
+}, [selCategoria, categorias]);
 
-  // Subcats filtradas
-  const subcatsDaSelecionada = useMemo(() => {
-    if (!selCategoria) return [];
-    const cat = categorias.find((c) => c.nome === selCategoria);
-    const subs = toSubcatNames(cat?.subcategorias);
-    if (!termo) return subs;
-    const t = termo;
-    return subs.filter((s) => {
-      const matchSub = norm(s).includes(t);
-      if (matchSub) return true;
-      const subEntry = (cat?.subcategorias || []).find((x: any) => (typeof x === "string" ? x : x?.nome) === s);
-      const itens = toItemNamesFromAnyKeys(subEntry);
-      return itens.some((i) => norm(i).includes(t));
-    });
-  }, [selCategoria, categorias, termo]);
 
   // Itens do 3º nível
   const itensDaSubSelecionada = useMemo(() => {
-    if (!selCategoria || !selSubcat) return [];
-    const cat = categorias.find((c) => c.nome === selCategoria);
-    const sub = (cat?.subcategorias || []).find((s: any) => (typeof s === "string" ? s : s?.nome) === selSubcat);
-    const itens = toItemNamesFromAnyKeys(sub);
-    if (!termo) return itens;
-    const t = termo;
-    return itens.filter((i) => norm(i).includes(t));
-  }, [selCategoria, selSubcat, categorias, termo]);
+  if (!selCategoria || !selSubcat) return [];
+  const cat = categorias.find((c) => c.nome === selCategoria);
+  const sub = (cat?.subcategorias || []).find((s: any) => (typeof s === "string" ? s : s?.nome) === selSubcat);
+  return toItemNamesFromAnyKeys(sub);
+}, [selCategoria, selSubcat, categorias]);
+
 
   /* ===== Ações 3º nível ===== */
   function addTripletsSelecionados() {
@@ -548,26 +558,33 @@ export default function PerfilPage() {
   }
 
   function toggleUfAtendida(uf: string) {
-    if (uf === "BRASIL") {
-      setForm((f) => ({
-        ...f,
-        atendeBrasil: !f.atendeBrasil,
-        ufsAtendidas: !f.atendeBrasil ? ["BRASIL"] : [],
-      }));
-      return;
-    }
-    if (form.atendeBrasil) {
-      setForm((f) => ({ ...f, atendeBrasil: false, ufsAtendidas: [uf] }));
-      return;
-    }
-    const has = form.ufsAtendidas.includes(uf.toUpperCase());
+  if (uf === "BRASIL") {
     setForm((f) => ({
       ...f,
-      ufsAtendidas: has
-        ? f.ufsAtendidas.filter((u) => u !== uf.toUpperCase())
-        : [...f.ufsAtendidas, uf.toUpperCase()],
+      atendeBrasil: !f.atendeBrasil,
+      ufsAtendidas: !f.atendeBrasil ? ["BRASIL"] : [],
     }));
+    return;
   }
+
+  // sanitize + whitelist
+  const val = String(uf).trim().toUpperCase();
+  if (!UFS_SET.has(val)) return; // ignora qualquer coisa fora da lista
+
+  if (form.atendeBrasil) {
+    setForm((f) => ({ ...f, atendeBrasil: false, ufsAtendidas: [val] }));
+    return;
+  }
+
+  const has = form.ufsAtendidas.includes(val);
+  setForm((f) => ({
+    ...f,
+    ufsAtendidas: has
+      ? f.ufsAtendidas.filter((u) => u !== val)
+      : [...f.ufsAtendidas, val],
+  }));
+}
+
 
   /* ================= Salvar ================= */
   async function salvar(e?: React.FormEvent) {
@@ -774,7 +791,12 @@ export default function PerfilPage() {
                     }}
                   >
                     <option value="">Selecione</option>
-                    {estados.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                    {UFS.map((uf) => (
+  <option key={uf} value={uf}>
+    {uf}
+  </option>
+))}
+
                   </select>
                 </div>
 
@@ -836,20 +858,17 @@ export default function PerfilPage() {
                 Categorias (até {MAX_CATEGORIAS} <b>categorias</b>; <b>subcategorias</b> e <b>itens</b> ilimitados)
               </div>
 
-              {/* Busca */}
-              <div className="searchbox">
-                <Search size={16} />
-                <input
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar por categoria, subcategoria ou item…"
-                />
-                {!!busca && (
-                  <button type="button" aria-label="Limpar busca" onClick={() => setBusca("")}>
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
+  {/* Busca inteligente (autocomplete 3 níveis) */}
+<div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc", marginBottom: 10 }}>
+  <TaxonomyQuickSearch
+    categorias={categorias}
+    disabled={taxLoading}
+    onSelectPath={onPickTaxonomy}
+    // placeholder opcional:
+    // placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+  />
+</div>
+
 
               {/* 1) Categoria */}
               <select
@@ -1103,22 +1122,25 @@ export default function PerfilPage() {
             <>
               <div className="label">Selecione UFs</div>
               <div className="grid grid-cols-8 gap-2 max-sm:grid-cols-4">
-                {estados.filter(e => e !== "BRASIL").map((uf) => {
-                  const checked = form.ufsAtendidas.includes(uf);
-                  return (
-                    <button
-                      key={uf}
-                      type="button"
-                      onClick={() => toggleUfAtendida(uf)}
-                      className="pill"
-                      style={{
-                        background: checked ? "#219EBC" : "#f3f6fa",
-                        color: checked ? "#fff" : "#023047",
-                        borderColor: checked ? "#1a7a93" : "#e6e9ef"
-                      }}
-                    >{uf}</button>
-                  );
-                })}
+                {UFS.map((uf) => {
+  const checked = form.ufsAtendidas.includes(uf);
+  return (
+    <button
+      key={uf}
+      type="button"
+      onClick={() => toggleUfAtendida(uf)}
+      className="pill"
+      style={{
+        background: checked ? "#219EBC" : "#f3f6fa",
+        color: checked ? "#fff" : "#023047",
+        borderColor: checked ? "#1a7a93" : "#e6e9ef",
+      }}
+    >
+      {uf}
+    </button>
+  );
+})}
+
               </div>
             </>
           )}

@@ -6,8 +6,6 @@ import { db } from "@/firebaseConfig";
 import { collection, getDocs } from "firebase/firestore";
 
 /** ===================== Config ===================== */
-// true = usa somente a lista local (recomendado agora)
-// false = tenta buscar no Firestore (e cai pro local se falhar)
 const USE_ONLY_LOCAL = true;
 
 /** ===================== Tipos ===================== */
@@ -36,21 +34,17 @@ function normalizeCats3(input: any[]): Cat[] {
   const toSubcat = (v: any): Subcat => {
     const nome = (v?.nome ?? v?.name ?? "").toString().trim();
 
-    // Detecta possíveis formatos de "itens" no segundo nível
     const rawItens =
       Array.isArray(v?.itens) ? v.itens :
       Array.isArray(v?.subitens) ? v.subitens :
       Array.isArray(v?.items) ? v.items :
-      Array.isArray(v) ? v : // se vier como array direto
-      // fallback: se vier como strings simples no lugar de itens
+      Array.isArray(v) ? v :
       (typeof v === "string" ? [v] : []);
 
-    // Se não houver "itens" mas houver strings diretas, converte
     let itens: Item[] = [];
     if (Array.isArray(rawItens) && rawItens.length > 0) {
       itens = rawItens.filter(Boolean).map(toItem);
     } else if (Array.isArray(v?.subcategorias)) {
-      // Caso legado: subcategoria veio com "subcategorias" (strings) — tratamos como itens
       itens = v.subcategorias.filter(Boolean).map(toItem);
     }
 
@@ -61,16 +55,13 @@ function normalizeCats3(input: any[]): Cat[] {
     .map((c) => {
       const nome = (c?.nome ?? c?.name ?? "").toString().trim();
 
-      // Busca o segundo nível em chaves comuns
       const rawSubs =
         Array.isArray(c?.subcategorias) ? c.subcategorias :
         Array.isArray(c?.subs) ? c.subs :
         Array.isArray(c?.grupos) ? c.grupos :
-        Array.isArray(c?.itens) ? c.itens : // caso antigo: usaram 'itens' como subcats
+        Array.isArray(c?.itens) ? c.itens :
         [];
 
-      // Se subcategorias vierem como array de strings, viram itens de um "Outros" automático
-      // Mas aqui queremos 3 níveis; então se vier string, encapsulamos em uma subcat genérica.
       let subcategorias: Subcat[] = [];
       if (rawSubs.every((s: any) => typeof s === "string")) {
         subcategorias = [{
@@ -82,16 +73,10 @@ function normalizeCats3(input: any[]): Cat[] {
         subcategorias = rawSubs
           .filter(Boolean)
           .map((s: any) => {
-            // Se "s" for string, vira subcat com um item igual
             if (typeof s === "string") {
               const item = toItem(s);
-              return {
-                nome: item.nome,
-                slug: item.slug,
-                itens: [item],
-              } as Subcat;
+              return { nome: item.nome, slug: item.slug, itens: [item] } as Subcat;
             }
-            // Se "s" for objeto, normaliza
             return toSubcat(s);
           });
       }
@@ -102,11 +87,6 @@ function normalizeCats3(input: any[]): Cat[] {
 }
 
 /** ===================== TAXONOMIA LOCAL (3 NÍVEIS) ===================== */
-/**
- * Estrutura: Categoria → Subcategoria → Itens
- * "Outros (Caixa para escrever)" foi padronizado como:
- * { nome: "Outros", itens: ["Caixa para escrever"] }
- */
 export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
   /* 1. Britagem */
   {
@@ -244,8 +224,8 @@ export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
       {
         nome: "Produtos",
         itens: [
+          "Explosivos Civis",
           "Explosivo Dinamite",
-          "Explosivo Civis",
           "Explosivo ANFO",
           "Explosivo Industrial",
           "Detonador Elétrico",
@@ -320,10 +300,10 @@ export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
         nome: "Tipos",
         itens: [
           "Motores Diesel",
-          "Motores Eletricos",
-          "Motores Para exaustores industriais",
-          "Motores Para planta de britagem",
-          "Motores Para peneiramento",
+          "Motores Elétricos",
+          "Motores para exaustores industriais",
+          "Motores para planta de britagem",
+          "Motores para peneiramento",
         ],
       },
       {
@@ -448,7 +428,14 @@ export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
     subcategorias: [
       {
         nome: "Equipamentos",
-        itens: ["CLP / PLC", "SCADA / supervisórios", "Sensores", "Atuadores", "Inversores / VFD", "Painéis de comando e proteção"],
+        itens: [
+          "CLP / PLC",
+          "SCADA / supervisórios",
+          "Sensores",
+          "Atuadores",
+          "Inversores / VFD",
+          "Painéis de comando e proteção",
+        ],
       },
       {
         nome: "Peças de reposição",
@@ -537,10 +524,266 @@ export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
   },
 ]);
 
+/** ===================== EXTRA_ADICOES (somente ADIÇÕES) ===================== */
+const EXTRA_ADICOES: Cat[] = normalizeCats3([
+  /** Correias e Transportadores (vai ser dividido depois) */
+  {
+    nome: "Correias e Transportadores",
+    subcategorias: [
+      {
+        nome: "Transportadores",
+        itens: [
+          "Transportador de Correia Fixo",
+          "Transportador de Correia Móvel",
+          "Transportador de Correia",
+          "Transportador Radial",
+          "Transportador Reversível",
+          "Transportador Tubular",
+          "Transportador de Correia Magnética",
+          "Transportador de Corrente (corrente metálica)",
+          "Transportador de Correia sobre roletes",
+          "Correia Transportadora Elevatória",
+          "Correia de Transferência",
+          "Correia de Retorno",
+          "Correia de Cauda e Cabeceira",
+          "Alimentador de Correia",
+          "Alimentador Vibratório",
+          "Alimentador de Placas",
+          "Calha Vibratória",
+        ],
+      },
+      {
+        nome: "Peças",
+        itens: [
+          "Correias de lona",
+          "Correias de aço",
+          "Correias de borracha",
+          "Roletes de carga",
+          "Roletes de retorno",
+          "Roletes de impacto",
+          "Roletes de limpeza",
+          "Tambor de acionamento",
+          "Tambor de retorno",
+          "Eixos",
+          "Mancais",
+          "Acoplamentos",
+          "Polias",
+          "Esticadores de correia",
+          "Guias laterais",
+          "Raspadores",
+          "Bicas e chutes de descarga",
+          "Estruturas metálicas",
+          "Suportes",
+          "Sensores de desalinhamento",
+          "Chaves de emergência",
+          "Limitadores de velocidade",
+          "Sistema de lubrificação",
+          "Rolamentos",
+          "Buchas",
+          "Parafusos",
+          "Porcas",
+          "Arruelas industriais",
+          "Pás e raspadores de limpeza",
+        ],
+      },
+      { nome: "Serviços", itens: ["Montagem", "Manutenção", "Reparo"] },
+      { nome: "Outros", itens: ["Caixa para escrever"] },
+    ],
+  },
+
+  /** Moinhos — Peças + Serviços + Aluguel */
+  {
+    nome: "Moinhos",
+    subcategorias: [
+      {
+        nome: "Peças",
+        itens: [
+          "Grelhas",
+          "Bolas",
+          "Barras",
+          "Pinhão",
+          "Eixos",
+          "Mancais",
+          "Buchas",
+          "Polias",
+          "Correias",
+          "Rolamentos",
+          "Redutores de velocidade",
+          "Acoplamentos elásticos e rígidos",
+          "Anéis de vedação",
+          "Selos e retentores",
+          "Chavetas",
+          "Parafusos e porcas de fixação",
+          "Tampas de inspeção",
+          "Carcaças",
+          "Suportes de base",
+          "Motor",
+          "Redutor",
+          "Painel elétrico de controle",
+          "Sensores de vibração",
+          "Sensores de temperatura",
+          "Bombas de lubrificação",
+          "Filtros e reservatórios de óleo",
+          "Sistema de refrigeração de óleo",
+          "Válvulas e conexões hidráulicas",
+          "Anéis de desgaste",
+          "Grades internas",
+          "Telas internas",
+          "Revestimentos cerâmicos",
+          "Revestimento de borracha",
+          "Buchas do tambor",
+          "Rolos de apoio",
+          "Correntes",
+        ],
+      },
+      {
+        nome: "Serviços",
+        itens: [
+          "Usinagem",
+          "Reforma",
+          "Balanceamento de rotores e eixos",
+          "Manutenção",
+          "Alinhamento de eixo e engrenagens",
+          "Montagem e desmontagem de moinhos",
+          "Troca de revestimentos",
+          "Análise de vibração e ruído",
+          "Lubrificação e troca de óleo",
+          "Retífica de mancais",
+        ],
+      },
+      { nome: "Aluguel", itens: ["Aluguel de moinho"] },
+    ],
+  },
+
+  /** Separadores Magnéticos e Detectores — novas peças (será dividido depois) */
+  {
+    nome: "Separadores Magnéticos e Detectores",
+    subcategorias: [
+      {
+        nome: "Peças de reposição",
+        itens: [
+          "Filtro Magnético",
+          "Filtro Eletromagnético",
+          "Polia Magnética",
+          "Vassoura Magnética",
+        ],
+      },
+    ],
+  },
+]);
+
+/** ===================== MERGE PROFUNDO (somente adições, sem duplicar) ===================== */
+function deepMergeCats(base: Cat[], extras: Cat[]): Cat[] {
+  const baseMap = new Map(base.map(c => [c.slug, c]));
+  for (const ex of extras) {
+    const found = baseMap.get(ex.slug);
+    if (!found) {
+      base.push(ex);
+      baseMap.set(ex.slug, ex);
+      continue;
+    }
+    const subMap = new Map(found.subcategorias.map(s => [s.slug, s]));
+    for (const sub of ex.subcategorias) {
+      const sFound = subMap.get(sub.slug);
+      if (!sFound) {
+        found.subcategorias.push(sub);
+        subMap.set(sub.slug, sub);
+        continue;
+      }
+      const itemSet = new Set(sFound.itens.map(i => i.slug));
+      for (const it of sub.itens) {
+        if (!itemSet.has(it.slug)) sFound.itens.push(it);
+      }
+    }
+  }
+  return base;
+}
+
+/** ===================== SPLIT DE CATEGORIAS COMPOSTAS ===================== */
+/**
+ * Mapeia a categoria (por slug) para a lista de novas categorias (nomes).
+ * Para adicionar um novo split, é só colocar mais uma entrada aqui.
+ */
+const SPLIT_CATEGORIES: Record<string, string[]> = {
+  [slugify("Separadores Magnéticos e Detectores")]: [
+    "Separadores Magnéticos",
+    "Detectores",
+  ],
+  [slugify("Correias e Transportadores")]: [
+    "Correias",
+    "Transportadores",
+  ],
+  [slugify("Linha Amarela / Fora de Estrada")]: [
+    "Linha Amarela",
+    "Fora de Estrada",
+  ],
+};
+
+function splitCompoundCategories(cats: Cat[]): Cat[] {
+  const result: Cat[] = [];
+  for (const c of cats) {
+    const targets = SPLIT_CATEGORIES[c.slug];
+    if (!targets) {
+      result.push(c);
+      continue;
+    }
+    // duplica a estrutura para cada novo nome
+    for (const newName of targets) {
+      result.push({
+        nome: newName,
+        slug: slugify(newName),
+        subcategorias: c.subcategorias.map((s) => ({
+          nome: s.nome,
+          slug: s.slug, // manter slug das subcats ajuda a mesclar itens depois
+          itens: s.itens.map((i) => ({ nome: i.nome, slug: i.slug })),
+        })),
+      });
+    }
+  }
+  // remove duplicatas por slug (caso já existisse uma das novas no base/extras)
+  const bySlug = new Map<string, Cat>();
+  for (const c of result) bySlug.set(c.slug, bySlug.get(c.slug) ?? c);
+  return Array.from(bySlug.values());
+}
+
+/** ===================== DEDUPE GERAL (categorias, subcats, itens) ===================== */
+function dedupeAll(cats: Cat[]): Cat[] {
+  const catSeen = new Set<string>();
+  const out: Cat[] = [];
+  for (const c of cats) {
+    if (catSeen.has(c.slug)) continue;
+    catSeen.add(c.slug);
+
+    const subSeen = new Set<string>();
+    const subOut: Subcat[] = [];
+    for (const s of c.subcategorias) {
+      if (subSeen.has(s.slug)) continue;
+      subSeen.add(s.slug);
+
+      const itemSeen = new Set<string>();
+      const itensOut: Item[] = [];
+      for (const it of s.itens) {
+        if (itemSeen.has(it.slug)) continue;
+        itemSeen.add(it.slug);
+        itensOut.push(it);
+      }
+      subOut.push({ ...s, itens: itensOut });
+    }
+    out.push({ ...c, subcategorias: subOut });
+  }
+  return out;
+}
+
 /** ===================== Hook ===================== */
 export function useTaxonomia() {
-  // inicia já com o local completo
-  const [categorias, setCategorias] = useState<Cat[]>(TAXONOMIA_LOCAL);
+  // 1) base + extras
+  const merged = deepMergeCats([...TAXONOMIA_LOCAL], EXTRA_ADICOES);
+  // 2) dividir categorias compostas
+  const splitted = splitCompoundCategories(merged);
+  // 3) dedupe geral (garante 1 ocorrência no select)
+  const initial = dedupeAll(splitted);
+
+  const [categorias, setCategorias] = useState<Cat[]>(initial);
   const [loading, setLoading] = useState<boolean>(!USE_ONLY_LOCAL);
 
   useEffect(() => {
@@ -548,34 +791,23 @@ export function useTaxonomia() {
       setLoading(false);
       return;
     }
-
     let alive = true;
     (async () => {
       try {
         const snap = await getDocs(collection(db, "taxonomia"));
         if (!alive) return;
-
-        if (!snap.empty) {
-          const server = snap.docs.map((d) => d.data());
-          const norm = normalizeCats3(server);
-          if (norm.length > 0) {
-            setCategorias(norm);
-          } else {
-            setCategorias(TAXONOMIA_LOCAL);
-          }
-        } else {
-          setCategorias(TAXONOMIA_LOCAL);
-        }
+        const server = !snap.empty ? normalizeCats3(snap.docs.map(d => d.data())) : TAXONOMIA_LOCAL;
+        const mergedSrv = deepMergeCats([...server], EXTRA_ADICOES);
+        const splittedSrv = splitCompoundCategories(mergedSrv);
+        const clean = dedupeAll(splittedSrv);
+        setCategorias(clean);
       } catch {
-        setCategorias(TAXONOMIA_LOCAL);
+        setCategorias(initial);
       } finally {
-        if (alive) setLoading(false);
+        alive && setLoading(false);
       }
     })();
-
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, []);
 
   return { categorias, loading };
