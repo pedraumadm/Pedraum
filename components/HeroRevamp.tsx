@@ -8,9 +8,21 @@ import { ArrowRight } from "lucide-react";
 type Banner = { src: string; alt: string; focal?: "center" | "top" | "bottom" };
 
 const BANNERS: Banner[] = [
-  { src: "/banners/mina-hero-1.jpg", alt: "Operação de mineração com caminhões", focal: "center" },
-  { src: "/banners/mina-hero-2.jpg", alt: "Sistema de britagem em atividade", focal: "center" },
-  { src: "/banners/mina-hero-3.jpg", alt: "Esteiras e carregadeiras no pátio", focal: "top" },
+  {
+    src: "/banners/mina-hero-1.jpg",
+    alt: "Operação de mineração com caminhões",
+    focal: "center",
+  },
+  {
+    src: "/banners/mina-hero-2.jpg",
+    alt: "Sistema de britagem em atividade",
+    focal: "center",
+  },
+  {
+    src: "/banners/mina-hero-3.jpg",
+    alt: "Esteiras e carregadeiras no pátio",
+    focal: "top",
+  },
 ];
 
 export default function HeroRevamp() {
@@ -20,7 +32,10 @@ export default function HeroRevamp() {
 
   // Avança/volta
   const next = useCallback(() => setIndex((i) => (i + 1) % BANNERS.length), []);
-  const prev = useCallback(() => setIndex((i) => (i - 1 + BANNERS.length) % BANNERS.length), []);
+  const prev = useCallback(
+    () => setIndex((i) => (i - 1 + BANNERS.length) % BANNERS.length),
+    [],
+  );
 
   // Autoplay
   useEffect(() => {
@@ -90,13 +105,15 @@ export default function HeroRevamp() {
               </p>
 
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight">
-                Encontre o <span className="text-[#FFB703]">Fornecedor Ideal</span> para sua
-                Mineradora, em Minutos
+                Encontre o{" "}
+                <span className="text-[#FFB703]">Fornecedor Ideal</span> para
+                sua Mineradora, em Minutos
               </h1>
 
               <p className="mt-3 text-base sm:text-lg md:text-xl text-white/90">
-                Conectamos suas demandas a fornecedores <b>qualificados</b> de produtos e serviços
-                para britagem e mineração. <b>Mais opções</b>, <b>menos risco</b>, sem complicação.
+                Conectamos suas demandas a fornecedores <b>qualificados</b> de
+                produtos e serviços para britagem e mineração.{" "}
+                <b>Mais opções</b>, <b>menos risco</b>, sem complicação.
               </p>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">

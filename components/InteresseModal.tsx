@@ -3,7 +3,12 @@ import { useState } from "react";
 import { db } from "@/firebaseConfig";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-export default function InteresseModal({ machineId, machineTitle, vendedorId, onClose }) {
+export default function InteresseModal({
+  machineId,
+  machineTitle,
+  vendedorId,
+  onClose,
+}) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
@@ -25,7 +30,7 @@ export default function InteresseModal({ machineId, machineTitle, vendedorId, on
         telefone,
         mensagem,
         createdAt: serverTimestamp(),
-        status: "novo"
+        status: "novo",
       });
       setSucesso(true);
     } catch (err) {
@@ -41,16 +46,18 @@ export default function InteresseModal({ machineId, machineTitle, vendedorId, on
         <button
           onClick={onClose}
           className="absolute top-4 right-5 text-2xl text-gray-400 hover:text-accent"
-        >×</button>
-        <h2 className="font-black text-2xl mb-2 text-brand">
-          Tenho interesse
-        </h2>
+        >
+          ×
+        </button>
+        <h2 className="font-black text-2xl mb-2 text-brand">Tenho interesse</h2>
         <p className="mb-5 text-gray-600 text-sm">
-          Preencha seus dados para que o vendedor entre em contato sobre <span className="font-bold">{machineTitle}</span>.
+          Preencha seus dados para que o vendedor entre em contato sobre{" "}
+          <span className="font-bold">{machineTitle}</span>.
         </p>
         {sucesso ? (
           <div className="text-green-600 font-semibold py-10 text-center">
-            Interesse enviado com sucesso! <br /> O vendedor receberá seus dados e vai retornar em breve.
+            Interesse enviado com sucesso! <br /> O vendedor receberá seus dados
+            e vai retornar em breve.
           </div>
         ) : (
           <form className="flex flex-col gap-3" onSubmit={enviarLead}>
@@ -59,7 +66,7 @@ export default function InteresseModal({ machineId, machineTitle, vendedorId, on
               className="border rounded-xl px-4 py-2"
               placeholder="Seu nome"
               value={nome}
-              onChange={e => setNome(e.target.value)}
+              onChange={(e) => setNome(e.target.value)}
             />
             <input
               required
@@ -67,20 +74,20 @@ export default function InteresseModal({ machineId, machineTitle, vendedorId, on
               placeholder="E-mail"
               type="email"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <input
               required
               className="border rounded-xl px-4 py-2"
               placeholder="Telefone"
               value={telefone}
-              onChange={e => setTelefone(e.target.value)}
+              onChange={(e) => setTelefone(e.target.value)}
             />
             <textarea
               className="border rounded-xl px-4 py-2"
               placeholder="Mensagem (opcional)"
               value={mensagem}
-              onChange={e => setMensagem(e.target.value)}
+              onChange={(e) => setMensagem(e.target.value)}
               rows={3}
             />
             <button

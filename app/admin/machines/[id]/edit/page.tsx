@@ -96,7 +96,9 @@ export default function EditarMaquinaPage() {
   if (loading) {
     return (
       <main style={{ padding: "60px 0", textAlign: "center" }}>
-        <span style={{ color: "#023047", fontSize: 18 }}>Carregando dados...</span>
+        <span style={{ color: "#023047", fontSize: 18 }}>
+          Carregando dados...
+        </span>
       </main>
     );
   }
@@ -106,66 +108,121 @@ export default function EditarMaquinaPage() {
       <main style={{ padding: "60px 0", textAlign: "center" }}>
         <span style={{ color: "#d90429", fontSize: 18 }}>{error}</span>
         <div style={{ marginTop: 18 }}>
-          <Link href="/admin/machines" style={{ color: "#2563eb", fontWeight: 600 }}>Voltar para listagem</Link>
+          <Link
+            href="/admin/machines"
+            style={{ color: "#2563eb", fontWeight: 600 }}
+          >
+            Voltar para listagem
+          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#f9fafb",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      padding: "36px 0"
-    }}>
-      <div style={{
-        background: "#fff",
-        borderRadius: 18,
-        boxShadow: "0 6px 36px #0002",
-        padding: "36px 32px",
-        maxWidth: 480,
-        width: "100%",
-        margin: "0 auto",
-        border: "1.5px solid #e0e7ef"
-      }}>
-        <h2 style={{
-          fontWeight: 800,
-          fontSize: 26,
-          color: "#023047",
-          marginBottom: 22,
-          textAlign: "center"
-        }}>Editar Máquina</h2>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f9fafb",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "36px 0",
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 18,
+          boxShadow: "0 6px 36px #0002",
+          padding: "36px 32px",
+          maxWidth: 480,
+          width: "100%",
+          margin: "0 auto",
+          border: "1.5px solid #e0e7ef",
+        }}
+      >
+        <h2
+          style={{
+            fontWeight: 800,
+            fontSize: 26,
+            color: "#023047",
+            marginBottom: 22,
+            textAlign: "center",
+          }}
+        >
+          Editar Máquina
+        </h2>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: 18 }}
+        >
           <label style={labelStyle}>Nome</label>
-          <input type="text" value={nome} onChange={e => setNome(e.target.value)} required style={inputStyle} />
+          <input
+            type="text"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            required
+            style={inputStyle}
+          />
 
           <label style={labelStyle}>Descrição</label>
-          <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical", minHeight: 70, fontFamily: "inherit" }} />
+          <textarea
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            rows={3}
+            style={{
+              ...inputStyle,
+              resize: "vertical",
+              minHeight: 70,
+              fontFamily: "inherit",
+            }}
+          />
 
           <label style={labelStyle}>Valor (R$)</label>
-          <input type="number" step="0.01" value={valor} onChange={e => setValor(e.target.value)} required style={inputStyle} />
+          <input
+            type="number"
+            step="0.01"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            required
+            style={inputStyle}
+          />
 
           <label style={labelStyle}>Status</label>
-          <input type="text" value={status} onChange={e => setStatus(e.target.value)} style={inputStyle} />
+          <input
+            type="text"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            style={inputStyle}
+          />
 
           <label style={labelStyle}>Imagem</label>
-          <input type="file" accept="image/*" onChange={handleImageChange} style={{ marginBottom: 8 }} />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleImageChange}
+            style={{ marginBottom: 8 }}
+          />
           {/* Preview da imagem nova ou atual */}
           {(imagePreview || imgUrl) && (
-            <img src={imagePreview || imgUrl} alt="Imagem máquina" style={{
-              width: "100%",
-              maxHeight: 170,
-              objectFit: "cover",
-              borderRadius: 12,
-              border: "1px solid #eee"
-            }} />
+            <img
+              src={imagePreview || imgUrl}
+              alt="Imagem máquina"
+              style={{
+                width: "100%",
+                maxHeight: 170,
+                objectFit: "cover",
+                borderRadius: 12,
+                border: "1px solid #eee",
+              }}
+            />
           )}
 
-          <button type="submit" disabled={saving}
+          <button
+            type="submit"
+            disabled={saving}
             style={{
               marginTop: 16,
               background: "#2563eb",
@@ -177,28 +234,48 @@ export default function EditarMaquinaPage() {
               border: "none",
               cursor: saving ? "not-allowed" : "pointer",
               transition: ".15s",
-              boxShadow: "0 2px 14px #02304722"
-            }}>
+              boxShadow: "0 2px 14px #02304722",
+            }}
+          >
             {saving ? "Salvando..." : "Salvar Alterações"}
           </button>
           {success && (
-            <div style={{ color: "#16a34a", fontWeight: 600, marginTop: 8, textAlign: "center" }}>
+            <div
+              style={{
+                color: "#16a34a",
+                fontWeight: 600,
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
               Alterações salvas com sucesso!
             </div>
           )}
           {error && (
-            <div style={{ color: "#d90429", fontWeight: 600, marginTop: 8, textAlign: "center" }}>
+            <div
+              style={{
+                color: "#d90429",
+                fontWeight: 600,
+                marginTop: 8,
+                textAlign: "center",
+              }}
+            >
               {error}
             </div>
           )}
         </form>
         <div style={{ marginTop: 18, textAlign: "center" }}>
-          <Link href="/admin/machines" style={{
-            color: "#2563eb",
-            fontWeight: 600,
-            fontSize: 15,
-            textDecoration: "underline"
-          }}>← Voltar para listagem</Link>
+          <Link
+            href="/admin/machines"
+            style={{
+              color: "#2563eb",
+              fontWeight: 600,
+              fontSize: 15,
+              textDecoration: "underline",
+            }}
+          >
+            ← Voltar para listagem
+          </Link>
         </div>
       </div>
     </main>
@@ -210,7 +287,7 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 700,
   color: "#023047",
   fontSize: "1.01rem",
-  marginBottom: 2
+  marginBottom: 2,
 };
 const inputStyle: React.CSSProperties = {
   border: "1.5px solid #e0e7ef",

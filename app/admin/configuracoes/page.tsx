@@ -4,12 +4,7 @@ import LayoutWithSidebar from "@/components/LayoutWithSidebar";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { db } from "@/firebaseConfig";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 export default function ConfiguracoesAdminPage() {
   const { register, handleSubmit, reset } = useForm();
@@ -49,7 +44,9 @@ export default function ConfiguracoesAdminPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Configurações do Sistema</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Configurações do Sistema
+        </h1>
 
         {loading ? (
           <p className="text-gray-600">Carregando...</p>
@@ -86,7 +83,9 @@ export default function ConfiguracoesAdminPage() {
               Salvar
             </button>
             {success && (
-              <p className="text-green-600 text-sm">Configurações salvas com sucesso!</p>
+              <p className="text-green-600 text-sm">
+                Configurações salvas com sucesso!
+              </p>
             )}
           </form>
         )}

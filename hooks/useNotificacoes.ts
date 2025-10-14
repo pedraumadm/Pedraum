@@ -1,7 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
 import { db, auth } from "@/firebaseConfig";
-import { collection, query, where, orderBy, onSnapshot, limit, updateDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  limit,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 
 export type Notificacao = {
   id: string;
@@ -20,15 +29,19 @@ export function useNotificacoes(max = 20) {
 
   useEffect(() => {
     const unsubAuth = auth.onAuthStateChanged((u) => {
-      if (!u) { setItens([]); setLoading(false); return; }
+      if (!u) {
+        setItens([]);
+        setLoading(false);
+        return;
+      }
       const q = query(
         collection(db, "notificacoes"),
         where("userId", "==", u.uid),
         orderBy("createdAt", "desc"),
-        limit(max)
+        limit(max),
       );
       const unsub = onSnapshot(q, (snap) => {
-        setItens(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+        setItens(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
         setLoading(false);
       });
       return () => unsub();
@@ -37,15 +50,25 @@ export function useNotificacoes(max = 20) {
   }, [max]);
 
   async function marcarComoLida(id: string) {
-    await updateDoc(doc(db, "notificacoes", id), { lido: true, readAt: new Date() });
+    await updateDoc(doc(db, "notificacoes", id), {
+      lido: true,
+      readAt: new Date(),
+    });
   }
 
   async function marcarTodasComoLidas() {
-    const alvos = itens.filter(n => !n.lido);
-    await Promise.all(alvos.map(n => updateDoc(doc(db, "notificacoes", n.id), { lido: true, readAt: new Date() })));
+    const alvos = itens.filter((n) => !n.lido);
+    await Promise.all(
+      alvos.map((n) =>
+        updateDoc(doc(db, "notificacoes", n.id), {
+          lido: true,
+          readAt: new Date(),
+        }),
+      ),
+    );
   }
 
-  const naoLidas = itens.filter(n => !n.lido).length;
+  const naoLidas = itens.filter((n) => !n.lido).length;
 
   return { itens, naoLidas, loading, marcarComoLida, marcarTodasComoLidas };
 }

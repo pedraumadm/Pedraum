@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { ArrowLeft, Mail, X } from "lucide-react";
 
 // Tipos de dados
@@ -36,7 +42,7 @@ export default function MachineDetailPage() {
     empresa: "",
     endereco: "",
     email: "",
-    mensagem: ""
+    mensagem: "",
   });
   const [formLoading, setFormLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -71,7 +77,9 @@ export default function MachineDetailPage() {
     if (id) fetchMachine();
   }, [id]);
 
-  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -88,7 +96,13 @@ export default function MachineDetailPage() {
       return;
     }
 
-    if (!form.nome || !form.telefone || !form.empresa || !form.endereco || !form.email) {
+    if (
+      !form.nome ||
+      !form.telefone ||
+      !form.empresa ||
+      !form.endereco ||
+      !form.email
+    ) {
       setError("Preencha todos os campos obrigatórios.");
       setFormLoading(false);
       return;
@@ -113,7 +127,14 @@ export default function MachineDetailPage() {
         imagens: machine?.imagens || [],
       });
       setSuccess(true);
-      setForm({ nome: "", telefone: "", empresa: "", endereco: "", email: "", mensagem: "" });
+      setForm({
+        nome: "",
+        telefone: "",
+        empresa: "",
+        endereco: "",
+        email: "",
+        mensagem: "",
+      });
       setShowForm(false);
     } catch {
       setError("Erro ao enviar. Tente novamente.");
@@ -125,7 +146,9 @@ export default function MachineDetailPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-96">
-        <span className="text-blue-700 animate-pulse">Carregando detalhes...</span>
+        <span className="text-blue-700 animate-pulse">
+          Carregando detalhes...
+        </span>
       </div>
     );
   }
@@ -149,9 +172,22 @@ export default function MachineDetailPage() {
     { label: "Condição", value: machine.condicao },
     { label: "Categoria", value: machine.categoria },
     { label: "Estado", value: machine.estado },
-    { label: "Publicado em", value: machine.createdAt ? (machine.createdAt.seconds ? new Date(machine.createdAt.seconds * 1000).toLocaleDateString() : machine.createdAt) : "---" },
-    { label: "Anunciante", value: machine.nome || machine.nomeAnunciante || "---" },
-    { label: "Localização", value: machine.estado || machine.localizacao || "---" },
+    {
+      label: "Publicado em",
+      value: machine.createdAt
+        ? machine.createdAt.seconds
+          ? new Date(machine.createdAt.seconds * 1000).toLocaleDateString()
+          : machine.createdAt
+        : "---",
+    },
+    {
+      label: "Anunciante",
+      value: machine.nome || machine.nomeAnunciante || "---",
+    },
+    {
+      label: "Localização",
+      value: machine.estado || machine.localizacao || "---",
+    },
   ];
 
   return (
@@ -160,8 +196,15 @@ export default function MachineDetailPage() {
       {success && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-40">
           <div className="bg-white rounded-2xl p-8 shadow-xl flex flex-col items-center">
-            <span className="text-2xl text-green-700 font-bold mb-2">Lead enviado com sucesso!</span>
-            <button onClick={() => setSuccess(false)} className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all">Fechar</button>
+            <span className="text-2xl text-green-700 font-bold mb-2">
+              Lead enviado com sucesso!
+            </span>
+            <button
+              onClick={() => setSuccess(false)}
+              className="mt-4 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all"
+            >
+              Fechar
+            </button>
           </div>
         </div>
       )}
@@ -174,7 +217,10 @@ export default function MachineDetailPage() {
       <div className="bg-white rounded-2xl shadow-lg p-6 flex flex-col md:flex-row gap-10">
         {/* Imagem principal e miniaturas */}
         <div className="md:w-1/2 w-full flex flex-col items-center">
-          <div className="w-full aspect-square bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center" style={{ maxWidth: 420 }}>
+          <div
+            className="w-full aspect-square bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center"
+            style={{ maxWidth: 420 }}
+          >
             <img
               src={machine.imagens?.[imgIndex] || "/img-placeholder.png"}
               alt={machine.nome}
@@ -215,10 +261,14 @@ export default function MachineDetailPage() {
               >
                 <X size={26} />
               </button>
-              <h2 className="text-2xl font-extrabold text-orange-600 mb-6 tracking-tight">Solicitar Contato</h2>
+              <h2 className="text-2xl font-extrabold text-orange-600 mb-6 tracking-tight">
+                Solicitar Contato
+              </h2>
               <div className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">Nome do responsável*</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    Nome do responsável*
+                  </label>
                   <input
                     type="text"
                     name="nome"
@@ -229,7 +279,9 @@ export default function MachineDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">Telefone (WhatsApp)*</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    Telefone (WhatsApp)*
+                  </label>
                   <input
                     type="tel"
                     name="telefone"
@@ -240,7 +292,9 @@ export default function MachineDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">Nome da empresa ou residência*</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    Nome da empresa ou residência*
+                  </label>
                   <input
                     type="text"
                     name="empresa"
@@ -251,7 +305,9 @@ export default function MachineDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">Endereço*</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    Endereço*
+                  </label>
                   <input
                     type="text"
                     name="endereco"
@@ -262,7 +318,9 @@ export default function MachineDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">E-mail para contato*</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    E-mail para contato*
+                  </label>
                   <input
                     type="email"
                     name="email"
@@ -273,7 +331,9 @@ export default function MachineDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-semibold mb-1 text-gray-700">Mensagem adicional</label>
+                  <label className="block text-base font-semibold mb-1 text-gray-700">
+                    Mensagem adicional
+                  </label>
                   <textarea
                     name="mensagem"
                     value={form.mensagem}
@@ -282,30 +342,49 @@ export default function MachineDetailPage() {
                     maxLength={400}
                   />
                 </div>
-                {error && <span className="text-red-500 text-base font-semibold mt-2">{error}</span>}
+                {error && (
+                  <span className="text-red-500 text-base font-semibold mt-2">
+                    {error}
+                  </span>
+                )}
               </div>
               <button
                 type="submit"
                 disabled={formLoading}
                 className="mt-6 w-full flex items-center justify-center gap-3 px-8 py-3 rounded-xl border-2 border-orange-500 bg-orange-500 hover:bg-white hover:text-orange-600 hover:shadow-xl transition-all text-white text-lg font-bold shadow-lg hover:scale-[1.03] active:scale-95 focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
               >
-                {formLoading ? "Enviando..." : <><Mail size={22} className="opacity-90" /> Enviar contato</>}
+                {formLoading ? (
+                  "Enviando..."
+                ) : (
+                  <>
+                    <Mail size={22} className="opacity-90" /> Enviar contato
+                  </>
+                )}
               </button>
             </form>
           ) : (
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">{machine.nome}</h1>
-              <span className="text-2xl font-bold text-blue-700 mb-4 block">R$ {machine.preco}</span>
-              <h2 className="text-lg font-semibold mb-1 text-gray-700">Descrição</h2>
-              <p className="text-gray-600 whitespace-pre-line mb-4 text-base">{machine.descricao}</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                {machine.nome}
+              </h1>
+              <span className="text-2xl font-bold text-blue-700 mb-4 block">
+                R$ {machine.preco}
+              </span>
+              <h2 className="text-lg font-semibold mb-1 text-gray-700">
+                Descrição
+              </h2>
+              <p className="text-gray-600 whitespace-pre-line mb-4 text-base">
+                {machine.descricao}
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 mb-2">
-                {detalhes.map(
-                  (d, i) => (
-                    <div key={i} className="text-xs text-gray-500 mb-1">
-                      <span className="font-semibold text-gray-700">{d.label}:</span> {d.value || "---"}
-                    </div>
-                  )
-                )}
+                {detalhes.map((d, i) => (
+                  <div key={i} className="text-xs text-gray-500 mb-1">
+                    <span className="font-semibold text-gray-700">
+                      {d.label}:
+                    </span>{" "}
+                    {d.value || "---"}
+                  </div>
+                ))}
               </div>
               {/* Botão para exibir o formulário */}
               <button

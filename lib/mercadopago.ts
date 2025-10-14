@@ -10,7 +10,10 @@ function ensureClient(): MercadoPagoConfig {
     // Só lança quando realmente for usar o SDK
     throw new Error("MP_ACCESS_TOKEN ausente no ambiente (Vercel/.env.local).");
   }
-  _client = new MercadoPagoConfig({ accessToken: token, options: { timeout: 8000 } });
+  _client = new MercadoPagoConfig({
+    accessToken: token,
+    options: { timeout: 8000 },
+  });
   return _client;
 }
 

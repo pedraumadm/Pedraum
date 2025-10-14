@@ -1,4 +1,3 @@
-
 // =============================
 // components/Input.tsx
 // =============================
@@ -14,7 +13,14 @@ interface InputProps {
   required?: boolean;
 }
 
-export default function Input({ type = "text", value, onChange, placeholder = "", className = "", required = false }: InputProps) {
+export default function Input({
+  type = "text",
+  value,
+  onChange,
+  placeholder = "",
+  className = "",
+  required = false,
+}: InputProps) {
   return (
     <input
       type={type}
@@ -26,4 +32,3 @@ export default function Input({ type = "text", value, onChange, placeholder = ""
     />
   );
 }
-

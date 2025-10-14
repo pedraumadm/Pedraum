@@ -23,7 +23,7 @@ export default function AdminParceirosPage() {
       try {
         const q = query(collection(db, "parceiros"), orderBy("nome", "asc"));
         const snapshot = await getDocs(q);
-        const dados = snapshot.docs.map(doc => ({
+        const dados = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Parceiro[];
@@ -41,7 +41,9 @@ export default function AdminParceirosPage() {
   return (
     <LayoutWithSidebar>
       <div className="px-4 py-10 max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Parceiros Cadastrados</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Parceiros Cadastrados
+        </h1>
 
         {loading ? (
           <p className="text-gray-600">Carregando parceiros...</p>
@@ -53,7 +55,9 @@ export default function AdminParceirosPage() {
               <div
                 key={p.id}
                 className={`bg-white border rounded-2xl p-4 shadow text-center ${
-                  p.premium ? "border-yellow-500 ring-2 ring-yellow-300 bg-yellow-50" : "border-gray-200"
+                  p.premium
+                    ? "border-yellow-500 ring-2 ring-yellow-300 bg-yellow-50"
+                    : "border-gray-200"
                 }`}
               >
                 <img

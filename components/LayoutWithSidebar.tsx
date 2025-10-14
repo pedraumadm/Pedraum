@@ -15,7 +15,8 @@ export default function LayoutWithSidebar({ children }: LayoutProps) {
 
   const handleLogout = async () => {
     await signOut(auth);
-    document.cookie = "userLoggedIn=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie =
+      "userLoggedIn=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     router.push("/auth/login");
   };
 
@@ -24,16 +25,28 @@ export default function LayoutWithSidebar({ children }: LayoutProps) {
       <aside className="w-64 bg-[#023047] text-white p-6 space-y-6">
         <h2 className="text-2xl font-bold">Painel</h2>
         <nav className="space-y-4">
-          <a href="/painel" className="flex items-center gap-2 hover:text-[#FFB703]">
+          <a
+            href="/painel"
+            className="flex items-center gap-2 hover:text-[#FFB703]"
+          >
             <LayoutDashboard className="w-5 h-5" /> Visão Geral
           </a>
-          <a href="/create-machine" className="flex items-center gap-2 hover:text-[#FFB703]">
+          <a
+            href="/create-machine"
+            className="flex items-center gap-2 hover:text-[#FFB703]"
+          >
             <PlusSquare className="w-5 h-5" /> Cadastrar Máquina
           </a>
-          <a href="/machines" className="flex items-center gap-2 hover:text-[#FFB703]">
+          <a
+            href="/machines"
+            className="flex items-center gap-2 hover:text-[#FFB703]"
+          >
             <List className="w-5 h-5" /> Ver Máquinas
           </a>
-          <a href="/perfil" className="flex items-center gap-2 hover:text-[#FFB703]">
+          <a
+            href="/perfil"
+            className="flex items-center gap-2 hover:text-[#FFB703]"
+          >
             <User className="w-5 h-5" /> Meu Perfil
           </a>
         </nav>

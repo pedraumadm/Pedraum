@@ -14,15 +14,32 @@ import {
 import ImageUploader from "@/components/ImageUploader";
 import nextDynamic from "next/dynamic";
 import {
-  Loader2, Save, Tag, MapPin, CheckCircle2, Sparkles, Upload, BookOpen,
-  List, Layers, Info, ArrowLeft, FileText, Image as ImageIcon
+  Loader2,
+  Save,
+  Tag,
+  MapPin,
+  CheckCircle2,
+  Sparkles,
+  Upload,
+  BookOpen,
+  List,
+  Layers,
+  Info,
+  ArrowLeft,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 export const dynamic = "force-dynamic";
 
-const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = nextDynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = nextDynamic(
+  () => import("@/components/DrivePDFViewer"),
+  { ssr: false },
+);
 
 /* ================== Tipos e Constantes ================== */
 type Subcat = { nome: string; slug?: string };
@@ -43,7 +60,35 @@ type FormState = {
   outraCategoriaTexto: string;
 };
 
-const ESTADOS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"] as const;
+const ESTADOS = [
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
+] as const;
 
 /* ===== Componente interno com toda a lógica ===== */
 function EditDemandaContent() {
@@ -89,7 +134,10 @@ function EditDemandaContent() {
     let mounted = true;
     (async () => {
       try {
-        if (!id) { setLoadingDoc(false); return; }
+        if (!id) {
+          setLoadingDoc(false);
+          return;
+        }
         const ref = doc(db, "demandas", id);
         const snap = await getDoc(ref);
         if (!mounted) return;
@@ -126,7 +174,9 @@ function EditDemandaContent() {
         setLoadingDoc(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [id]);
 
   /* ---------- Autofill do autor (se estiver vazio) ---------- */
@@ -141,7 +191,8 @@ function EditDemandaContent() {
           ...prev,
           autorNome: prev.autorNome || prof?.nome || user.displayName || "",
           autorEmail: prev.autorEmail || prof?.email || user.email || "",
-          autorWhatsapp: prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
+          autorWhatsapp:
+            prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
           whatsapp: prev.whatsapp || prof?.whatsapp || prof?.telefone || "",
         }));
       } catch {
@@ -167,11 +218,13 @@ function EditDemandaContent() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
-        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const nomes = data
+          .map((m) => m.nome)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
         setCidades(nomes);
       } catch {
         if (!abort) setCidades([]);
@@ -180,19 +233,25 @@ function EditDemandaContent() {
       }
     }
     fetchCidades(form.estado);
-    return () => { abort = true; };
+    return () => {
+      abort = true;
+    };
   }, [form.estado]);
 
   /* ---------- Handlers ---------- */
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) {
     const { name, value } = e.target as any;
     setForm((prev) => ({
       ...prev,
       [name]: value,
       ...(name === "estado" ? { cidade: "" } : null),
-      ...(name === "categoria" ? { subcategoria: "", outraCategoriaTexto: "" } : null),
+      ...(name === "categoria"
+        ? { subcategoria: "", outraCategoriaTexto: "" }
+        : null),
     }));
   }
 
@@ -200,17 +259,19 @@ function EditDemandaContent() {
 
   /* ---------- Subcategorias disponíveis ---------- */
   const subcategoriasDisponiveis: Subcat[] =
-    (categorias.find((c) => c.nome === form.categoria)?.subcategorias ?? []);
+    categorias.find((c) => c.nome === form.categoria)?.subcategorias ?? [];
 
   /* ---------- Preview ---------- */
   const preview = useMemo(() => {
-    const local = form.estado ? `${form.cidade ? form.cidade + ", " : ""}${form.estado}` : "—";
+    const local = form.estado
+      ? `${form.cidade ? form.cidade + ", " : ""}${form.estado}`
+      : "—";
     return {
       titulo: form.titulo?.trim() || "—",
       categoria: form.categoria || "—",
       subcategoria: isOutros
-        ? (form.outraCategoriaTexto?.trim() || "—")
-        : (form.subcategoria || "—"),
+        ? form.outraCategoriaTexto?.trim() || "—"
+        : form.subcategoria || "—",
       local,
       prazo: form.prazo || "—",
       imagens: imagens.length,
@@ -231,9 +292,19 @@ function EditDemandaContent() {
       return;
     }
 
-    const subcategoriaOk = isOutros ? !!form.outraCategoriaTexto.trim() : !!form.subcategoria;
+    const subcategoriaOk = isOutros
+      ? !!form.outraCategoriaTexto.trim()
+      : !!form.subcategoria;
 
-    if (!form.titulo || !form.descricao || !form.categoria || !subcategoriaOk || !form.prazo || !form.estado || !form.cidade) {
+    if (
+      !form.titulo ||
+      !form.descricao ||
+      !form.categoria ||
+      !subcategoriaOk ||
+      !form.prazo ||
+      !form.estado ||
+      !form.cidade
+    ) {
       setError("Preencha todos os campos obrigatórios (*).");
       setSubmitting(false);
       return;
@@ -289,7 +360,9 @@ function EditDemandaContent() {
   return (
     <main
       className="min-h-screen flex flex-col items-center py-8 px-2 sm:px-4"
-      style={{ background: "linear-gradient(135deg, #f7f9fb, #ffffff 45%, #e0e7ef)" }}
+      style={{
+        background: "linear-gradient(135deg, #f7f9fb, #ffffff 45%, #e0e7ef)",
+      }}
     >
       <div className="w-full max-w-3xl px-2 mb-3 flex">
         <button
@@ -344,10 +417,17 @@ function EditDemandaContent() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: 22 }}
+        >
           <div
             className="rounded-2xl border"
-            style={{ background: "linear-gradient(180deg,#f8fbff, #ffffff)", borderColor: "#e6ebf2", padding: 18 }}
+            style={{
+              background: "linear-gradient(180deg,#f8fbff, #ffffff)",
+              borderColor: "#e6ebf2",
+              padding: 18,
+            }}
           >
             <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
               <Upload className="w-5 h-5 text-orange-500" /> Arquivos do pedido
@@ -355,7 +435,14 @@ function EditDemandaContent() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Imagens */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #eef6ff 0%, transparent 60%), #ffffff" }}>
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{
+                  borderColor: "#e6ebf2",
+                  background:
+                    "radial-gradient(1200px 300px at -200px -200px, #eef6ff 0%, transparent 60%), #ffffff",
+                }}
+              >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
                   <strong className="text-[#0f172a]">Imagens (opcional)</strong>
@@ -363,17 +450,32 @@ function EditDemandaContent() {
                 <div className="px-4 pb-4">
                   <div className="rounded-lg border border-dashed p-3">
                     {/* mesmo contrato da create: imagens/setImagens/max */}
-                    <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                    <ImageUploader
+                      imagens={imagens}
+                      setImagens={setImagens}
+                      max={5}
+                    />
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Adicione até 5 imagens reais para contextualizar.</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Adicione até 5 imagens reais para contextualizar.
+                  </p>
                 </div>
               </div>
 
               {/* PDF */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #fff1e6 0%, transparent 60%), #ffffff" }}>
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{
+                  borderColor: "#e6ebf2",
+                  background:
+                    "radial-gradient(1200px 300px at -200px -200px, #fff1e6 0%, transparent 60%), #ffffff",
+                }}
+              >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
-                  <strong className="text-[#0f172a]">Anexo PDF (opcional)</strong>
+                  <strong className="text-[#0f172a]">
+                    Anexo PDF (opcional)
+                  </strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   <div className="rounded-lg border border-dashed p-3">
@@ -382,14 +484,19 @@ function EditDemandaContent() {
                   </div>
 
                   {pdfUrl ? (
-                    <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                    <div
+                      className="rounded-lg border overflow-hidden"
+                      style={{ height: 300 }}
+                    >
                       <DrivePDFViewer
                         fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
                         height={300}
                       />
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Envie orçamento, memorial ou ficha técnica (até ~8MB).</p>
+                    <p className="text-xs text-slate-500">
+                      Envie orçamento, memorial ou ficha técnica (até ~8MB).
+                    </p>
                   )}
                 </div>
               </div>
@@ -399,7 +506,9 @@ function EditDemandaContent() {
           {/* Principais */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label style={labelStyle}><Tag size={15} /> Título da Demanda *</label>
+              <label style={labelStyle}>
+                <Tag size={15} /> Título da Demanda *
+              </label>
               <input
                 name="titulo"
                 value={form.titulo}
@@ -413,8 +522,16 @@ function EditDemandaContent() {
             </div>
 
             <div>
-              <label style={labelStyle}><CheckCircle2 size={15} /> Prazo (urgência) *</label>
-              <select name="prazo" value={form.prazo} onChange={handleChange} style={inputStyle} required>
+              <label style={labelStyle}>
+                <CheckCircle2 size={15} /> Prazo (urgência) *
+              </label>
+              <select
+                name="prazo"
+                value={form.prazo}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
                 <option value="">Selecione</option>
                 <option value="urgente">Urgente</option>
                 <option value="até 3 dias">Até 3 dias</option>
@@ -425,7 +542,9 @@ function EditDemandaContent() {
             </div>
 
             <div className="md:col-span-3">
-              <label style={labelStyle}><BookOpen size={15} /> Descrição *</label>
+              <label style={labelStyle}>
+                <BookOpen size={15} /> Descrição *
+              </label>
               <textarea
                 name="descricao"
                 value={form.descricao}
@@ -442,21 +561,38 @@ function EditDemandaContent() {
           {/* Categoria / Subcategoria */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label style={labelStyle}><List size={15} /> Categoria *</label>
-              <select name="categoria" value={form.categoria} onChange={handleChange} style={inputStyle} required>
-                <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+              <label style={labelStyle}>
+                <List size={15} /> Categoria *
+              </label>
+              <select
+                name="categoria"
+                value={form.categoria}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
+                <option value="">
+                  {taxLoading ? "Carregando..." : "Selecione"}
+                </option>
                 {categorias.map((cat) => (
-                  <option key={cat.slug ?? cat.nome} value={cat.nome}>{cat.nome}</option>
+                  <option key={cat.slug ?? cat.nome} value={cat.nome}>
+                    {cat.nome}
+                  </option>
                 ))}
                 {/* garante "Outros" mesmo se não existir na coleção */}
-                {!categorias.some(c => c.nome === "Outros") && (
+                {!categorias.some((c) => c.nome === "Outros") && (
                   <option value="Outros">Outros</option>
                 )}
               </select>
             </div>
 
             <div>
-              <label style={labelStyle}><Layers size={15} /> {form.categoria === "Outros" ? "Descreva sua necessidade *" : "Subcategoria *"}</label>
+              <label style={labelStyle}>
+                <Layers size={15} />{" "}
+                {form.categoria === "Outros"
+                  ? "Descreva sua necessidade *"
+                  : "Subcategoria *"}
+              </label>
               {form.categoria === "Outros" ? (
                 <input
                   name="outraCategoriaTexto"
@@ -475,9 +611,15 @@ function EditDemandaContent() {
                   required
                   disabled={!form.categoria}
                 >
-                  <option value="">{form.categoria ? "Selecione" : "Selecione a categoria primeiro"}</option>
+                  <option value="">
+                    {form.categoria
+                      ? "Selecione"
+                      : "Selecione a categoria primeiro"}
+                  </option>
                   {subcategoriasDisponiveis.map((sub) => (
-                    <option key={sub.slug ?? sub.nome} value={sub.nome}>{sub.nome}</option>
+                    <option key={sub.slug ?? sub.nome} value={sub.nome}>
+                      {sub.nome}
+                    </option>
                   ))}
                 </select>
               )}
@@ -485,16 +627,29 @@ function EditDemandaContent() {
           </div>
 
           {/* Localização */}
-          <div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+          >
             <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
               <MapPin className="w-5 h-5 text-orange-500" /> Localização
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label style={labelStyle}>Estado (UF) *</label>
-                <select name="estado" value={form.estado} onChange={handleChange} style={inputStyle} required>
+                <select
+                  name="estado"
+                  value={form.estado}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  required
+                >
                   <option value="">Selecione o Estado</option>
-                  {ESTADOS.map((uf) => (<option key={uf} value={uf}>{uf}</option>))}
+                  {ESTADOS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -512,46 +667,93 @@ function EditDemandaContent() {
                     {carregandoCidades
                       ? "Carregando..."
                       : form.estado
-                      ? "Selecione a cidade"
-                      : "Selecione primeiro o estado"}
+                        ? "Selecione a cidade"
+                        : "Selecione primeiro o estado"}
                   </option>
-                  {cidades.map((c) => (<option key={c} value={c}>{c}</option>))}
+                  {cidades.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           </div>
 
           {/* Dados do autor */}
-          <div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#fff" }}
+          >
             <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <Info className="w-5 h-5 text-orange-500" /> Seus dados (editáveis)
+              <Info className="w-5 h-5 text-orange-500" /> Seus dados
+              (editáveis)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label style={labelStyle}>Nome *</label>
-                <input name="autorNome" value={form.autorNome} onChange={handleChange} style={inputStyle} required placeholder="Seu nome" />
+                <input
+                  name="autorNome"
+                  value={form.autorNome}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  required
+                  placeholder="Seu nome"
+                />
               </div>
               <div>
                 <label style={labelStyle}>E-mail *</label>
-                <input name="autorEmail" value={form.autorEmail} onChange={handleChange} style={inputStyle} type="email" required placeholder="seuemail@exemplo.com" />
+                <input
+                  name="autorEmail"
+                  value={form.autorEmail}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  type="email"
+                  required
+                  placeholder="seuemail@exemplo.com"
+                />
               </div>
               <div>
                 <label style={labelStyle}>WhatsApp (opcional)</label>
-                <input name="autorWhatsapp" value={form.autorWhatsapp} onChange={handleChange} style={inputStyle} placeholder="(xx) xxxxx-xxxx" inputMode="tel" />
+                <input
+                  name="autorWhatsapp"
+                  value={form.autorWhatsapp}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="(xx) xxxxx-xxxx"
+                  inputMode="tel"
+                />
               </div>
             </div>
           </div>
 
           {/* Pré-visualização */}
           <div style={previewCardStyle}>
-            <div style={{ fontWeight: 800, color: "#023047", marginBottom: 8 }}>Pré-visualização</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
-              <div><span style={muted}>Título:</span> {preview.titulo}</div>
-              <div><span style={muted}>Categoria:</span> {preview.categoria}</div>
-              <div><span style={muted}>Subcategoria/Texto:</span> {preview.subcategoria}</div>
-              <div><span style={muted}>Local:</span> {preview.local}</div>
-              <div><span style={muted}>Prazo:</span> {preview.prazo}</div>
-              <div><span style={muted}>Imagens:</span> {preview.imagens}</div>
+            <div style={{ fontWeight: 800, color: "#023047", marginBottom: 8 }}>
+              Pré-visualização
+            </div>
+            <div
+              style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}
+            >
+              <div>
+                <span style={muted}>Título:</span> {preview.titulo}
+              </div>
+              <div>
+                <span style={muted}>Categoria:</span> {preview.categoria}
+              </div>
+              <div>
+                <span style={muted}>Subcategoria/Texto:</span>{" "}
+                {preview.subcategoria}
+              </div>
+              <div>
+                <span style={muted}>Local:</span> {preview.local}
+              </div>
+              <div>
+                <span style={muted}>Prazo:</span> {preview.prazo}
+              </div>
+              <div>
+                <span style={muted}>Imagens:</span> {preview.imagens}
+              </div>
             </div>
           </div>
 
@@ -579,7 +781,11 @@ function EditDemandaContent() {
               gap: 10,
             }}
           >
-            {submitting ? <Loader2 className="animate-spin w-6 h-6" /> : <Save className="w-5 h-5" />}
+            {submitting ? (
+              <Loader2 className="animate-spin w-6 h-6" />
+            ) : (
+              <Save className="w-5 h-5" />
+            )}
             {submitting ? "Salvando..." : "Salvar alterações"}
           </button>
         </form>
@@ -591,7 +797,13 @@ function EditDemandaContent() {
 /* ===== Página exportada com Suspense ===== */
 export default function EditDemandaPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Carregando…</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Carregando…
+        </div>
+      }
+    >
       <EditDemandaContent />
     </Suspense>
   );
@@ -638,7 +850,11 @@ const hintCardStyle: React.CSSProperties = {
   borderRadius: 14,
   marginBottom: 16,
 };
-const smallInfoStyle: React.CSSProperties = { fontSize: 12, color: "#64748b", marginTop: 4 };
+const smallInfoStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  marginTop: 4,
+};
 const errorStyle: React.CSSProperties = {
   background: "#fff7f7",
   color: "#d90429",

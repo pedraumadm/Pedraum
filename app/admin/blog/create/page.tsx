@@ -17,7 +17,9 @@ export default function BlogCreatePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!titulo || !resumo || !conteudo || imagens.length === 0) {
-      alert("Preencha todos os campos obrigatórios e envie ao menos uma imagem!");
+      alert(
+        "Preencha todos os campos obrigatórios e envie ao menos uma imagem!",
+      );
       return;
     }
     setLoading(true);
@@ -34,31 +36,39 @@ export default function BlogCreatePage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f9fafb", padding: "40px 0" }}>
-      <div style={{
-        maxWidth: 580,
-        margin: "0 auto",
-        background: "#fff",
-        borderRadius: 20,
-        boxShadow: "0 2px 32px #0001",
-        padding: "36px 26px 32px 26px",
-        minHeight: 440
-      }}>
-        <h1 style={{
-          fontWeight: 900,
-          fontSize: "2rem",
-          color: "#023047",
-          marginBottom: 30,
-          letterSpacing: "-1px",
-          textAlign: "center"
-        }}>Criar Novo Post</h1>
+    <main
+      style={{ minHeight: "100vh", background: "#f9fafb", padding: "40px 0" }}
+    >
+      <div
+        style={{
+          maxWidth: 580,
+          margin: "0 auto",
+          background: "#fff",
+          borderRadius: 20,
+          boxShadow: "0 2px 32px #0001",
+          padding: "36px 26px 32px 26px",
+          minHeight: 440,
+        }}
+      >
+        <h1
+          style={{
+            fontWeight: 900,
+            fontSize: "2rem",
+            color: "#023047",
+            marginBottom: 30,
+            letterSpacing: "-1px",
+            textAlign: "center",
+          }}
+        >
+          Criar Novo Post
+        </h1>
         <form onSubmit={handleSubmit}>
           <label style={labelStyle}>Título *</label>
           <input
             type="text"
             style={inputStyle}
             value={titulo}
-            onChange={e => setTitulo(e.target.value)}
+            onChange={(e) => setTitulo(e.target.value)}
             placeholder="Título do post"
             maxLength={90}
             required
@@ -68,23 +78,26 @@ export default function BlogCreatePage() {
             type="text"
             style={inputStyle}
             value={resumo}
-            onChange={e => setResumo(e.target.value)}
+            onChange={(e) => setResumo(e.target.value)}
             placeholder="Resumo do post"
             maxLength={160}
             required
           />
           <label style={labelStyle}>Imagens *</label>
           <div style={{ margin: "8px 0 18px 0" }}>
-            <ImageUploader
-  imagens={imagens}
-  setImagens={setImagens}
-/>
+            <ImageUploader imagens={imagens} setImagens={setImagens} />
           </div>
           <label style={labelStyle}>Conteúdo *</label>
           <textarea
-            style={{ ...inputStyle, minHeight: 110, resize: "vertical", fontFamily: "inherit", fontSize: "1.03rem" }}
+            style={{
+              ...inputStyle,
+              minHeight: 110,
+              resize: "vertical",
+              fontFamily: "inherit",
+              fontSize: "1.03rem",
+            }}
             value={conteudo}
-            onChange={e => setConteudo(e.target.value)}
+            onChange={(e) => setConteudo(e.target.value)}
             placeholder="Conteúdo completo"
             required
           />
@@ -106,10 +119,16 @@ export default function BlogCreatePage() {
               cursor: loading ? "not-allowed" : "pointer",
               boxShadow: "0 2px 18px #0001",
               letterSpacing: ".01em",
-              transition: "background .15s, transform .13s"
+              transition: "background .15s, transform .13s",
             }}
           >
-            {loading ? <Loader2 className="animate-spin" size={20} style={{ marginRight: 8, marginBottom: -4 }} /> : null}
+            {loading ? (
+              <Loader2
+                className="animate-spin"
+                size={20}
+                style={{ marginRight: 8, marginBottom: -4 }}
+              />
+            ) : null}
             {loading ? "Publicando..." : "Publicar"}
           </button>
         </form>
@@ -122,7 +141,7 @@ export default function BlogCreatePage() {
               textDecoration: "none",
               fontSize: "1rem",
               marginTop: 5,
-              display: "inline-block"
+              display: "inline-block",
             }}
           >
             ← Voltar para listagem
@@ -148,7 +167,7 @@ const labelStyle = {
   fontWeight: 600,
   marginBottom: 4,
   marginTop: 14,
-  display: "block"
+  display: "block",
 };
 const inputStyle = {
   width: "100%",
@@ -162,5 +181,5 @@ const inputStyle = {
   fontWeight: 500,
   outline: "none" as const,
   color: "#023047",
-  transition: "border .13s"
+  transition: "border .13s",
 };

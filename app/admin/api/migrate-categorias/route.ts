@@ -7,12 +7,18 @@ import { mapAntigoParaNovo } from "@/lib/mapCategorias";
 type Pair = { categoria: string; subcategoria: string };
 
 function norm(s = "") {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
+  return s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
 function dedupPairs(pairs: Pair[]) {
   const m = new Map<string, Pair>();
-  for (const p of pairs) m.set(`${norm(p.categoria)}::${norm(p.subcategoria)}`, p);
+  for (const p of pairs)
+    m.set(`${norm(p.categoria)}::${norm(p.subcategoria)}`, p);
   return Array.from(m.values());
 }
 
@@ -20,11 +26,14 @@ const MAX_CATS = 5;
 
 function limitByTopCategories(pairs: Pair[]) {
   const catFreq = new Map<string, number>();
-  for (const p of pairs) catFreq.set(p.categoria, (catFreq.get(p.categoria) || 0) + 1);
+  for (const p of pairs)
+    catFreq.set(p.categoria, (catFreq.get(p.categoria) || 0) + 1);
   const distinct = Array.from(new Set(pairs.map((p) => p.categoria)));
   if (distinct.length <= MAX_CATS) return pairs;
 
-  const top = distinct.sort((a, b) => (catFreq.get(b)! - catFreq.get(a)!)).slice(0, MAX_CATS);
+  const top = distinct
+    .sort((a, b) => catFreq.get(b)! - catFreq.get(a)!)
+    .slice(0, MAX_CATS);
   return pairs.filter((p) => top.includes(p.categoria));
 }
 
@@ -47,7 +56,11 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean);
 
       // Se já tem pares novos bonitinhos, pula
-      if (Array.isArray(u.categoriasAtuacaoPairs) && u.categoriasAtuacaoPairs.length > 0 && legacyStrings.length === 0) {
+      if (
+        Array.isArray(u.categoriasAtuacaoPairs) &&
+        u.categoriasAtuacaoPairs.length > 0 &&
+        legacyStrings.length === 0
+      ) {
         continue;
       }
 
@@ -59,7 +72,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const mapped = dedupPairs(legacyStrings.map((txt) => mapAntigoParaNovo(String(txt))));
+      const mapped = dedupPairs(
+        legacyStrings.map((txt) => mapAntigoParaNovo(String(txt))),
+      );
       if (mapped.length === 0) continue;
 
       const finais = limitByTopCategories(mapped);
@@ -78,6 +93,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, migrados });
   } catch (e: any) {
     console.error(e);
-    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: String(e?.message || e) },
+      { status: 500 },
+    );
   }
 }

@@ -44,22 +44,26 @@ export default function LeadsPage() {
         collection(db, "leads"),
         where("vendedorId", "==", userId),
         where("statusPagamento", "==", "pendente"),
-        orderBy("createdAt", "desc")
+        orderBy("createdAt", "desc"),
       );
       const snapPendentes = await getDocs(qPendentes);
       const disponiveis: Lead[] = [];
-      snapPendentes.forEach(doc => disponiveis.push({ id: doc.id, ...doc.data() } as Lead));
+      snapPendentes.forEach((doc) =>
+        disponiveis.push({ id: doc.id, ...doc.data() } as Lead),
+      );
 
       // Meus Leads (pagos)
       const qPagos = query(
         collection(db, "leads"),
         where("vendedorId", "==", userId),
         where("statusPagamento", "==", "pago"),
-        orderBy("createdAt", "desc")
+        orderBy("createdAt", "desc"),
       );
       const snapPagos = await getDocs(qPagos);
       const pagos: Lead[] = [];
-      snapPagos.forEach(doc => pagos.push({ id: doc.id, ...doc.data() } as Lead));
+      snapPagos.forEach((doc) =>
+        pagos.push({ id: doc.id, ...doc.data() } as Lead),
+      );
 
       setLeadsDisponiveis(disponiveis);
       setMeusLeads(pagos);
@@ -69,53 +73,74 @@ export default function LeadsPage() {
   }, [userId]);
 
   return (
-    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}>
-      <Link href="/painel-vendedor" style={{ display: "flex", alignItems: "center", marginBottom: 24, color: "#2563eb", fontWeight: 700, fontSize: 16 }}>
+    <section
+      style={{ maxWidth: 1200, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
+    >
+      <Link
+        href="/painel-vendedor"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 24,
+          color: "#2563eb",
+          fontWeight: 700,
+          fontSize: 16,
+        }}
+      >
         <ChevronLeft size={19} /> Voltar ao Painel
       </Link>
-      <h1 style={{
-        fontSize: "2.2rem",
-        fontWeight: 900,
-        color: "#023047",
-        letterSpacing: "-1.1px",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        marginBottom: 13,
-      }}>
-        <span style={{
-          display: "inline-block",
-          padding: "7px 30px",
-          background: "#f3f6fa",
+      <h1
+        style={{
+          fontSize: "2.2rem",
+          fontWeight: 900,
           color: "#023047",
-          borderRadius: "12px",
-          boxShadow: "0 2px 12px #0001",
-          fontWeight: 800,
-          fontSize: "2rem"
-        }}>
+          letterSpacing: "-1.1px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 13,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            padding: "7px 30px",
+            background: "#f3f6fa",
+            color: "#023047",
+            borderRadius: "12px",
+            boxShadow: "0 2px 12px #0001",
+            fontWeight: 800,
+            fontSize: "2rem",
+          }}
+        >
           Leads
         </span>
         <Inbox size={34} color="#FB8500" />
       </h1>
       <div className="text-[#5B6476] mb-7" style={{ fontSize: 18 }}>
-        Gerencie aqui seus <b>leads recebidos</b> na plataforma: libere contatos de potenciais compradores e acesse seu histórico.
+        Gerencie aqui seus <b>leads recebidos</b> na plataforma: libere contatos
+        de potenciais compradores e acesse seu histórico.
       </div>
-      
+
       {/* Tabs com contadores */}
-      <div style={{
-        display: "flex",
-        gap: 0,
-        marginBottom: 30,
-        borderBottom: "1.7px solid #e5e7eb",
-        position: "relative",
-        width: "100%",
-        maxWidth: 520
-      }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 0,
+          marginBottom: 30,
+          borderBottom: "1.7px solid #e5e7eb",
+          position: "relative",
+          width: "100%",
+          maxWidth: 520,
+        }}
+      >
         <button
           className={`px-7 py-3 font-bold rounded-t-xl transition flex items-center gap-2
-            ${tab === "disponiveis"
-              ? "bg-[#FB8500] text-white shadow"
-              : "bg-[#f3f6fa] text-[#023047] hover:bg-[#ffe5bb]"} `}
+            ${
+              tab === "disponiveis"
+                ? "bg-[#FB8500] text-white shadow"
+                : "bg-[#f3f6fa] text-[#023047] hover:bg-[#ffe5bb]"
+            } `}
           style={{
             border: "none",
             outline: "none",
@@ -123,54 +148,64 @@ export default function LeadsPage() {
             cursor: "pointer",
             borderTopLeftRadius: 13,
             borderTopRightRadius: 13,
-            marginRight: 8
+            marginRight: 8,
           }}
           onClick={() => setTab("disponiveis")}
         >
           <Users size={19} />
           Leads Disponíveis
-          <span style={{
-            marginLeft: 7,
-            fontWeight: 700,
-            color: "#fff",
-            background: "#FB8500",
-            borderRadius: "10px",
-            padding: "2px 10px",
-            fontSize: 16,
-            opacity: tab === "disponiveis" ? 1 : 0.55,
-            border: tab === "disponiveis" ? "2px solid #fff" : "none",
-            transition: "opacity .22s"
-          }}>{leadsDisponiveis.length}</span>
+          <span
+            style={{
+              marginLeft: 7,
+              fontWeight: 700,
+              color: "#fff",
+              background: "#FB8500",
+              borderRadius: "10px",
+              padding: "2px 10px",
+              fontSize: 16,
+              opacity: tab === "disponiveis" ? 1 : 0.55,
+              border: tab === "disponiveis" ? "2px solid #fff" : "none",
+              transition: "opacity .22s",
+            }}
+          >
+            {leadsDisponiveis.length}
+          </span>
         </button>
         <button
           className={`px-7 py-3 font-bold rounded-t-xl transition flex items-center gap-2
-            ${tab === "meus"
-              ? "bg-[#2563eb] text-white shadow"
-              : "bg-[#f3f6fa] text-[#023047] hover:bg-[#dbeafe]"} `}
+            ${
+              tab === "meus"
+                ? "bg-[#2563eb] text-white shadow"
+                : "bg-[#f3f6fa] text-[#023047] hover:bg-[#dbeafe]"
+            } `}
           style={{
             border: "none",
             outline: "none",
             fontSize: 17,
             cursor: "pointer",
             borderTopLeftRadius: 13,
-            borderTopRightRadius: 13
+            borderTopRightRadius: 13,
           }}
           onClick={() => setTab("meus")}
         >
           <CheckCircle size={18} />
           Meus Leads
-          <span style={{
-            marginLeft: 7,
-            fontWeight: 700,
-            color: "#fff",
-            background: "#2563eb",
-            borderRadius: "10px",
-            padding: "2px 10px",
-            fontSize: 16,
-            opacity: tab === "meus" ? 1 : 0.55,
-            border: tab === "meus" ? "2px solid #fff" : "none",
-            transition: "opacity .22s"
-          }}>{meusLeads.length}</span>
+          <span
+            style={{
+              marginLeft: 7,
+              fontWeight: 700,
+              color: "#fff",
+              background: "#2563eb",
+              borderRadius: "10px",
+              padding: "2px 10px",
+              fontSize: 16,
+              opacity: tab === "meus" ? 1 : 0.55,
+              border: tab === "meus" ? "2px solid #fff" : "none",
+              transition: "opacity .22s",
+            }}
+          >
+            {meusLeads.length}
+          </span>
         </button>
       </div>
 
@@ -178,7 +213,9 @@ export default function LeadsPage() {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <Loader className="animate-spin mr-2" size={28} color="#219EBC" />
-          <span style={{ fontSize: 20, fontWeight: 700, color: "#219EBC" }}>Carregando leads...</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#219EBC" }}>
+            Carregando leads...
+          </span>
         </div>
       ) : tab === "disponiveis" ? (
         <LeadsDisponiveisList leads={leadsDisponiveis} />
@@ -196,11 +233,13 @@ function LeadsDisponiveisList({ leads }: { leads: Lead[] }) {
       Nenhum lead disponível no momento.
     </div>
   ) : (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-      gap: 32,
-    }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+        gap: 32,
+      }}
+    >
       {leads.map((lead) => (
         <div
           key={lead.id}
@@ -217,10 +256,24 @@ function LeadsDisponiveisList({ leads }: { leads: Lead[] }) {
             position: "relative",
           }}
         >
-          <div style={{ fontWeight: 800, fontSize: 18, color: "#023047", marginBottom: 3 }}>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 18,
+              color: "#023047",
+              marginBottom: 3,
+            }}
+          >
             {lead.machineNome}
           </div>
-          <div style={{ fontSize: 16, color: "#FB8500", fontWeight: 700, marginBottom: 5 }}>
+          <div
+            style={{
+              fontSize: 16,
+              color: "#FB8500",
+              fontWeight: 700,
+              marginBottom: 5,
+            }}
+          >
             Valor do lead: R${lead.valorLead?.toFixed(2) || "0.00"}
           </div>
           <div style={{ fontSize: 15, color: "#5B6476", marginBottom: 8 }}>
@@ -252,11 +305,13 @@ function MeusLeadsList({ leads }: { leads: Lead[] }) {
       Você ainda não adquiriu nenhum lead.
     </div>
   ) : (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-      gap: 32,
-    }}>
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+        gap: 32,
+      }}
+    >
       {leads.map((lead) => (
         <div
           key={lead.id}
@@ -273,10 +328,27 @@ function MeusLeadsList({ leads }: { leads: Lead[] }) {
             position: "relative",
           }}
         >
-          <div style={{ fontWeight: 800, fontSize: 18, color: "#023047", marginBottom: 3 }}>
+          <div
+            style={{
+              fontWeight: 800,
+              fontSize: 18,
+              color: "#023047",
+              marginBottom: 3,
+            }}
+          >
             {lead.machineNome}
           </div>
-          <div style={{ fontSize: 16, color: "#18B56D", fontWeight: 700, marginBottom: 5, display: "flex", alignItems: "center", gap: 5 }}>
+          <div
+            style={{
+              fontSize: 16,
+              color: "#18B56D",
+              fontWeight: 700,
+              marginBottom: 5,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
             Lead liberado <CheckCircle size={16} style={{ marginBottom: -2 }} />
           </div>
           <div style={{ fontSize: 15, color: "#5B6476", marginBottom: 8 }}>
@@ -284,7 +356,14 @@ function MeusLeadsList({ leads }: { leads: Lead[] }) {
               ? new Date(lead.createdAt.seconds * 1000).toLocaleString("pt-BR")
               : "---"}
           </div>
-          <div style={{ fontSize: 15, color: "#023047", fontWeight: 600, marginBottom: 2 }}>
+          <div
+            style={{
+              fontSize: 15,
+              color: "#023047",
+              fontWeight: 600,
+              marginBottom: 2,
+            }}
+          >
             Nome: {lead.nome}
           </div>
           <div style={{ fontSize: 15, color: "#023047", fontWeight: 600 }}>

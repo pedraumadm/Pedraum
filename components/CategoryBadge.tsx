@@ -19,6 +19,8 @@ export default function CategoryBadge({ categoria }: CategoryBadgeProps) {
   const cor = cores[categoria] || "bg-gray-100 text-gray-700";
 
   return (
-    <span className={`text-xs font-medium px-3 py-1 rounded-full ${cor}`}>{categoria}</span>
+    <span className={`text-xs font-medium px-3 py-1 rounded-full ${cor}`}>
+      {categoria}
+    </span>
   );
 }

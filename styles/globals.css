@@ -2,63 +2,62 @@
    📁 Arquivo: styles/globals.css
    ============================= */
 
-   @tailwind base;
-   @tailwind components;
-   @tailwind utilities;
-   
-   /* Base para todas as páginas */
-   html,
-   body {
-     background-color: #F6F9FA;
-     color: #023047;
-     min-height: 100vh;
-     font-family: sans-serif;
-   }
-   
-   /* Scroll personalizado */
-   ::-webkit-scrollbar {
-     width: 8px;
-     height: 8px;
-   }
-   ::-webkit-scrollbar-track {
-     background: transparent;
-   }
-   ::-webkit-scrollbar-thumb {
-     background-color: #cccccc;
-     border-radius: 999px;
-   }
-   
-   /* Animações */
-   @keyframes fade-in-up {
-     from {
-       opacity: 0;
-       transform: translateY(8px);
-     }
-     to {
-       opacity: 1;
-       transform: translateY(0);
-     }
-   }
-   .animate-fade-in-up {
-     animation: fade-in-up 0.4s ease-out;
-   }
-   
-   /* Estilos para inputs */
-   input,
-   select,
-   textarea {
-     border-radius: 0.75rem; /* xl */
-     border: 1px solid #D1D5DB; /* gray-300 */
-     padding: 0.5rem 1rem;
-     font-size: 0.875rem;
-     outline: none;
-   }
-   
-   /* Título padrão */
-   h1 {
-     font-size: 1.875rem; /* text-3xl */
-     font-weight: 700; /* bold */
-     color: #023047;
-     margin-bottom: 1rem;
-   }
-   
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base para todas as páginas */
+html,
+body {
+  background-color: #f6f9fa;
+  color: #023047;
+  min-height: 100vh;
+  font-family: sans-serif;
+}
+
+/* Scroll personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #cccccc;
+  border-radius: 999px;
+}
+
+/* Animações */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out;
+}
+
+/* Estilos para inputs */
+input,
+select,
+textarea {
+  border-radius: 0.75rem; /* xl */
+  border: 1px solid #d1d5db; /* gray-300 */
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+/* Título padrão */
+h1 {
+  font-size: 1.875rem; /* text-3xl */
+  font-weight: 700; /* bold */
+  color: #023047;
+  margin-bottom: 1rem;
+}

@@ -21,9 +21,12 @@ export default function AvaliacoesAdminPage() {
   useEffect(() => {
     async function carregarAvaliacoes() {
       try {
-        const avaliacoesQuery = query(collection(db, "avaliacoes"), orderBy("createdAt", "desc"));
+        const avaliacoesQuery = query(
+          collection(db, "avaliacoes"),
+          orderBy("createdAt", "desc"),
+        );
         const snapshot = await getDocs(avaliacoesQuery);
-        const dados = snapshot.docs.map(doc => ({
+        const dados = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Avaliacao[];
@@ -41,7 +44,9 @@ export default function AvaliacoesAdminPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-5xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Avaliações Recebidas</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Avaliações Recebidas
+        </h1>
 
         {loading ? (
           <p className="text-gray-600">Carregando avaliações...</p>
@@ -53,10 +58,16 @@ export default function AvaliacoesAdminPage() {
               <li key={a.id} className="bg-white border rounded-xl p-6 shadow">
                 <div className="flex items-center mb-2">
                   {[...Array(a.estrelas)].map((_, i) => (
-                    <Star key={i} size={16} className="text-yellow-500 fill-yellow-400" />
+                    <Star
+                      key={i}
+                      size={16}
+                      className="text-yellow-500 fill-yellow-400"
+                    />
                   ))}
                 </div>
-                <p className="text-sm text-gray-800 mb-2 italic">"{a.comentario}"</p>
+                <p className="text-sm text-gray-800 mb-2 italic">
+                  "{a.comentario}"
+                </p>
                 <p className="text-xs text-gray-500 text-right">– {a.nome}</p>
               </li>
             ))}

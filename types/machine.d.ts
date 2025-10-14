@@ -3,10 +3,9 @@
 // =============================
 
 export interface Machine {
-    id: string;
-    nome: string;
-    preco: string;
-    categoria: string;
-    imagens: string[];
-  }
-  
+  id: string;
+  nome: string;
+  preco: string;
+  categoria: string;
+  imagens: string[];
+}

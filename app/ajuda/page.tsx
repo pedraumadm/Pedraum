@@ -1,6 +1,13 @@
 "use client";
 import Link from "next/link";
-import { ChevronLeft, LifeBuoy, Mail, HelpCircle, MessageCircle, Phone } from "lucide-react";
+import {
+  ChevronLeft,
+  LifeBuoy,
+  Mail,
+  HelpCircle,
+  MessageCircle,
+  Phone,
+} from "lucide-react";
 import { useState } from "react";
 
 const FAQS = [
@@ -30,8 +37,20 @@ export default function AjudaPage() {
   const [faqAtivo, setFaqAtivo] = useState<number | null>(null);
 
   return (
-    <section style={{ maxWidth: 850, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}>
-      <Link href="/painel-vendedor" style={{ display: "flex", alignItems: "center", marginBottom: 24, color: "#2563eb", fontWeight: 700, fontSize: 16 }}>
+    <section
+      style={{ maxWidth: 850, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
+    >
+      <Link
+        href="/painel-vendedor"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 24,
+          color: "#2563eb",
+          fontWeight: 700,
+          fontSize: 16,
+        }}
+      >
         <ChevronLeft size={19} /> Voltar ao Painel
       </Link>
       <h1
@@ -46,30 +65,48 @@ export default function AjudaPage() {
           marginBottom: 14,
         }}
       >
-        <span style={{
-          display: "inline-block",
-          padding: "7px 30px",
-          background: "#f3f6fa",
-          color: "#023047",
-          borderRadius: "12px",
-          boxShadow: "0 2px 12px #0001",
-          fontWeight: 800,
-          fontSize: "2rem"
-        }}>
+        <span
+          style={{
+            display: "inline-block",
+            padding: "7px 30px",
+            background: "#f3f6fa",
+            color: "#023047",
+            borderRadius: "12px",
+            boxShadow: "0 2px 12px #0001",
+            fontWeight: 800,
+            fontSize: "2rem",
+          }}
+        >
           Central de Ajuda
         </span>
         <LifeBuoy size={38} color="#059669" style={{ marginLeft: 10 }} />
       </h1>
       <div className="text-[#5B6476] mb-7" style={{ fontSize: 18 }}>
-        Tire suas dúvidas, acesse perguntas frequentes, suporte técnico e canais de atendimento.
+        Tire suas dúvidas, acesse perguntas frequentes, suporte técnico e canais
+        de atendimento.
       </div>
 
       {/* FAQ */}
       <div style={{ marginBottom: 44 }}>
-        <h2 className="text-xl font-bold text-[#023047] mb-2">Perguntas Frequentes</h2>
-        <div style={{ borderRadius: 14, boxShadow: "0 2px 16px #0001", background: "#fff", border: "1.5px solid #e4e8ef" }}>
+        <h2 className="text-xl font-bold text-[#023047] mb-2">
+          Perguntas Frequentes
+        </h2>
+        <div
+          style={{
+            borderRadius: 14,
+            boxShadow: "0 2px 16px #0001",
+            background: "#fff",
+            border: "1.5px solid #e4e8ef",
+          }}
+        >
           {FAQS.map((faq, i) => (
-            <div key={i} style={{ borderBottom: i < FAQS.length - 1 ? "1px solid #ececec" : undefined }}>
+            <div
+              key={i}
+              style={{
+                borderBottom:
+                  i < FAQS.length - 1 ? "1px solid #ececec" : undefined,
+              }}
+            >
               <button
                 type="button"
                 className="flex w-full items-center justify-between px-6 py-5 text-lg font-semibold text-left transition hover:bg-[#f8fafc]"
@@ -77,7 +114,10 @@ export default function AjudaPage() {
                 style={{ color: "#2563eb", fontWeight: 700, fontSize: 18 }}
               >
                 <span>{faq.pergunta}</span>
-                <HelpCircle size={22} className={`ml-2 transition ${faqAtivo === i ? "rotate-180" : ""}`} />
+                <HelpCircle
+                  size={22}
+                  className={`ml-2 transition ${faqAtivo === i ? "rotate-180" : ""}`}
+                />
               </button>
               <div
                 style={{
@@ -108,40 +148,56 @@ export default function AjudaPage() {
           marginBottom: 48,
         }}
       >
-        <div style={{
-          borderRadius: 13,
-          boxShadow: "0 2px 13px #0001",
-          background: "#fff",
-          border: "1.3px solid #e5ecf2",
-          padding: "24px 20px 18px 24px",
-          minHeight: 122,
-          display: "flex",
-          alignItems: "center",
-          gap: 18,
-        }}>
+        <div
+          style={{
+            borderRadius: 13,
+            boxShadow: "0 2px 13px #0001",
+            background: "#fff",
+            border: "1.3px solid #e5ecf2",
+            padding: "24px 20px 18px 24px",
+            minHeight: 122,
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+          }}
+        >
           <Mail size={32} color="#2563eb" />
           <div>
-            <div className="font-bold text-[#023047] text-lg">Suporte por E-mail</div>
-            <div className="text-[#495668] mb-1">Envie suas dúvidas ou relatos para:</div>
-            <div className="text-[#2563eb] font-bold text-base">contato@pedraum.com.br</div>
+            <div className="font-bold text-[#023047] text-lg">
+              Suporte por E-mail
+            </div>
+            <div className="text-[#495668] mb-1">
+              Envie suas dúvidas ou relatos para:
+            </div>
+            <div className="text-[#2563eb] font-bold text-base">
+              contato@pedraum.com.br
+            </div>
           </div>
         </div>
-        <div style={{
-          borderRadius: 13,
-          boxShadow: "0 2px 13px #0001",
-          background: "#fff",
-          border: "1.3px solid #e5ecf2",
-          padding: "24px 20px 18px 24px",
-          minHeight: 122,
-          display: "flex",
-          alignItems: "center",
-          gap: 18,
-        }}>
+        <div
+          style={{
+            borderRadius: 13,
+            boxShadow: "0 2px 13px #0001",
+            background: "#fff",
+            border: "1.3px solid #e5ecf2",
+            padding: "24px 20px 18px 24px",
+            minHeight: 122,
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+          }}
+        >
           <Phone size={32} color="#FB8500" />
           <div>
-            <div className="font-bold text-[#023047] text-lg">WhatsApp e Telefone</div>
-            <div className="text-[#495668] mb-1">Atendimento rápido via WhatsApp:</div>
-            <div className="text-[#FB8500] font-bold text-base">+55 31 99090-3613</div>
+            <div className="font-bold text-[#023047] text-lg">
+              WhatsApp e Telefone
+            </div>
+            <div className="text-[#495668] mb-1">
+              Atendimento rápido via WhatsApp:
+            </div>
+            <div className="text-[#FB8500] font-bold text-base">
+              +55 31 99090-3613
+            </div>
           </div>
         </div>
       </div>
@@ -161,9 +217,15 @@ export default function AjudaPage() {
         }}
       >
         <MessageCircle size={36} color="#2563eb" />
-        <div className="font-bold text-[#023047] text-lg mb-2">Precisa de atendimento?</div>
-        <div className="text-[#495668] mb-2 text-center" style={{ fontSize: 16 }}>
-          Se não encontrou resposta acima, <b>abra um chamado</b> para nosso time de suporte.
+        <div className="font-bold text-[#023047] text-lg mb-2">
+          Precisa de atendimento?
+        </div>
+        <div
+          className="text-[#495668] mb-2 text-center"
+          style={{ fontSize: 16 }}
+        >
+          Se não encontrou resposta acima, <b>abra um chamado</b> para nosso
+          time de suporte.
         </div>
         <Link
           href="mailto:suporte@pedraum.com.br?subject=Ajuda via Plataforma"

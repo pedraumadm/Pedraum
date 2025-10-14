@@ -39,14 +39,18 @@ export default function MachinesPage() {
   }, []);
 
   return (
-    <section style={{ maxWidth: 1380, margin: "0 auto", padding: "44px 4vw 54px 4vw" }}>
-      <h1 style={{
-        fontSize: "2.3rem",
-        fontWeight: 900,
-        color: "#023047",
-        letterSpacing: "-1.2px",
-        marginBottom: 38
-      }}>
+    <section
+      style={{ maxWidth: 1380, margin: "0 auto", padding: "44px 4vw 54px 4vw" }}
+    >
+      <h1
+        style={{
+          fontSize: "2.3rem",
+          fontWeight: 900,
+          color: "#023047",
+          letterSpacing: "-1.2px",
+          marginBottom: 38,
+        }}
+      >
         Máquinas Disponíveis
       </h1>
       <div style={{ marginBottom: 30 }}>
@@ -58,17 +62,32 @@ export default function MachinesPage() {
         </Link>
       </div>
       {loading ? (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center", height: 180,
-          fontSize: 22, fontWeight: 700, color: "#219ebc"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 180,
+            fontSize: 22,
+            fontWeight: 700,
+            color: "#219ebc",
+          }}
+        >
           Carregando máquinas...
         </div>
       ) : machines.length === 0 ? (
-        <div style={{
-          background: "#fff", padding: 50, borderRadius: 16, boxShadow: "0 4px 20px #0001",
-          textAlign: "center", color: "#495668", fontSize: 20, fontWeight: 700
-        }}>
+        <div
+          style={{
+            background: "#fff",
+            padding: 50,
+            borderRadius: 16,
+            boxShadow: "0 4px 20px #0001",
+            textAlign: "center",
+            color: "#495668",
+            fontSize: 20,
+            fontWeight: 700,
+          }}
+        >
           Nenhuma máquina cadastrada.
         </div>
       ) : (
@@ -76,7 +95,7 @@ export default function MachinesPage() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
-            gap: "38px"
+            gap: "38px",
           }}
         >
           {machines.map((m) => (
@@ -91,21 +110,23 @@ export default function MachinesPage() {
                 display: "flex",
                 flexDirection: "column",
                 minHeight: 360,
-                position: "relative"
+                position: "relative",
               }}
             >
-              <div style={{
-                width: "100%",
-                height: 190,
-                borderTopLeftRadius: 22,
-                borderTopRightRadius: 22,
-                overflow: "hidden",
-                borderBottom: "1.5px solid #f4f4f4",
-                background: "#f7fafd",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              }}>
+              <div
+                style={{
+                  width: "100%",
+                  height: 190,
+                  borderTopLeftRadius: 22,
+                  borderTopRightRadius: 22,
+                  overflow: "hidden",
+                  borderBottom: "1.5px solid #f4f4f4",
+                  background: "#f7fafd",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <img
                   src={getMachineImage(m) || "/machines/placeholder.jpg"}
                   alt={m.nome}
@@ -120,28 +141,50 @@ export default function MachinesPage() {
                   draggable={false}
                 />
               </div>
-              <div style={{
-                padding: "18px 22px 10px 22px",
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between"
-              }}>
-                <div style={{
-                  fontSize: "1.18rem", fontWeight: 700, color: "#023047", marginBottom: 8, minHeight: 38,
-                  textTransform: "capitalize"
-                }}>
+              <div
+                style={{
+                  padding: "18px 22px 10px 22px",
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.18rem",
+                    fontWeight: 700,
+                    color: "#023047",
+                    marginBottom: 8,
+                    minHeight: 38,
+                    textTransform: "capitalize",
+                  }}
+                >
                   {m.nome}
                 </div>
-                <div style={{ color: "#FB8500", fontWeight: 900, fontSize: 23, marginBottom: 7 }}>
+                <div
+                  style={{
+                    color: "#FB8500",
+                    fontWeight: 900,
+                    fontSize: 23,
+                    marginBottom: 7,
+                  }}
+                >
                   R$ {Number(m.preco).toLocaleString("pt-BR")}
                 </div>
-                <div style={{ color: "#8c9199", fontSize: 15, marginBottom: 8 }}>
+                <div
+                  style={{ color: "#8c9199", fontSize: 15, marginBottom: 8 }}
+                >
                   {m.localizacao || "Localização não informada"}
                 </div>
-                <div style={{
-                  display: "flex", gap: 14, marginTop: 5, flexWrap: "wrap"
-                }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 14,
+                    marginTop: 5,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <Link
                     href={`/machines/${m.id}`}
                     className="text-[#FB8500] font-bold hover:underline flex items-center gap-1"

@@ -21,7 +21,9 @@ export default function CheckoutPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-8">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Finalizar Interesse</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Finalizar Interesse
+        </h1>
         {enviado ? (
           <p className="text-green-600 text-center text-lg font-medium">
             Interesse registrado com sucesso! Em breve entraremos em contato.
@@ -29,7 +31,9 @@ export default function CheckoutPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">Seu Nome</label>
+              <label className="block mb-1 text-sm font-medium text-gray-700">
+                Seu Nome
+              </label>
               <input
                 type="text"
                 value={nome}
@@ -41,7 +45,9 @@ export default function CheckoutPage() {
             </div>
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">Telefone ou E-mail</label>
+              <label className="block mb-1 text-sm font-medium text-gray-700">
+                Telefone ou E-mail
+              </label>
               <input
                 type="text"
                 value={contato}
@@ -53,7 +59,9 @@ export default function CheckoutPage() {
             </div>
 
             <div>
-              <label className="block mb-1 text-sm font-medium text-gray-700">Mensagem</label>
+              <label className="block mb-1 text-sm font-medium text-gray-700">
+                Mensagem
+              </label>
               <textarea
                 rows={4}
                 value={mensagem}

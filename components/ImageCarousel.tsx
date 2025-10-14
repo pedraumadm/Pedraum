@@ -15,7 +15,10 @@ export default function ImageCarousel() {
     const el = carouselRef.current;
     if (!el) return;
     const scrollAmount = el.offsetWidth * 0.85;
-    el.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" });
+    el.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
   };
 
   return (

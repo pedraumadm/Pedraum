@@ -1,7 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import { db, auth } from "@/firebaseConfig";
-import { collection, addDoc, query, orderBy, limit, getDocs, Timestamp, updateDoc, doc } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  Timestamp,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 import { Lightbulb, Send, Loader, ChevronLeft, ThumbsUp } from "lucide-react";
 import Link from "next/link";
 
@@ -32,7 +42,11 @@ export default function SugestoesPage() {
   useEffect(() => {
     async function fetchSugestoes() {
       setLoading(true);
-      const q = query(collection(db, "sugestoes"), orderBy("createdAt", "desc"), limit(10));
+      const q = query(
+        collection(db, "sugestoes"),
+        orderBy("createdAt", "desc"),
+        limit(10),
+      );
       const snap = await getDocs(q);
       const data: Sugestao[] = [];
       snap.forEach((docu) => {
@@ -78,8 +92,20 @@ export default function SugestoesPage() {
   }
 
   return (
-    <section style={{ maxWidth: 700, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}>
-      <Link href="/painel-vendedor" style={{ display: "flex", alignItems: "center", marginBottom: 24, color: "#2563eb", fontWeight: 700, fontSize: 16 }}>
+    <section
+      style={{ maxWidth: 700, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
+    >
+      <Link
+        href="/painel-vendedor"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 24,
+          color: "#2563eb",
+          fontWeight: 700,
+          fontSize: 16,
+        }}
+      >
         <ChevronLeft size={19} /> Voltar ao Painel
       </Link>
       <h1
@@ -94,16 +120,18 @@ export default function SugestoesPage() {
           marginBottom: 30,
         }}
       >
-        <span style={{
-          display: "inline-block",
-          padding: "7px 30px",
-          background: "#f3f6fa",
-          color: "#023047",
-          borderRadius: "12px",
-          boxShadow: "0 2px 12px #0001",
-          fontWeight: 800,
-          fontSize: "2rem"
-        }}>
+        <span
+          style={{
+            display: "inline-block",
+            padding: "7px 30px",
+            background: "#f3f6fa",
+            color: "#023047",
+            borderRadius: "12px",
+            boxShadow: "0 2px 12px #0001",
+            fontWeight: 800,
+            fontSize: "2rem",
+          }}
+        >
           Sugestões
         </span>
         <Lightbulb size={34} color="#FB8500" style={{ marginLeft: 10 }} />
@@ -119,7 +147,7 @@ export default function SugestoesPage() {
         <textarea
           className="block w-full px-4 py-3 border border-[#e4e8ef] rounded-lg bg-[#f7fafd] font-medium text-base outline-none"
           value={sugestao}
-          onChange={e => setSugestao(e.target.value)}
+          onChange={(e) => setSugestao(e.target.value)}
           rows={4}
           maxLength={400}
           required
@@ -130,7 +158,11 @@ export default function SugestoesPage() {
           disabled={enviando || !sugestao.trim()}
           className="bg-[#FB8500] flex items-center justify-center gap-2 text-white text-lg font-bold rounded-xl py-3 mt-2 shadow-md hover:opacity-90 transition"
         >
-          {enviando ? <Loader className="animate-spin" size={22} /> : <Send size={20} />}
+          {enviando ? (
+            <Loader className="animate-spin" size={22} />
+          ) : (
+            <Send size={20} />
+          )}
           {enviando ? "Enviando..." : "Enviar Sugestão"}
         </button>
         {msg && (
@@ -146,7 +178,10 @@ export default function SugestoesPage() {
         )}
       </form>
 
-      <h2 className="text-xl font-bold text-[#023047] mb-2" style={{ marginBottom: 12 }}>
+      <h2
+        className="text-xl font-bold text-[#023047] mb-2"
+        style={{ marginBottom: 12 }}
+      >
         Últimas sugestões enviadas
       </h2>
 
@@ -154,7 +189,9 @@ export default function SugestoesPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader className="animate-spin mr-2" size={22} color="#219EBC" />
-            <span style={{ fontSize: 17, fontWeight: 700, color: "#219EBC" }}>Carregando sugestões...</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: "#219EBC" }}>
+              Carregando sugestões...
+            </span>
           </div>
         ) : ultimas.length === 0 ? (
           <div className="text-[#6b7680] text-center py-6">
@@ -175,8 +212,23 @@ export default function SugestoesPage() {
                     padding: "16px 19px",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ color: "#FB8500", fontWeight: 700, fontSize: 15, display: "flex", alignItems: "center", gap: 6 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div
+                      style={{
+                        color: "#FB8500",
+                        fontWeight: 700,
+                        fontSize: 15,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
                       <Lightbulb size={18} /> {s.userEmail}
                     </div>
                     <button
@@ -189,21 +241,33 @@ export default function SugestoesPage() {
                         cursor: jaVotou ? "not-allowed" : "pointer",
                         border: "none",
                         minWidth: 55,
-                        justifyContent: "center"
+                        justifyContent: "center",
                       }}
-                      title={jaVotou ? "Você já votou!" : "Curtir esta sugestão"}
+                      title={
+                        jaVotou ? "Você já votou!" : "Curtir esta sugestão"
+                      }
                       type="button"
                     >
                       <ThumbsUp size={16} style={{ marginRight: 4 }} />
                       {s.votos?.length || 0}
                     </button>
                   </div>
-                  <div style={{ color: "#023047", fontSize: 16, fontWeight: 500, marginBottom: 3, marginTop: 4 }}>
+                  <div
+                    style={{
+                      color: "#023047",
+                      fontSize: 16,
+                      fontWeight: 500,
+                      marginBottom: 3,
+                      marginTop: 4,
+                    }}
+                  >
                     {s.sugestao}
                   </div>
                   <div style={{ color: "#8d9297", fontSize: 13 }}>
                     {s.createdAt?.seconds
-                      ? new Date(s.createdAt.seconds * 1000).toLocaleString("pt-BR")
+                      ? new Date(s.createdAt.seconds * 1000).toLocaleString(
+                          "pt-BR",
+                        )
                       : ""}
                   </div>
                 </div>

@@ -45,21 +45,90 @@ import {
    Config dos Cards / Listas
 ========================================================= */
 const CARDS = [
-  { label: "Usuários", icon: Users, key: "usuarios", link: "/admin/usuarios", color: "#2563eb" },
-  { label: "Produtos", icon: TrendingUp, key: "produtos", link: "/admin/produtos", color: "#fb8500" },
-  { label: "Serviços", icon: Briefcase, key: "services", link: "/admin/services", color: "#219ebc" },
-  { label: "Demandas", icon: ClipboardList, key: "demandas", link: "/admin/demandas", color: "#023047" },
-  { label: "Leads", icon: ListChecks, key: "leads", link: "/admin/leads", color: "#00b4d8" },
-  { label: "Sugestões", icon: Lightbulb, key: "sugestoes", link: "/admin/sugestoes", color: "#fbbf24" },
-  { label: "Parceiros", icon: Building2, key: "parceiros", link: "/admin/parceiros", color: "#14b8a6" },
-  { label: "Blog", icon: Newspaper, key: "blog", link: "/admin/blog", color: "#ffc300" },
+  {
+    label: "Usuários",
+    icon: Users,
+    key: "usuarios",
+    link: "/admin/usuarios",
+    color: "#2563eb",
+  },
+  {
+    label: "Produtos",
+    icon: TrendingUp,
+    key: "produtos",
+    link: "/admin/produtos",
+    color: "#fb8500",
+  },
+  {
+    label: "Serviços",
+    icon: Briefcase,
+    key: "services",
+    link: "/admin/services",
+    color: "#219ebc",
+  },
+  {
+    label: "Demandas",
+    icon: ClipboardList,
+    key: "demandas",
+    link: "/admin/demandas",
+    color: "#023047",
+  },
+  {
+    label: "Leads",
+    icon: ListChecks,
+    key: "leads",
+    link: "/admin/leads",
+    color: "#00b4d8",
+  },
+  {
+    label: "Sugestões",
+    icon: Lightbulb,
+    key: "sugestoes",
+    link: "/admin/sugestoes",
+    color: "#fbbf24",
+  },
+  {
+    label: "Parceiros",
+    icon: Building2,
+    key: "parceiros",
+    link: "/admin/parceiros",
+    color: "#14b8a6",
+  },
+  {
+    label: "Blog",
+    icon: Newspaper,
+    key: "blog",
+    link: "/admin/blog",
+    color: "#ffc300",
+  },
 ];
 
 const RECENT_COLLECTIONS = [
-  { label: "Usuários Novos", key: "usuarios", icon: Users, mainField: "nome", email: true },
-  { label: "Produtos Recentes", key: "produtos", icon: TrendingUp, mainField: "titulo" },
-  { label: "Serviços Recentes", key: "services", icon: Briefcase, mainField: "titulo" },
-  { label: "Demandas Novas", key: "demandas", icon: ClipboardList, mainField: "titulo" },
+  {
+    label: "Usuários Novos",
+    key: "usuarios",
+    icon: Users,
+    mainField: "nome",
+    email: true,
+  },
+  {
+    label: "Produtos Recentes",
+    key: "produtos",
+    icon: TrendingUp,
+    mainField: "titulo",
+  },
+  {
+    label: "Serviços Recentes",
+    key: "services",
+    icon: Briefcase,
+    mainField: "titulo",
+  },
+  {
+    label: "Demandas Novas",
+    key: "demandas",
+    icon: ClipboardList,
+    mainField: "titulo",
+  },
   { label: "Leads Recentes", key: "leads", icon: Inbox, mainField: "nome" },
 ];
 
@@ -69,9 +138,7 @@ const RECENT_COLLECTIONS = [
 ========================================================= */
 
 // (opcional) whitelist por e-mail — adicione o seu se quiser um fallback extra
-const ALLOWED_ADMIN_EMAILS = new Set<string>([
-  "admin@pedraum.com.br",
-]);
+const ALLOWED_ADMIN_EMAILS = new Set<string>(["admin@pedraum.com.br"]);
 
 const norm = (v: any) => (v ?? "").toString().trim().toLowerCase();
 
@@ -114,7 +181,9 @@ export default function AdminPage() {
         // 1) claims do token
         const token = await u.getIdTokenResult(true);
         const claims = token.claims || {};
-        const claimRole = norm(claims.role || claims.papel || claims.perfil || claims.tipo);
+        const claimRole = norm(
+          claims.role || claims.papel || claims.perfil || claims.tipo,
+        );
         const claimIsAdmin =
           claims.isAdmin === true ||
           claimRole === "admin" ||
@@ -135,7 +204,9 @@ export default function AdminPage() {
         }
 
         // 3) whitelist por e-mail (fallback)
-        const byEmail = u.email ? ALLOWED_ADMIN_EMAILS.has(u.email.toLowerCase()) : false;
+        const byEmail = u.email
+          ? ALLOWED_ADMIN_EMAILS.has(u.email.toLowerCase())
+          : false;
 
         const allow = claimIsAdmin || docIsAdmin || byEmail;
 
@@ -162,7 +233,7 @@ export default function AdminPage() {
           "| byEmail:",
           byEmail,
           "| papel/tipo:",
-          papel
+          papel,
         );
       } finally {
         setChecking(false);
@@ -217,11 +288,19 @@ export default function AdminPage() {
             boxShadow: "0 8px 28px #0001",
           }}
         >
-          <h1 style={{ fontWeight: 900, color: "#023047", fontSize: "1.35rem", marginBottom: 8 }}>
+          <h1
+            style={{
+              fontWeight: 900,
+              color: "#023047",
+              fontSize: "1.35rem",
+              marginBottom: 8,
+            }}
+          >
             Acesso negado
           </h1>
           <p style={{ color: "#6b7680", marginBottom: 16 }}>
-            Esta área é restrita a administradores. Se você precisa de acesso, fale com o suporte.
+            Esta área é restrita a administradores. Se você precisa de acesso,
+            fale com o suporte.
           </p>
           <Link
             href="/painel"
@@ -273,7 +352,11 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
       for (const c of RECENT_COLLECTIONS) {
         try {
           const snap = await getDocs(
-            query(collection(db, c.key), orderBy("createdAt", "desc"), limit(5))
+            query(
+              collection(db, c.key),
+              orderBy("createdAt", "desc"),
+              limit(5),
+            ),
           );
           rdata[c.key] = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         } catch {
@@ -334,8 +417,7 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
               width: 96,
               height: 96,
               borderRadius: "50%",
-              background:
-                "linear-gradient(135deg, #FB8500 65%, #2563eb 120%)",
+              background: "linear-gradient(135deg, #FB8500 65%, #2563eb 120%)",
               color: "#fff",
               display: "flex",
               alignItems: "center",
@@ -376,14 +458,18 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
             >
               Painel do Administrador
             </div>
-            <div style={{ color: "#8e97a3", fontSize: "1.14rem", marginBottom: 4 }}>
+            <div
+              style={{ color: "#8e97a3", fontSize: "1.14rem", marginBottom: 4 }}
+            >
               Olá, <b>{adminInfo?.nome || "Administrador"}</b> (
               <span style={{ color: "#fb8500" }}>
                 {(adminInfo?.papel || "admin").toString().toUpperCase()}
               </span>
               ).
             </div>
-            <span style={{ color: "#219ebc", fontWeight: 700, fontSize: "1rem" }}>
+            <span
+              style={{ color: "#219ebc", fontWeight: 700, fontSize: "1rem" }}
+            >
               {adminInfo?.email}
             </span>
           </div>
@@ -440,7 +526,10 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                 }}
                 className="hover:shadow-xl hover:scale-[1.06] transition"
               >
-                <card.icon size={48} style={{ color: card.color, marginBottom: 8 }} />
+                <card.icon
+                  size={48}
+                  style={{ color: card.color, marginBottom: 8 }}
+                />
                 <span
                   style={{
                     fontWeight: 800,
@@ -464,7 +553,7 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                     textAlign: "center",
                   }}
                 >
-                  {loading ? "..." : stats[card.key] ?? 0}
+                  {loading ? "..." : (stats[card.key] ?? 0)}
                 </span>
               </div>
             </Link>
@@ -511,7 +600,9 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                     cx="50%"
                     cy="50%"
                     outerRadius={92}
-                    label={({ name, value }) => (value > 0 ? `${name}: ${value}` : "")}
+                    label={({ name, value }) =>
+                      value > 0 ? `${name}: ${value}` : ""
+                    }
                     style={{ fontWeight: 800, fontSize: "1.08rem" }}
                   >
                     {pieData.map((entry, idx) => (
@@ -531,14 +622,25 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                   <XAxis dataKey="name" fontWeight={700} />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="Quantidade" fill="#2563eb" radius={[12, 12, 0, 0]} />
+                  <Bar
+                    dataKey="Quantidade"
+                    fill="#2563eb"
+                    radius={[12, 12, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* LISTAS / ATALHOS / AVISOS */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 34, minHeight: 250 }}>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 34,
+              minHeight: 250,
+            }}
+          >
             {/* Atalhos */}
             <div
               style={{
@@ -548,16 +650,57 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                 padding: "24px 30px",
               }}
             >
-              <div style={{ fontWeight: 900, color: "#2563eb", fontSize: "1.15rem", marginBottom: 19 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  color: "#2563eb",
+                  fontSize: "1.15rem",
+                  marginBottom: 19,
+                }}
+              >
                 Atalhos Administrativos
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 15, marginBottom: 7 }}>
-                <Link href="/create-produto" style={quickBtn("#fb8500", "#fff")}>+ Novo Produto</Link>
-                <Link href="/create-service" style={quickBtn("#219ebc", "#fff")}>+ Novo Serviço</Link>
-                <Link href="/admin/blog/create" style={quickBtn("#2563eb", "#fff")}>+ Novo Post Blog</Link>
-                <Link href="/admin/leads" style={quickBtn("#00b4d8", "#fff")}>Ver Leads</Link>
-                <Link href="/admin/usuarios" style={quickBtn("#2563eb", "#fff")}>Usuários</Link>
-                <Link href="/admin/parceiros" style={quickBtn("#14b8a6", "#fff")}>Parceiros</Link>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 15,
+                  marginBottom: 7,
+                }}
+              >
+                <Link
+                  href="/create-produto"
+                  style={quickBtn("#fb8500", "#fff")}
+                >
+                  + Novo Produto
+                </Link>
+                <Link
+                  href="/create-service"
+                  style={quickBtn("#219ebc", "#fff")}
+                >
+                  + Novo Serviço
+                </Link>
+                <Link
+                  href="/admin/blog/create"
+                  style={quickBtn("#2563eb", "#fff")}
+                >
+                  + Novo Post Blog
+                </Link>
+                <Link href="/admin/leads" style={quickBtn("#00b4d8", "#fff")}>
+                  Ver Leads
+                </Link>
+                <Link
+                  href="/admin/usuarios"
+                  style={quickBtn("#2563eb", "#fff")}
+                >
+                  Usuários
+                </Link>
+                <Link
+                  href="/admin/parceiros"
+                  style={quickBtn("#14b8a6", "#fff")}
+                >
+                  Parceiros
+                </Link>
               </div>
             </div>
 
@@ -570,7 +713,14 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                 padding: "23px 30px",
               }}
             >
-              <div style={{ fontWeight: 900, color: "#fb8500", fontSize: "1.12rem", marginBottom: 13 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  color: "#fb8500",
+                  fontSize: "1.12rem",
+                  marginBottom: 13,
+                }}
+              >
                 Últimos Cadastros
               </div>
               {RECENT_COLLECTIONS.map((rc) => (
@@ -588,7 +738,9 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                     <rc.icon size={17} /> {rc.label}
                   </div>
                   {(!recentData[rc.key] || recentData[rc.key].length === 0) && (
-                    <span style={{ color: "#aaa", fontSize: ".99rem" }}>Nenhum registro recente.</span>
+                    <span style={{ color: "#aaa", fontSize: ".99rem" }}>
+                      Nenhum registro recente.
+                    </span>
                   )}
                   <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
                     {recentData[rc.key]?.map((item: any) => (
@@ -606,7 +758,9 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                           {item[rc.mainField] || item.email || "—"}
                         </span>
                         {rc.email && item.email && (
-                          <span style={{ color: "#64748b", fontSize: ".93rem" }}>
+                          <span
+                            style={{ color: "#64748b", fontSize: ".93rem" }}
+                          >
                             ({item.email})
                           </span>
                         )}
@@ -626,16 +780,37 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                 padding: "22px 24px",
               }}
             >
-              <div style={{ fontWeight: 900, color: "#14b8a6", fontSize: "1.09rem", marginBottom: 13 }}>
+              <div
+                style={{
+                  fontWeight: 900,
+                  color: "#14b8a6",
+                  fontSize: "1.09rem",
+                  marginBottom: 13,
+                }}
+              >
                 Avisos Inteligentes para Administrador
               </div>
-              <ul style={{ color: "#495668", fontSize: "1.01rem", lineHeight: 1.65, marginLeft: 12 }}>
+              <ul
+                style={{
+                  color: "#495668",
+                  fontSize: "1.01rem",
+                  lineHeight: 1.65,
+                  marginLeft: 12,
+                }}
+              >
                 <li>✔️ Mantenha cadastros sempre atualizados.</li>
                 <li>✔️ Gerencie leads com atenção especial.</li>
                 <li>✔️ Responda às mensagens e sugestões de usuários.</li>
-                <li>✔️ Monitore parceiros e avaliações para garantir reputação da plataforma.</li>
-                <li>✔️ Use os gráficos para insights e decisões estratégicas.</li>
-                <li>✔️ Não esqueça de conferir notificações, blog e transações!</li>
+                <li>
+                  ✔️ Monitore parceiros e avaliações para garantir reputação da
+                  plataforma.
+                </li>
+                <li>
+                  ✔️ Use os gráficos para insights e decisões estratégicas.
+                </li>
+                <li>
+                  ✔️ Não esqueça de conferir notificações, blog e transações!
+                </li>
               </ul>
             </div>
           </div>
@@ -653,7 +828,8 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
             letterSpacing: ".01em",
           }}
         >
-          © {new Date().getFullYear()} Pedraum Brasil · Painel Administrativo Premium.
+          © {new Date().getFullYear()} Pedraum Brasil · Painel Administrativo
+          Premium.
         </footer>
       </section>
 

@@ -10,7 +10,10 @@ export type Subcat = { nome: string; slug?: string; itens?: Item[] };
 export type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
 
 /** Resultado selecionado: caminho em até 3 níveis */
-export type TaxonomyPath = [string] | [string, string] | [string, string, string];
+export type TaxonomyPath =
+  | [string]
+  | [string, string]
+  | [string, string, string];
 
 type Props = {
   /** Lista de categorias do useTaxonomia() */
@@ -57,17 +60,29 @@ function buildTaxIndexLocal(categorias: Cat[]): TaxIndexRow[] {
           for (const it of itens) {
             const itemName = it?.nome || "";
             const label = itemName || subName || catName;
-            const hay = normalizeLocal([catName, subName, itemName].filter(Boolean).join(" "));
-            rows.push({ label, path: [catName, subName, itemName], haystack: hay });
+            const hay = normalizeLocal(
+              [catName, subName, itemName].filter(Boolean).join(" "),
+            );
+            rows.push({
+              label,
+              path: [catName, subName, itemName],
+              haystack: hay,
+            });
           }
         } else {
           const label = subName || catName;
-          const hay = normalizeLocal([catName, subName].filter(Boolean).join(" "));
+          const hay = normalizeLocal(
+            [catName, subName].filter(Boolean).join(" "),
+          );
           rows.push({ label, path: [catName, subName], haystack: hay });
         }
       }
     } else if (catName) {
-      rows.push({ label: catName, path: [catName], haystack: normalizeLocal(catName) });
+      rows.push({
+        label: catName,
+        path: [catName],
+        haystack: normalizeLocal(catName),
+      });
     }
   }
   return rows;
@@ -105,7 +120,10 @@ export default function TaxonomyQuickSearch({
   const [open, setOpen] = React.useState(false);
   const [highlight, setHighlight] = React.useState(0);
 
-  const index = React.useMemo(() => buildTaxIndexLocal(categorias || []), [categorias]);
+  const index = React.useMemo(
+    () => buildTaxIndexLocal(categorias || []),
+    [categorias],
+  );
 
   const results = React.useMemo(() => {
     if (!term.trim()) return [];
@@ -139,7 +157,8 @@ export default function TaxonomyQuickSearch({
   return (
     <div className={className}>
       <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-        <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do item (atalho)
+        <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do item
+        (atalho)
       </h3>
 
       <div className="relative">
@@ -202,11 +221,17 @@ export default function TaxonomyQuickSearch({
                       cursor: "pointer",
                       borderRadius: 10,
                       padding: "8px 10px",
-                      background: active ? "rgba(251,133,0,0.08)" : "transparent",
+                      background: active
+                        ? "rgba(251,133,0,0.08)"
+                        : "transparent",
                     }}
                   >
-                    <div className="text-sm font-semibold text-slate-800">{r.label}</div>
-                    <div className="text-xs text-slate-500">{[c1, c2, c3].filter(Boolean).join(" › ")}</div>
+                    <div className="text-sm font-semibold text-slate-800">
+                      {r.label}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {[c1, c2, c3].filter(Boolean).join(" › ")}
+                    </div>
                   </li>
                 );
               })}

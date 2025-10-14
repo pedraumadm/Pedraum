@@ -6,8 +6,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
 // Worker do pdf.js pela CDN (compatível com pdfjs-dist@5.x)
-pdfjs.GlobalWorkerOptions.workerSrc =
-  `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 type DrivePDFViewerProps = {
   /** URL do PDF (passe via /api/pdf-proxy?file=... se precisar evitar CORS) */
@@ -33,7 +32,7 @@ export default function DrivePDFViewer({
   const [page, setPage] = useState<number>(initialPage);
   const [scale, setScale] = useState<number>(1.15);
   const [fitMode, setFitMode] = useState<"fit-width" | "fit-page" | "free">(
-    "fit-width"
+    "fit-width",
   );
   const [rotate, setRotate] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -156,7 +155,7 @@ export default function DrivePDFViewer({
               value={page}
               onChange={(e) =>
                 setPage(
-                  Math.min(numPages || 1, Math.max(1, Number(e.target.value)))
+                  Math.min(numPages || 1, Math.max(1, Number(e.target.value))),
                 )
               }
             />
@@ -206,7 +205,9 @@ export default function DrivePDFViewer({
 
           <button
             className={iconBtn}
-            onClick={() => setScale((s) => Math.max(0.3, +(s - 0.1).toFixed(2)))}
+            onClick={() =>
+              setScale((s) => Math.max(0.3, +(s - 0.1).toFixed(2)))
+            }
             title="Zoom - (Ctrl -)"
           >
             −
@@ -235,7 +236,11 @@ export default function DrivePDFViewer({
           {allowDownload && (
             <>
               <div className="w-px h-6 bg-slate-200" />
-              <button className={iconBtn} onClick={openInNewTab} title="Abrir em nova aba">
+              <button
+                className={iconBtn}
+                onClick={openInNewTab}
+                title="Abrir em nova aba"
+              >
                 ↗
               </button>
               <button className={iconBtn} onClick={download} title="Baixar PDF">

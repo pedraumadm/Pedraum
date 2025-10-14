@@ -40,10 +40,14 @@ export default function CreateDemandPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-8">
-        <h2 className="text-2xl font-bold text-[#023047] mb-6">Cadastrar Nova Demanda</h2>
+        <h2 className="text-2xl font-bold text-[#023047] mb-6">
+          Cadastrar Nova Demanda
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Categoria
+            </label>
             <input
               type="text"
               value={categoria}
@@ -55,7 +59,9 @@ export default function CreateDemandPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Descrição
+            </label>
             <textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}

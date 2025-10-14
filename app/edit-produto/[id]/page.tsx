@@ -35,8 +35,12 @@ import {
 import ImageUploader from "@/components/ImageUploader";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 
 const condicoes = [
   "Novo com garantia",
@@ -46,7 +50,35 @@ const condicoes = [
   "No estado que se encontra",
 ];
 
-const estados = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+const estados = [
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
+];
 
 type Produto = {
   id?: string;
@@ -176,43 +208,57 @@ function EditProdutoPage() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const nomes = data
+          .map((m) => m.nome)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
         if (form.cidade && !nomes.includes(form.cidade)) {
           nomes.unshift(form.cidade);
         }
         setCidades(nomes);
       } catch {
-        if (!abort) setCidades((prev) => (prev.length ? prev : form.cidade ? [form.cidade] : []));
+        if (!abort)
+          setCidades((prev) =>
+            prev.length ? prev : form.cidade ? [form.cidade] : [],
+          );
       } finally {
         if (!abort) setCarregandoCidades(false);
       }
     }
     fetchCidades(form.estado);
-    return () => { abort = true; };
+    return () => {
+      abort = true;
+    };
   }, [form.estado]);
 
   // ==== Handlers ====
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) {
     const { name, value, type, checked } = e.target as any;
 
     if (name === "hasWarranty") {
-      setForm((f) => ({ ...f, hasWarranty: checked, warrantyMonths: checked ? f.warrantyMonths : "" }));
+      setForm((f) => ({
+        ...f,
+        hasWarranty: checked,
+        warrantyMonths: checked ? f.warrantyMonths : "",
+      }));
       return;
     }
 
     if (name === "condicao") {
       const v = value as string;
-      const autoHas =
-        v.includes("com garantia") ? true :
-        v.includes("sem garantia") ? false :
-        form.hasWarranty;
+      const autoHas = v.includes("com garantia")
+        ? true
+        : v.includes("sem garantia")
+          ? false
+          : form.hasWarranty;
       setForm((f) => ({ ...f, condicao: v, hasWarranty: autoHas }));
       return;
     }
@@ -233,8 +279,14 @@ function EditProdutoPage() {
 
     try {
       if (
-        !form.nome || !form.estado || !form.cidade || !form.descricao ||
-        !form.categoria || !form.subcategoria || !form.ano || !form.condicao
+        !form.nome ||
+        !form.estado ||
+        !form.cidade ||
+        !form.descricao ||
+        !form.categoria ||
+        !form.subcategoria ||
+        !form.ano ||
+        !form.condicao
       ) {
         throw new Error("Preencha todos os campos obrigatórios.");
       }
@@ -243,7 +295,8 @@ function EditProdutoPage() {
       }
       if (form.hasWarranty) {
         const wm = Number(form.warrantyMonths);
-        if (!wm || wm <= 0) throw new Error("Informe um prazo de garantia válido (em meses).");
+        if (!wm || wm <= 0)
+          throw new Error("Informe um prazo de garantia válido (em meses).");
       }
 
       const ref = doc(db, "produtos", id);
@@ -274,17 +327,19 @@ function EditProdutoPage() {
     }
   }
 
-  const subcategoriasDisponiveis =
-    useMemo(
-      () => categorias.find((c) => c.nome === form.categoria)?.subcategorias || [],
-      [form.categoria, categorias]
-    );
+  const subcategoriasDisponiveis = useMemo(
+    () =>
+      categorias.find((c) => c.nome === form.categoria)?.subcategorias || [],
+    [form.categoria, categorias],
+  );
 
   if (carregando || taxLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="animate-spin mb-3" size={38} />
-        <div className="text-lg font-bold text-[#219EBC]">Carregando produto…</div>
+        <div className="text-lg font-bold text-[#219EBC]">
+          Carregando produto…
+        </div>
       </div>
     );
   }
@@ -297,7 +352,15 @@ function EditProdutoPage() {
 }
 
 /* ===================== UI helpers ===================== */
-function FormField({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode; }) {
+function FormField({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label style={labelStyle}>
@@ -309,5 +372,27 @@ function FormField({ label, icon, children }: { label: string; icon?: React.Reac
 }
 
 /* ===================== Estilos ===================== */
-const labelStyle: React.CSSProperties = { fontWeight: 800, color: "#023047", marginBottom: 6, display: "flex", alignItems: "center", gap: 6, letterSpacing: -0.2 };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "13px 14px", borderRadius: 12, border: "1.6px solid #e5e7eb", fontSize: 16, color: "#0f172a", background: "#f8fafc", fontWeight: 600, marginBottom: 2, outline: "none", marginTop: 2, minHeight: 46, boxShadow: "0 0 0 0 rgba(0,0,0,0)" };
+const labelStyle: React.CSSProperties = {
+  fontWeight: 800,
+  color: "#023047",
+  marginBottom: 6,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  letterSpacing: -0.2,
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: 12,
+  border: "1.6px solid #e5e7eb",
+  fontSize: 16,
+  color: "#0f172a",
+  background: "#f8fafc",
+  fontWeight: 600,
+  marginBottom: 2,
+  outline: "none",
+  marginTop: 2,
+  minHeight: 46,
+  boxShadow: "0 0 0 0 rgba(0,0,0,0)",
+};

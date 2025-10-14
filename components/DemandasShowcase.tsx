@@ -45,7 +45,7 @@ export default function DemandsShowcase() {
     const q = fsQuery(
       collection(db, "demandas"),
       orderBy("createdAt", "desc"),
-      fsLimit(12)
+      fsLimit(12),
     );
     const unsub = onSnapshot(q, (snap) => {
       const list: Demand[] = snap.docs.map((d) => {
@@ -54,7 +54,10 @@ export default function DemandsShowcase() {
           id: d.id,
           title: data?.title || data?.titulo || "Demanda",
           descricao:
-            data?.descricao || data?.description || data?.resumo || "Sem descrição.",
+            data?.descricao ||
+            data?.description ||
+            data?.resumo ||
+            "Sem descrição.",
           city: data?.city || data?.cidade || "",
           state: data?.state || data?.estado || "",
           createdAt: data?.createdAt,
@@ -100,8 +103,22 @@ export default function DemandsShowcase() {
   }, []);
 
   return (
-    <section style={{ background: "#F6F9FA", padding: 0, width: "100%", position: "relative" }}>
-      <div style={{ maxWidth: 1220, margin: "0 auto", padding: "0 2vw", position: "relative" }}>
+    <section
+      style={{
+        background: "#F6F9FA",
+        padding: 0,
+        width: "100%",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1220,
+          margin: "0 auto",
+          padding: "0 2vw",
+          position: "relative",
+        }}
+      >
         {/* Header */}
         <div
           style={{
@@ -144,12 +161,20 @@ export default function DemandsShowcase() {
 
         {/* Botões de navegação */}
         {canPrev && (
-          <button aria-label="Anterior" onClick={() => scrollByCards("left")} className="nav-btn left">
+          <button
+            aria-label="Anterior"
+            onClick={() => scrollByCards("left")}
+            className="nav-btn left"
+          >
             <ChevronLeft size={22} />
           </button>
         )}
         {canNext && (
-          <button aria-label="Próximo" onClick={() => scrollByCards("right")} className="nav-btn right">
+          <button
+            aria-label="Próximo"
+            onClick={() => scrollByCards("right")}
+            className="nav-btn right"
+          >
             <ChevronRight size={22} />
           </button>
         )}
@@ -173,12 +198,17 @@ export default function DemandsShowcase() {
           {/* vazia */}
           {!loading && demands.length === 0 && (
             <div className="demands-card">
-              <div style={{ color: "#023047", fontWeight: 700, marginBottom: 8 }}>
+              <div
+                style={{ color: "#023047", fontWeight: 700, marginBottom: 8 }}
+              >
                 Ainda não há demandas públicas para exibir
               </div>
               <div style={{ color: "#444", fontSize: 14 }}>
                 Volte mais tarde ou{" "}
-                <Link href="/create-demanda" style={{ color: "#FB8500", fontWeight: 700 }}>
+                <Link
+                  href="/create-demanda"
+                  style={{ color: "#FB8500", fontWeight: 700 }}
+                >
                   cadastre uma demanda
                 </Link>
                 .
@@ -235,8 +265,13 @@ export default function DemandsShowcase() {
           scroll-snap-type: x mandatory;
           -webkit-overflow-scrolling: touch;
         }
-        .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
 
         .demands-card {
           min-width: 260px;
@@ -253,17 +288,43 @@ export default function DemandsShowcase() {
           border: 1.5px solid #f0eaea;
           flex: 0 0 auto;
         }
-        .title { font-size: 15.7px; font-weight: 700; color: #023047; margin-bottom: 2px; font-family: 'Poppins', sans-serif; }
-        .date { font-size: 13.5px; color: #FB8500; font-weight: 600; margin-bottom: 2px; }
-        .desc { font-size: 14.2px; color: #232323; margin-bottom: 10px; font-weight: 500; min-height: 40px; }
-        .card-footer { margin-top: 8px; display: flex; align-items: center; justify-content: space-between; gap: 5px; }
-        .city { color: #7A7A7A; font-size: 14px; }
+        .title {
+          font-size: 15.7px;
+          font-weight: 700;
+          color: #023047;
+          margin-bottom: 2px;
+          font-family: "Poppins", sans-serif;
+        }
+        .date {
+          font-size: 13.5px;
+          color: #fb8500;
+          font-weight: 600;
+          margin-bottom: 2px;
+        }
+        .desc {
+          font-size: 14.2px;
+          color: #232323;
+          margin-bottom: 10px;
+          font-weight: 500;
+          min-height: 40px;
+        }
+        .card-footer {
+          margin-top: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 5px;
+        }
+        .city {
+          color: #7a7a7a;
+          font-size: 14px;
+        }
 
         /* Reforço extra contra CSS global */
         .demands-card :global(a.cta) {
           color: #fff !important;
           text-decoration: none !important;
-          background: #FB8500 !important;
+          background: #fb8500 !important;
           border-radius: 999px;
         }
         .demands-card :global(a.cta:hover) {
@@ -271,16 +332,53 @@ export default function DemandsShowcase() {
         }
 
         /* skeleton */
-        .skeleton { animation: pulse 1.2s ease-in-out infinite; }
-        .sk { background: #f1f1f1; border-radius: 8px; }
-        .sk-title { height: 22px; }
-        .sk-date { height: 16px; width: 90px; margin-top: 8px; }
-        .sk-text { height: 40px; margin-top: 10px; }
-        .sk-row { display: flex; justify-content: space-between; margin-top: 16px; align-items: center; }
-        .sk-city { height: 16px; width: 80px; }
-        .sk-btn { height: 32px; width: 110px; border-radius: 99px; background: #ffd7b0; }
+        .skeleton {
+          animation: pulse 1.2s ease-in-out infinite;
+        }
+        .sk {
+          background: #f1f1f1;
+          border-radius: 8px;
+        }
+        .sk-title {
+          height: 22px;
+        }
+        .sk-date {
+          height: 16px;
+          width: 90px;
+          margin-top: 8px;
+        }
+        .sk-text {
+          height: 40px;
+          margin-top: 10px;
+        }
+        .sk-row {
+          display: flex;
+          justify-content: space-between;
+          margin-top: 16px;
+          align-items: center;
+        }
+        .sk-city {
+          height: 16px;
+          width: 80px;
+        }
+        .sk-btn {
+          height: 32px;
+          width: 110px;
+          border-radius: 99px;
+          background: #ffd7b0;
+        }
 
-        @keyframes pulse { 0% {opacity: 1;} 50% {opacity: .5;} 100% {opacity: 1;} }
+        @keyframes pulse {
+          0% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
 
         /* Botões navegação — laranja */
         .nav-btn {
@@ -288,26 +386,45 @@ export default function DemandsShowcase() {
           top: 50%;
           transform: translateY(-50%);
           border: none;
-          background: #FB8500;
+          background: #fb8500;
           color: #fff;
           width: 42px;
           height: 42px;
           border-radius: 50%;
-          box-shadow: 0 4px 12px rgba(251,133,0,0.35);
+          box-shadow: 0 4px 12px rgba(251, 133, 0, 0.35);
           display: grid;
           place-items: center;
           z-index: 2;
           cursor: pointer;
-          transition: background .2s, transform .15s;
+          transition:
+            background 0.2s,
+            transform 0.15s;
         }
-        .nav-btn:hover { background: #e17000; transform: translateY(-50%) scale(1.05); }
-        .nav-btn.left { left: -18px; }
-        .nav-btn.right { right: -18px; }
-        .nav-btn :global(svg) { stroke: #fff; width: 22px; height: 22px; }
+        .nav-btn:hover {
+          background: #e17000;
+          transform: translateY(-50%) scale(1.05);
+        }
+        .nav-btn.left {
+          left: -18px;
+        }
+        .nav-btn.right {
+          right: -18px;
+        }
+        .nav-btn :global(svg) {
+          stroke: #fff;
+          width: 22px;
+          height: 22px;
+        }
 
         @media (max-width: 600px) {
-          .demands-card { min-width: 81vw; max-width: 95vw; padding: 14px 9px 13px 14px; }
-          .nav-btn { display: none; } /* no mobile, só arrastar */
+          .demands-card {
+            min-width: 81vw;
+            max-width: 95vw;
+            padding: 14px 9px 13px 14px;
+          }
+          .nav-btn {
+            display: none;
+          } /* no mobile, só arrastar */
         }
       `}</style>
     </section>

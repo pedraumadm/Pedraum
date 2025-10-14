@@ -11,7 +11,7 @@ interface EmptyStateProps {
 
 export default function EmptyState({
   title = "Nenhum resultado encontrado",
-  subtitle = "Tente ajustar os filtros ou cadastre algo novo."
+  subtitle = "Tente ajustar os filtros ou cadastre algo novo.",
 }: EmptyStateProps) {
   return (
     <div className="text-center py-20">

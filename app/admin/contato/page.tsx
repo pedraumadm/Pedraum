@@ -20,7 +20,10 @@ export default function AdminContatoPage() {
   useEffect(() => {
     async function carregarMensagens() {
       try {
-        const q = query(collection(db, "mensagensContato"), orderBy("createdAt", "desc"));
+        const q = query(
+          collection(db, "mensagensContato"),
+          orderBy("createdAt", "desc"),
+        );
         const snapshot = await getDocs(q);
         const dados = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -40,7 +43,9 @@ export default function AdminContatoPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-4xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Mensagens de Contato</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Mensagens de Contato
+        </h1>
 
         {loading ? (
           <p className="text-gray-600">Carregando mensagens...</p>
@@ -50,7 +55,9 @@ export default function AdminContatoPage() {
           <ul className="space-y-4">
             {mensagens.map((m) => (
               <li key={m.id} className="bg-white border rounded-xl p-6 shadow">
-                <p className="text-sm text-gray-800 mb-2 italic">"{m.mensagem}"</p>
+                <p className="text-sm text-gray-800 mb-2 italic">
+                  "{m.mensagem}"
+                </p>
                 <p className="text-xs text-gray-500">
                   {m.nome || "Anônimo"} — {m.email || "Sem e-mail"}
                 </p>

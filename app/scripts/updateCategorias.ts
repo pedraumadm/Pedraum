@@ -39,7 +39,7 @@ function initAdmin() {
   const saPath = path.resolve(process.cwd(), "serviceAccount.json");
   if (!fs.existsSync(saPath)) {
     throw new Error(
-      `Credencial não encontrada. Defina GOOGLE_APPLICATION_CREDENTIALS ou coloque serviceAccount.json em: ${saPath}`
+      `Credencial não encontrada. Defina GOOGLE_APPLICATION_CREDENTIALS ou coloque serviceAccount.json em: ${saPath}`,
     );
   }
 
@@ -54,7 +54,6 @@ function initAdmin() {
 
 if (!admin.apps.length) initAdmin();
 const db = admin.firestore();
-
 
 /* ===================== TAXONOMIA NOVA (IDÊNTICA À SUA) ===================== */
 /* Mantive o mesmo conteúdo da sua TAXONOMIA_LOCAL para não depender do React */
@@ -306,7 +305,6 @@ const TAXONOMIA_NOVA: Cat[] = [
     nome: "Outros",
     subcategorias: ["Diversos"],
   },
-  
 ];
 
 /* ========== Flatten p/ "Categoria > Sub" e set normalizado ========== */
@@ -339,49 +337,57 @@ const TAX_SET = new Set(FLATTENED_TAXONOMY.map(normalize));
 
 /* ===================== Sinônimos & mapeamento rápido ===================== */
 const SYNONYMS: Record<string, string> = {
-  "epi": "Segurança e Sinalização > EPI - Capacetes", // cai na primeira de EPI
-  "epis": "Segurança e Sinalização > EPI - Capacetes",
-  "lubrificacao": "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
-  "lubrificação": "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
-  "britadores": "Britagem e Peneiramento > Britadores - Mandíbulas",
-  "peneiras": "Britagem e Peneiramento > Peneiras - Vibratórias",
-  "alimentadores": "Britagem e Peneiramento > Alimentadores - Vibratórios",
-  "transportadores": "Britagem e Peneiramento > Transportadores - Esteiras",
-  "moinhos": "Britagem e Peneiramento > Moinhos - Bolas",
-  "perfuratriz": "Perfuração e Detonação > Perfuratrizes - Superfície",
-  "perfuratrizes": "Perfuração e Detonação > Perfuratrizes - Superfície",
-  "rompedor": "Perfuração e Detonação > Drop ball",
-  "rompedores": "Perfuração e Detonação > Drop ball",
-  "pecas": "Peças, Componentes e Consumíveis > Componentes de Britadores, Peneiras e Perfuratrizes",
-  "peças": "Peças, Componentes e Consumíveis > Componentes de Britadores, Peneiras e Perfuratrizes",
-  "servico": "Serviços e Manutenção > Manutenção de Britadores e Peneiras",
-  "serviços": "Serviços e Manutenção > Manutenção de Britadores e Peneiras",
-  "telas": "Britagem e Peneiramento > Telas",
+  epi: "Segurança e Sinalização > EPI - Capacetes", // cai na primeira de EPI
+  epis: "Segurança e Sinalização > EPI - Capacetes",
+  lubrificacao:
+    "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
+  lubrificação:
+    "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
+  britadores: "Britagem e Peneiramento > Britadores - Mandíbulas",
+  peneiras: "Britagem e Peneiramento > Peneiras - Vibratórias",
+  alimentadores: "Britagem e Peneiramento > Alimentadores - Vibratórios",
+  transportadores: "Britagem e Peneiramento > Transportadores - Esteiras",
+  moinhos: "Britagem e Peneiramento > Moinhos - Bolas",
+  perfuratriz: "Perfuração e Detonação > Perfuratrizes - Superfície",
+  perfuratrizes: "Perfuração e Detonação > Perfuratrizes - Superfície",
+  rompedor: "Perfuração e Detonação > Drop ball",
+  rompedores: "Perfuração e Detonação > Drop ball",
+  pecas:
+    "Peças, Componentes e Consumíveis > Componentes de Britadores, Peneiras e Perfuratrizes",
+  peças:
+    "Peças, Componentes e Consumíveis > Componentes de Britadores, Peneiras e Perfuratrizes",
+  servico: "Serviços e Manutenção > Manutenção de Britadores e Peneiras",
+  serviços: "Serviços e Manutenção > Manutenção de Britadores e Peneiras",
+  telas: "Britagem e Peneiramento > Telas",
   "telas de borracha": "Britagem e Peneiramento > Telas de Borracha",
   // --- acrescentar ---
-"automacao, eletrica e controle": "Automação, Monitoramento e TI",
-"automação, elétrica e controle": "Automação, Monitoramento e TI",
+  "automacao, eletrica e controle": "Automação, Monitoramento e TI",
+  "automação, elétrica e controle": "Automação, Monitoramento e TI",
 
-"equipamentos de carregamento e transporte": "Transporte Interno e Logística",
-"equipamentos de perfuracao e demolicao": "Perfuração e Detonação",
-"equipamentos de perfuração e demolição": "Perfuração e Detonação",
+  "equipamentos de carregamento e transporte": "Transporte Interno e Logística",
+  "equipamentos de perfuracao e demolicao": "Perfuração e Detonação",
+  "equipamentos de perfuração e demolição": "Perfuração e Detonação",
 
-"lubrificacao e produtos quimicos": "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
-"lubrificação e produtos químicos": "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
+  "lubrificacao e produtos quimicos":
+    "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
+  "lubrificação e produtos químicos":
+    "Peças, Componentes e Consumíveis > Lubrificantes, Graxas e Aditivos",
 
-"desgaste e revestimento": "Peças, Componentes e Consumíveis",  // mãe (genérico)
+  "desgaste e revestimento": "Peças, Componentes e Consumíveis", // mãe (genérico)
 
-"veiculos e pneus": "Transporte Interno e Logística",
-"veículos e pneus": "Transporte Interno e Logística",
+  "veiculos e pneus": "Transporte Interno e Logística",
+  "veículos e pneus": "Transporte Interno e Logística",
 
-"instrumentos de medicao e controle": "Automação, Monitoramento e TI > Sensores de Nível, Fluxo e Pressão",
-"instrumentos de medição e controle": "Automação, Monitoramento e TI > Sensores de Nível, Fluxo e Pressão",
-
+  "instrumentos de medicao e controle":
+    "Automação, Monitoramento e TI > Sensores de Nível, Fluxo e Pressão",
+  "instrumentos de medição e controle":
+    "Automação, Monitoramento e TI > Sensores de Nível, Fluxo e Pressão",
 };
 
 /* ===================== Similaridade (Levenshtein + Jaccard) ===================== */
 function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
+  const m = a.length,
+    n = b.length;
   const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
   for (let i = 0; i <= m; i++) dp[i][0] = i;
   for (let j = 0; j <= n; j++) dp[0][j] = j;
@@ -391,7 +397,7 @@ function levenshtein(a: string, b: string): number {
       dp[i][j] = Math.min(
         dp[i - 1][j] + 1,
         dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
+        dp[i - 1][j - 1] + cost,
       );
     }
   }
@@ -411,7 +417,10 @@ function scoreSimilarity(oldRaw: string, candidateRaw: string): number {
   const jac = jaccardTokens(oldN, candN);
   return jac * 2 - lev / Math.max(oldN.length, 1);
 }
-function bestMatch(oldCat: string, candidates: string[]): { match: string; score: number } | null {
+function bestMatch(
+  oldCat: string,
+  candidates: string[],
+): { match: string; score: number } | null {
   let best: { match: string; score: number } | null = null;
   for (const cand of candidates) {
     const s = scoreSimilarity(oldCat, cand);
@@ -423,7 +432,9 @@ function bestMatch(oldCat: string, candidates: string[]): { match: string; score
 /* ===================== Execução ===================== */
 async function main() {
   console.log(`\n🛠  Atualização automática de categorias`);
-  console.log(`• Modo: ${SHOULD_COMMIT ? "COMMIT (aplicando mudanças)" : "DRY-RUN (simulação)"}`);
+  console.log(
+    `• Modo: ${SHOULD_COMMIT ? "COMMIT (aplicando mudanças)" : "DRY-RUN (simulação)"}`,
+  );
   console.log(`• Itens na nova taxonomia: ${FLATTENED_TAXONOMY.length}\n`);
 
   const snap = await db.collection(USUARIOS_COLLECTION).get();
@@ -434,7 +445,8 @@ async function main() {
   let totalSemMapeamento = 0;
 
   const exemplosNaoMap = new Set<string>();
-  const exemplosMapeios: Array<{ old: string; newV: string; score: number }> = [];
+  const exemplosMapeios: Array<{ old: string; newV: string; score: number }> =
+    [];
 
   for (const doc of snap.docs) {
     const data = doc.data() as any;
@@ -445,7 +457,10 @@ async function main() {
     if (Array.isArray(raw)) {
       arr = raw.filter(Boolean).map((x: any) => String(x));
     } else if (typeof raw === "string") {
-      arr = raw.split(",").map((s) => s.trim()).filter(Boolean);
+      arr = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
     }
 
     if (!arr.length) continue;
@@ -489,7 +504,8 @@ async function main() {
 
     // Mudança real (ignora ordem para comparar)
     const mudou =
-      JSON.stringify(novasDedup.slice().sort()) !== JSON.stringify(arr.slice().sort());
+      JSON.stringify(novasDedup.slice().sort()) !==
+      JSON.stringify(arr.slice().sort());
 
     if (mudou) {
       totalAlterados++;
@@ -499,9 +515,13 @@ async function main() {
           [CATEGORIAS_FIELD]: novasDedup,
           atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
         });
-        console.log(`✅ Atualizado: ${doc.id} | ${arr.join(", ")} -> ${novasDedup.join(", ")}`);
+        console.log(
+          `✅ Atualizado: ${doc.id} | ${arr.join(", ")} -> ${novasDedup.join(", ")}`,
+        );
       } else {
-        console.log(`ℹ️  Simular: ${doc.id} | ${arr.join(", ")} -> ${novasDedup.join(", ")}`);
+        console.log(
+          `ℹ️  Simular: ${doc.id} | ${arr.join(", ")} -> ${novasDedup.join(", ")}`,
+        );
       }
     }
   }
@@ -510,7 +530,9 @@ async function main() {
   console.log(`\n📊 RELATÓRIO`);
   console.log(`Usuários com categorias: ${totalComCategorias}`);
   console.log(`Usuários com alterações: ${totalAlterados}`);
-  console.log(`Rótulos sem mapeamento (foram para "Outros"): ${totalSemMapeamento}`);
+  console.log(
+    `Rótulos sem mapeamento (foram para "Outros"): ${totalSemMapeamento}`,
+  );
 
   const exNao = Array.from(exemplosNaoMap).slice(0, 20);
   if (exNao.length) {
@@ -523,11 +545,15 @@ async function main() {
   if (topEx.length) {
     console.log(`\nExemplos de mapeamentos (até 20):`);
     topEx.forEach((x) =>
-      console.log(`  - "${x.old}" -> "${x.newV}" (score=${x.score.toFixed(3)})`)
+      console.log(
+        `  - "${x.old}" -> "${x.newV}" (score=${x.score.toFixed(3)})`,
+      ),
     );
   }
 
-  console.log(`\n${SHOULD_COMMIT ? "✅ Concluído (alterações aplicadas)." : "🔎 Dry-run concluído (nada foi alterado)."}\n`);
+  console.log(
+    `\n${SHOULD_COMMIT ? "✅ Concluído (alterações aplicadas)." : "🔎 Dry-run concluído (nada foi alterado)."}\n`,
+  );
 }
 
 main().catch((err) => {

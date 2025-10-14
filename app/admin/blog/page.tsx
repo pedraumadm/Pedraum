@@ -13,7 +13,7 @@ export default function AdminBlogPage() {
     async function fetchPosts() {
       setLoading(true);
       const snap = await getDocs(collection(db, "blog"));
-      setPosts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setPosts(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }
     fetchPosts();
@@ -22,71 +22,89 @@ export default function AdminBlogPage() {
   async function handleDelete(id: string) {
     if (window.confirm("Tem certeza que deseja excluir este post?")) {
       await deleteDoc(doc(db, "blog", id));
-      setPosts(posts => posts.filter(p => p.id !== id));
+      setPosts((posts) => posts.filter((p) => p.id !== id));
     }
   }
 
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#f9fafb",
-      padding: "40px 0 0 0"
-    }}>
-      <div style={{
-        maxWidth: 1220,
-        margin: "0 auto",
-        background: "white",
-        borderRadius: 22,
-        boxShadow: "0 2px 32px #0001",
-        padding: "38px 24px 30px 24px",
-        minHeight: 480,
-        marginBottom: 50
-      }}>
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 32
-        }}>
-          <h1 style={{
-            fontWeight: 900,
-            fontSize: "2rem",
-            color: "#023047",
-            letterSpacing: "-1px"
-          }}>📝 Blog - Posts Publicados</h1>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f9fafb",
+        padding: "40px 0 0 0",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 1220,
+          margin: "0 auto",
+          background: "white",
+          borderRadius: 22,
+          boxShadow: "0 2px 32px #0001",
+          padding: "38px 24px 30px 24px",
+          minHeight: 480,
+          marginBottom: 50,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 32,
+          }}
+        >
+          <h1
+            style={{
+              fontWeight: 900,
+              fontSize: "2rem",
+              color: "#023047",
+              letterSpacing: "-1px",
+            }}
+          >
+            📝 Blog - Posts Publicados
+          </h1>
           <Link href="/admin/blog/create" legacyBehavior>
-            <a style={{
-              background: "#FB8500",
-              color: "#fff",
-              fontWeight: 700,
-              borderRadius: 15,
-              padding: "11px 26px",
-              fontSize: "1rem",
-              boxShadow: "0 2px 16px #0001",
-              textDecoration: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: 8
-            }}>
+            <a
+              style={{
+                background: "#FB8500",
+                color: "#fff",
+                fontWeight: 700,
+                borderRadius: 15,
+                padding: "11px 26px",
+                fontSize: "1rem",
+                boxShadow: "0 2px 16px #0001",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
               <Plus size={21} /> Novo Post
             </a>
           </Link>
         </div>
-        <div style={{
-          overflowX: "auto"
-        }}>
-          <table style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            background: "white"
-          }}>
+        <div
+          style={{
+            overflowX: "auto",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              background: "white",
+            }}
+          >
             <thead>
-              <tr style={{
-                background: "#f9fafb",
-                color: "#2563eb",
-                fontWeight: 700,
-                borderBottom: "1.5px solid #e5e7eb"
-              }}>
+              <tr
+                style={{
+                  background: "#f9fafb",
+                  color: "#2563eb",
+                  fontWeight: 700,
+                  borderBottom: "1.5px solid #e5e7eb",
+                }}
+              >
                 <th style={thStyle}>Título</th>
                 <th style={thStyle}>Resumo</th>
                 <th style={thStyle}>Data</th>
@@ -97,38 +115,70 @@ export default function AdminBlogPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} style={{
-                    padding: 48,
-                    textAlign: "center",
-                    color: "#219EBC",
-                    fontWeight: 700
-                  }}>Carregando posts...</td>
+                  <td
+                    colSpan={5}
+                    style={{
+                      padding: 48,
+                      textAlign: "center",
+                      color: "#219EBC",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Carregando posts...
+                  </td>
                 </tr>
               ) : posts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{
-                    padding: 48,
-                    textAlign: "center",
-                    color: "#aaa",
-                    fontWeight: 600
-                  }}>Nenhum post encontrado.</td>
-                </tr>
-              ) : posts.map(post => (
-                <tr key={post.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                  <td style={tdStyle}>{post.titulo}</td>
-                  <td style={tdStyle}>{post.resumo}</td>
-                  <td style={tdStyle}>{post.data || "-"}</td>
-                  <td style={tdStyle}>
-                    <Link href={`/admin/blog/${post.id}/edit`} legacyBehavior>
-                      <a style={actionBtn}><Pencil size={16} style={{ marginBottom: -3, marginRight: 4 }} />Editar</a>
-                    </Link>
-                    <button onClick={() => handleDelete(post.id)} style={actionBtnDelete}>
-                      <Trash2 size={16} style={{ marginBottom: -3, marginRight: 4 }} />Excluir
-                    </button>
+                  <td
+                    colSpan={5}
+                    style={{
+                      padding: 48,
+                      textAlign: "center",
+                      color: "#aaa",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Nenhum post encontrado.
                   </td>
-                  <td style={{ ...tdStyle, color: "#888", fontSize: "0.91rem" }}>{post.id}</td>
                 </tr>
-              ))}
+              ) : (
+                posts.map((post) => (
+                  <tr
+                    key={post.id}
+                    style={{ borderBottom: "1px solid #f1f5f9" }}
+                  >
+                    <td style={tdStyle}>{post.titulo}</td>
+                    <td style={tdStyle}>{post.resumo}</td>
+                    <td style={tdStyle}>{post.data || "-"}</td>
+                    <td style={tdStyle}>
+                      <Link href={`/admin/blog/${post.id}/edit`} legacyBehavior>
+                        <a style={actionBtn}>
+                          <Pencil
+                            size={16}
+                            style={{ marginBottom: -3, marginRight: 4 }}
+                          />
+                          Editar
+                        </a>
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(post.id)}
+                        style={actionBtnDelete}
+                      >
+                        <Trash2
+                          size={16}
+                          style={{ marginBottom: -3, marginRight: 4 }}
+                        />
+                        Excluir
+                      </button>
+                    </td>
+                    <td
+                      style={{ ...tdStyle, color: "#888", fontSize: "0.91rem" }}
+                    >
+                      {post.id}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -158,13 +208,13 @@ const thStyle = {
   color: "#023047",
   fontWeight: 700 as const,
   background: "#f9fafb",
-  fontSize: "1rem"
+  fontSize: "1rem",
 };
 const tdStyle = {
   padding: "13px 8px",
   color: "#222",
   fontWeight: 500 as const,
-  fontSize: "1.04rem"
+  fontSize: "1.04rem",
 };
 const actionBtn = {
   background: "#e8f0fe",
@@ -177,10 +227,10 @@ const actionBtn = {
   fontSize: "1rem",
   cursor: "pointer",
   textDecoration: "none" as const,
-  transition: "background .15s"
+  transition: "background .15s",
 };
 const actionBtnDelete = {
   ...actionBtn,
   background: "#feecec",
-  color: "#e53935"
+  color: "#e53935",
 };

@@ -103,7 +103,9 @@ export default function PDFUploader({
           </button>
         </div>
       ) : (
-        <p className="text-xs text-slate-500">Envie um arquivo em PDF (máx. 1).</p>
+        <p className="text-xs text-slate-500">
+          Envie um arquivo em PDF (máx. 1).
+        </p>
       )}
     </div>
   );

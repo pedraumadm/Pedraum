@@ -11,7 +11,12 @@ interface NotificationCardProps {
   data: string;
 }
 
-export default function NotificationCard({ id, titulo, mensagem, data }: NotificationCardProps) {
+export default function NotificationCard({
+  id,
+  titulo,
+  mensagem,
+  data,
+}: NotificationCardProps) {
   return (
     <div className="bg-white rounded-2xl shadow p-4 border border-gray-200">
       <div className="flex justify-between items-center mb-1">

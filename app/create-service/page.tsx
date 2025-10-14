@@ -33,12 +33,43 @@ import {
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 /* ===== PDF (client-only) ===== */
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 
 /* ================== Constantes ================== */
 const estados = [
-  "BRASIL","AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+  "BRASIL",
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ] as const;
 
 const disponibilidades = [
@@ -97,9 +128,9 @@ type FormState = {
   titulo: string;
   descricao: string;
 
-  categoria: string;     // nível 1
-  subcategoria: string;  // nível 2
-  itemFinal: string;     // nível 3
+  categoria: string; // nível 1
+  subcategoria: string; // nível 2
+  itemFinal: string; // nível 3
   outrosCategoriaTexto: string; // se categoria == "Outros"
 
   preco: string; // string; vira number | "Sob consulta" no submit
@@ -153,7 +184,9 @@ export default function CreateServicePage() {
 
   // ===== Busca rápida por item/caminho =====
   const [searchTerm, setSearchTerm] = useState("");
-  const [results, setResults] = useState<{ path: string[]; label: string }[]>([]);
+  const [results, setResults] = useState<{ path: string[]; label: string }[]>(
+    [],
+  );
   const [showResults, setShowResults] = useState(false);
   const [highlight, setHighlight] = useState(0);
 
@@ -163,7 +196,10 @@ export default function CreateServicePage() {
       setShowResults(false);
       return;
     }
-    const r = searchLeaves(leafIndex, searchTerm).map(({ path, label }) => ({ path, label }));
+    const r = searchLeaves(leafIndex, searchTerm).map(({ path, label }) => ({
+      path,
+      label,
+    }));
     setResults(r);
     setShowResults(true);
     setHighlight(0);
@@ -207,7 +243,8 @@ export default function CreateServicePage() {
         const p = JSON.parse(raw);
         if (p?.form) setForm((prev) => ({ ...prev, ...p.form }));
         if (Array.isArray(p?.imagens)) setImagens(p.imagens);
-        if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null) setPdfUrl(p.pdfUrl);
+        if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null)
+          setPdfUrl(p.pdfUrl);
       } catch {}
     }
   }, []);
@@ -232,14 +269,18 @@ export default function CreateServicePage() {
         const prof = usnap.exists() ? (usnap.data() as any) : {};
         setForm((prev) => ({
           ...prev,
-          prestadorNome: prev.prestadorNome || prof?.nome || user.displayName || "",
-          prestadorEmail: prev.prestadorEmail || prof?.email || user.email || "",
-          prestadorWhatsapp: prev.prestadorWhatsapp || prof?.whatsapp || prof?.telefone || "",
+          prestadorNome:
+            prev.prestadorNome || prof?.nome || user.displayName || "",
+          prestadorEmail:
+            prev.prestadorEmail || prof?.email || user.email || "",
+          prestadorWhatsapp:
+            prev.prestadorWhatsapp || prof?.whatsapp || prof?.telefone || "",
         }));
       } catch {
         setForm((prev) => ({
           ...prev,
-          prestadorNome: prev.prestadorNome || auth.currentUser?.displayName || "",
+          prestadorNome:
+            prev.prestadorNome || auth.currentUser?.displayName || "",
           prestadorEmail: prev.prestadorEmail || auth.currentUser?.email || "",
         }));
       }
@@ -252,13 +293,15 @@ export default function CreateServicePage() {
     e:
       | React.ChangeEvent<HTMLInputElement>
       | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLSelectElement>
+      | React.ChangeEvent<HTMLSelectElement>,
   ) {
     const { name, value } = e.target as any;
     setForm((prev) => ({
       ...prev,
       [name]: value,
-      ...(name === "categoria" ? { subcategoria: "", itemFinal: "", outrosCategoriaTexto: "" } : null),
+      ...(name === "categoria"
+        ? { subcategoria: "", itemFinal: "", outrosCategoriaTexto: "" }
+        : null),
       ...(name === "subcategoria" ? { itemFinal: "" } : null),
     }));
   }
@@ -274,11 +317,12 @@ export default function CreateServicePage() {
   }, [form.preco]);
 
   /* ---------- Derivados da taxonomia ---------- */
-  const subcatsLvl2: SubAny[] =
-    (taxCats.find((c) => c.nome === form.categoria)?.subcategorias ?? []) as SubAny[];
+  const subcatsLvl2: SubAny[] = (taxCats.find((c) => c.nome === form.categoria)
+    ?.subcategorias ?? []) as SubAny[];
 
-  const itemsLvl3: SubAny[] =
-    (subcatsLvl2.find((s) => s.nome === form.subcategoria)?.subcategorias ?? []) as SubAny[];
+  const itemsLvl3: SubAny[] = (subcatsLvl2.find(
+    (s) => s.nome === form.subcategoria,
+  )?.subcategorias ?? []) as SubAny[];
 
   const isOutros = form.categoria === "Outros";
 
@@ -296,7 +340,9 @@ export default function CreateServicePage() {
       return;
     }
 
-    const subOk = isOutros ? !!form.outrosCategoriaTexto.trim() : !!form.subcategoria;
+    const subOk = isOutros
+      ? !!form.outrosCategoriaTexto.trim()
+      : !!form.subcategoria;
     const itemOk = isOutros ? true : !!form.itemFinal;
 
     if (
@@ -334,9 +380,7 @@ export default function CreateServicePage() {
       const expiresAt = new Date(now);
       expiresAt.setDate(now.getDate() + 45);
 
-      const finalCategoria = isOutros
-        ? "Outros (livre)"
-        : form.categoria;
+      const finalCategoria = isOutros ? "Outros (livre)" : form.categoria;
 
       const categoriaPath = isOutros
         ? ["Outros", form.outrosCategoriaTexto.trim()]
@@ -356,7 +400,7 @@ export default function CreateServicePage() {
           form.prestadorNome,
         ]
           .filter(Boolean)
-          .join(" ")
+          .join(" "),
       );
 
       const payload = {
@@ -425,7 +469,9 @@ export default function CreateServicePage() {
     >
       <main
         className="min-h-screen flex flex-col items-center py-10 px-2 sm:px-4"
-        style={{ background: "linear-gradient(135deg, #f7f9fb, #ffffff 45%, #e0e7ef)" }}
+        style={{
+          background: "linear-gradient(135deg, #f7f9fb, #ffffff 45%, #e0e7ef)",
+        }}
       >
         <section
           style={{
@@ -459,14 +505,17 @@ export default function CreateServicePage() {
           <div style={hintCardStyle}>
             <Info className="w-5 h-5" />
             <p style={{ margin: 0 }}>
-              Quanto mais detalhes, melhor a conexão com clientes ideais. Pelo menos 1 imagem é obrigatória.
+              Quanto mais detalhes, melhor a conexão com clientes ideais. Pelo
+              menos 1 imagem é obrigatória.
             </p>
           </div>
 
           <AuthGateRedirect />
 
-
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+          <form
+            onSubmit={handleSubmit}
+            style={{ display: "flex", flexDirection: "column", gap: 22 }}
+          >
             {/* ================= Uploads (Imagens + PDF) ================= */}
             <div
               className="rounded-2xl border"
@@ -478,7 +527,9 @@ export default function CreateServicePage() {
             >
               <div className="flex items-center gap-2 mb-3">
                 <Upload className="w-4 h-4 text-slate-700" />
-                <h3 className="text-slate-800 font-black tracking-tight">Arquivos do anúncio</h3>
+                <h3 className="text-slate-800 font-black tracking-tight">
+                  Arquivos do anúncio
+                </h3>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -493,14 +544,21 @@ export default function CreateServicePage() {
                 >
                   <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-sky-700" />
-                    <strong className="text-[#0f172a]">Imagens do Serviço *</strong>
+                    <strong className="text-[#0f172a]">
+                      Imagens do Serviço *
+                    </strong>
                   </div>
                   <div className="px-4 pb-4">
                     <div className="rounded-lg border border-dashed p-3">
-                      <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                      <ImageUploader
+                        imagens={imagens}
+                        setImagens={setImagens}
+                        max={5}
+                      />
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
-                      Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e com boa iluminação.
+                      Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e
+                      com boa iluminação.
                     </p>
                   </div>
                 </div>
@@ -516,7 +574,9 @@ export default function CreateServicePage() {
                 >
                   <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-orange-600" />
-                    <strong className="text-[#0f172a]">Documento (PDF) — opcional</strong>
+                    <strong className="text-[#0f172a]">
+                      Documento (PDF) — opcional
+                    </strong>
                   </div>
                   <div className="px-4 pb-4 space-y-3">
                     <div className="rounded-lg border border-dashed p-3">
@@ -524,7 +584,10 @@ export default function CreateServicePage() {
                     </div>
 
                     {pdfUrl ? (
-                      <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                      <div
+                        className="rounded-lg border overflow-hidden"
+                        style={{ height: 300 }}
+                      >
                         <DrivePDFViewer
                           fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
                           height={300}
@@ -532,7 +595,8 @@ export default function CreateServicePage() {
                       </div>
                     ) : (
                       <p className="text-xs text-slate-500">
-                        Anexe um portfólio, escopo, certificado ou ficha técnica (até ~8MB).
+                        Anexe um portfólio, escopo, certificado ou ficha técnica
+                        (até ~8MB).
                       </p>
                     )}
                   </div>
@@ -574,71 +638,81 @@ export default function CreateServicePage() {
                   placeholder="Ex: 1200 (opcional)"
                   autoComplete="off"
                 />
-                <div style={smallInfoStyle}>Pré-visualização: {precoPreview}</div>
+                <div style={smallInfoStyle}>
+                  Pré-visualização: {precoPreview}
+                </div>
               </div>
 
-          {/* ===== Busca rápida por item/caminho ===== */}
-          <div className="rounded-2xl border p-4 mb-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
-            <h3 className="text-slate-800 font-black tracking-tight mb-2 flex items-center gap-2">
-              <Layers className="w-5 h-5 text-orange-500" /> Buscar por nome do item (atalho)
-            </h3>
-            <div className="relative">
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => searchTerm && setShowResults(true)}
-                onKeyDown={onSearchKeyDown}
-                onBlur={() => setTimeout(() => setShowResults(false), 120)}
-                style={inputStyle}
-                placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
-                disabled={taxLoading}
-              />
-              {showResults && results.length > 0 && (
-                <ul
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 6px)",
-                    left: 0,
-                    right: 0,
-                    background: "#fff",
-                    border: "1px solid #e5e7eb",
-                    boxShadow: "0 12px 30px rgba(2,48,71,0.08)",
-                    borderRadius: 12,
-                    zIndex: 50,
-                    maxHeight: 280,
-                    overflowY: "auto",
-                    padding: "6px 0",
-                  }}
-                >
-                  {results.map(({ label, path }, i) => (
-                    <li
-                      key={label + i}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => applyPath(path)}
+              {/* ===== Busca rápida por item/caminho ===== */}
+              <div
+                className="rounded-2xl border p-4 mb-4"
+                style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+              >
+                <h3 className="text-slate-800 font-black tracking-tight mb-2 flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-orange-500" /> Buscar por nome
+                  do item (atalho)
+                </h3>
+                <div className="relative">
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={() => searchTerm && setShowResults(true)}
+                    onKeyDown={onSearchKeyDown}
+                    onBlur={() => setTimeout(() => setShowResults(false), 120)}
+                    style={inputStyle}
+                    placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+                    disabled={taxLoading}
+                  />
+                  {showResults && results.length > 0 && (
+                    <ul
                       style={{
-                        padding: "10px 12px",
-                        cursor: "pointer",
-                        color: "#0f172a",
-                        fontWeight: 700,
-                        background: i === highlight ? "rgba(251,133,0,0.12)" : "transparent",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
-                        overflow: "hidden",
+                        position: "absolute",
+                        top: "calc(100% + 6px)",
+                        left: 0,
+                        right: 0,
+                        background: "#fff",
+                        border: "1px solid #e5e7eb",
+                        boxShadow: "0 12px 30px rgba(2,48,71,0.08)",
+                        borderRadius: 12,
+                        zIndex: 50,
+                        maxHeight: 280,
+                        overflowY: "auto",
+                        padding: "6px 0",
                       }}
-                      title={label}
                     >
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {results.length === 0 && searchTerm.trim() && (
-              <div className="text-xs text-slate-500 mt-2">
-                Nada encontrado. Tente “mandíbulas”, “vibratória”, “CLP”, etc.
+                      {results.map(({ label, path }, i) => (
+                        <li
+                          key={label + i}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applyPath(path)}
+                          style={{
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            color: "#0f172a",
+                            fontWeight: 700,
+                            background:
+                              i === highlight
+                                ? "rgba(251,133,0,0.12)"
+                                : "transparent",
+                            whiteSpace: "nowrap",
+                            textOverflow: "ellipsis",
+                            overflow: "hidden",
+                          }}
+                          title={label}
+                        >
+                          {label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {results.length === 0 && searchTerm.trim() && (
+                  <div className="text-xs text-slate-500 mt-2">
+                    Nada encontrado. Tente “mandíbulas”, “vibratória”, “CLP”,
+                    etc.
+                  </div>
+                )}
               </div>
-            )}
-          </div>
               {/* Categoria / Subcategoria / Item final */}
               <div>
                 <label style={labelStyle}>
@@ -651,7 +725,9 @@ export default function CreateServicePage() {
                   style={inputStyle}
                   required
                 >
-                  <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+                  <option value="">
+                    {taxLoading ? "Carregando..." : "Selecione"}
+                  </option>
                   {taxCats.map((cat) => (
                     <option key={cat.nome} value={cat.nome}>
                       {cat.nome}
@@ -681,7 +757,9 @@ export default function CreateServicePage() {
                     disabled={!form.categoria}
                   >
                     <option value="">
-                      {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
+                      {form.categoria
+                        ? "Selecione"
+                        : "Selecione a categoria primeiro"}
                     </option>
                     {subcatsLvl2.map((s) => (
                       <option key={s.nome} value={s.nome}>
@@ -704,7 +782,9 @@ export default function CreateServicePage() {
                     disabled={!form.subcategoria}
                   >
                     <option value="">
-                      {form.subcategoria ? "Selecione" : "Selecione a subcategoria primeiro"}
+                      {form.subcategoria
+                        ? "Selecione"
+                        : "Selecione a subcategoria primeiro"}
                     </option>
                     {itemsLvl3.map((it) => (
                       <option key={it.nome} value={it.nome}>
@@ -793,7 +873,8 @@ export default function CreateServicePage() {
             {/* Dados do prestador */}
             <div style={sectionCardStyle}>
               <h3 style={sectionTitleStyle}>
-                <Info className="w-5 h-5 text-orange-500" /> Seus dados (editáveis)
+                <Info className="w-5 h-5 text-orange-500" /> Seus dados
+                (editáveis)
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -886,17 +967,29 @@ export default function CreateServicePage() {
                 marginTop: 2,
                 transition: "filter .2s, transform .02s",
               }}
-              onMouseDown={(e) => (e.currentTarget.style.transform = "translateY(1px)")}
-              onMouseUp={(e) => (e.currentTarget.style.transform = "translateY(0)")}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(0.98)")}
+              onMouseDown={(e) =>
+                (e.currentTarget.style.transform = "translateY(1px)")
+              }
+              onMouseUp={(e) =>
+                (e.currentTarget.style.transform = "translateY(0)")
+              }
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.filter = "brightness(0.98)")
+              }
               onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
             >
-              {loading ? <Loader2 className="animate-spin w-7 h-7" /> : <Save className="w-6 h-6" />}
+              {loading ? (
+                <Loader2 className="animate-spin w-7 h-7" />
+              ) : (
+                <Save className="w-6 h-6" />
+              )}
               {loading ? "Cadastrando..." : "Cadastrar Serviço"}
             </button>
 
             <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-              {savingDraft ? "Salvando rascunho..." : "Rascunho salvo automaticamente"}
+              {savingDraft
+                ? "Salvando rascunho..."
+                : "Rascunho salvo automaticamente"}
             </div>
           </form>
         </section>

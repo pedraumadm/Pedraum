@@ -17,7 +17,7 @@ interface Options {
 
 export function withRoleProtection<P extends object>(
   Component: React.ComponentType<P>,
-  options: Options
+  options: Options,
 ) {
   return function ProtectedComponent(props: P) {
     const router = useRouter();
@@ -52,7 +52,9 @@ export function withRoleProtection<P extends object>(
 
     if (loading) {
       return (
-        <div className="min-h-screen flex items-center justify-center text-[#023047] text-xl font-bold">Carregando...</div>
+        <div className="min-h-screen flex items-center justify-center text-[#023047] text-xl font-bold">
+          Carregando...
+        </div>
       );
     }
     if (!authorized) {

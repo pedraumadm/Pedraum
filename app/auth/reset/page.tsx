@@ -3,13 +3,23 @@
 
 import { useState } from "react";
 import { handlePasswordReset } from "@/utils/passwordReset";
-import { Mail, KeyRound, LogIn, ArrowLeft, Loader2, CheckCircle, AlertTriangle } from "lucide-react";
+import {
+  Mail,
+  KeyRound,
+  LogIn,
+  ArrowLeft,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import Link from "next/link";
 
 export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: "ok" | "erro", text: string } | null>(null);
+  const [msg, setMsg] = useState<{ type: "ok" | "erro"; text: string } | null>(
+    null,
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -17,9 +27,15 @@ export default function ResetPasswordPage() {
     setMsg(null);
     try {
       await handlePasswordReset(email);
-      setMsg({ type: "ok", text: "Enviamos um e-mail para redefinir sua senha. Verifique sua caixa de entrada (ou spam)." });
+      setMsg({
+        type: "ok",
+        text: "Enviamos um e-mail para redefinir sua senha. Verifique sua caixa de entrada (ou spam).",
+      });
     } catch (err: any) {
-      setMsg({ type: "erro", text: "Erro ao enviar e-mail. Verifique se o e-mail está correto." });
+      setMsg({
+        type: "erro",
+        text: "Erro ao enviar e-mail. Verifique se o e-mail está correto.",
+      });
     }
     setLoading(false);
   }
@@ -42,13 +58,19 @@ export default function ResetPasswordPage() {
 
         {/* Mensagem de feedback */}
         {msg && (
-          <div className={
-            "flex items-center gap-2 px-4 py-2 rounded-xl mb-5 w-full text-sm text-center " +
-            (msg.type === "ok"
-              ? "bg-green-100 text-green-800 border border-green-200"
-              : "bg-red-100 text-red-700 border border-red-200")
-          }>
-            {msg.type === "ok" ? <CheckCircle className="text-green-500" size={18} /> : <AlertTriangle className="text-red-500" size={18} />}
+          <div
+            className={
+              "flex items-center gap-2 px-4 py-2 rounded-xl mb-5 w-full text-sm text-center " +
+              (msg.type === "ok"
+                ? "bg-green-100 text-green-800 border border-green-200"
+                : "bg-red-100 text-red-700 border border-red-200")
+            }
+          >
+            {msg.type === "ok" ? (
+              <CheckCircle className="text-green-500" size={18} />
+            ) : (
+              <AlertTriangle className="text-red-500" size={18} />
+            )}
             {msg.text}
           </div>
         )}
@@ -56,14 +78,16 @@ export default function ResetPasswordPage() {
         {/* Formulário */}
         <form onSubmit={onSubmit} className="w-full space-y-7">
           <div>
-            <label className="block mb-1 font-bold text-[#023047] text-[15px]">E-mail</label>
+            <label className="block mb-1 font-bold text-[#023047] text-[15px]">
+              E-mail
+            </label>
             <div className="flex items-center gap-2 border border-[#e8e8ec] rounded-xl px-3 py-2 bg-[#f7fafc] shadow-inner focus-within:border-[#219EBC] transition">
               <Mail size={20} className="text-[#219EBC]" />
               <input
                 type="email"
                 required
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="exemplo@seudominio.com"
                 className="bg-transparent outline-none flex-1 text-[#023047] text-base font-semibold"
                 autoComplete="username"
@@ -76,7 +100,11 @@ export default function ResetPasswordPage() {
             className="w-full bg-[#219EBC] hover:bg-[#176684] text-white py-3 rounded-xl font-bold text-lg flex items-center justify-center transition disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
             style={{ letterSpacing: ".01em" }}
           >
-            {loading ? <Loader2 className="animate-spin mr-2" size={22} /> : <LogIn className="mr-2" size={22} />}
+            {loading ? (
+              <Loader2 className="animate-spin mr-2" size={22} />
+            ) : (
+              <LogIn className="mr-2" size={22} />
+            )}
             {loading ? "Enviando..." : "Enviar e-mail de redefinição"}
           </button>
         </form>
@@ -84,13 +112,19 @@ export default function ResetPasswordPage() {
         {/* Links extra */}
         <div className="mt-8 text-center text-sm w-full">
           <div>
-            <Link href="/auth/login" className="text-[#023047] hover:underline font-bold flex items-center justify-center gap-2 transition">
+            <Link
+              href="/auth/login"
+              className="text-[#023047] hover:underline font-bold flex items-center justify-center gap-2 transition"
+            >
               <ArrowLeft size={17} /> Voltar ao Login
             </Link>
           </div>
           <div className="text-gray-400 text-xs mt-3">
             Precisa de uma conta?{" "}
-            <Link href="/auth/register" className="text-[#FB8500] hover:underline transition font-bold">
+            <Link
+              href="/auth/register"
+              className="text-[#FB8500] hover:underline transition font-bold"
+            >
               Cadastre-se
             </Link>
           </div>

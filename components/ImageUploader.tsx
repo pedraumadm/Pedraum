@@ -28,8 +28,14 @@ export default function ImageUploader({
 }: Props) {
   const [isUploading, setIsUploading] = useState(false);
 
-  const limiteAtingido = useMemo(() => imagens.length >= max, [imagens.length, max]);
-  const restantes = useMemo(() => Math.max(0, max - imagens.length), [imagens.length, max]);
+  const limiteAtingido = useMemo(
+    () => imagens.length >= max,
+    [imagens.length, max],
+  );
+  const restantes = useMemo(
+    () => Math.max(0, max - imagens.length),
+    [imagens.length, max],
+  );
 
   function remover(idx: number) {
     const clone = [...imagens];
@@ -56,13 +62,18 @@ export default function ImageUploader({
       {!limiteAtingido ? (
         <UploadButton<OurFileRouter, EndpointName>
           endpoint={endpoint}
-          onBeforeUploadBegin={(files) => files.slice(0, Math.max(0, max - imagens.length))}
+          onBeforeUploadBegin={(files) =>
+            files.slice(0, Math.max(0, max - imagens.length))
+          }
           onUploadProgress={() => setIsUploading(true)}
           onClientUploadComplete={(res) => {
             setIsUploading(false);
             if (res?.length) {
               const urls = res.map((f) => f.url);
-              const unique = Array.from(new Set([...imagens, ...urls])).slice(0, max);
+              const unique = Array.from(new Set([...imagens, ...urls])).slice(
+                0,
+                max,
+              );
               setImagens(unique);
             }
           }}
@@ -80,11 +91,15 @@ export default function ImageUploader({
           }}
         />
       ) : (
-        <p className="text-sm text-red-500">Limite de {max} imagens atingido.</p>
+        <p className="text-sm text-red-500">
+          Limite de {max} imagens atingido.
+        </p>
       )}
 
       <div className="text-xs text-slate-500">
-        {isUploading ? "Enviando..." : `Você pode adicionar até ${restantes} imagem(ns).`}
+        {isUploading
+          ? "Enviando..."
+          : `Você pode adicionar até ${restantes} imagem(ns).`}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

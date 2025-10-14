@@ -51,8 +51,9 @@ export default function FeaturesSection() {
           Por que usar o <span className="text-accent">Pedraum?</span>
         </h2>
         <p className="text-[15.5px] md:text-base text-slate-600 text-center mb-8 max-w-2xl mx-auto">
-          Conectamos sua necessidade aos fornecedores ideais do setor de britagem
-          e mineração — <b>mais rápido</b>, com <b>mais opções</b> e <b>menos risco</b>.
+          Conectamos sua necessidade aos fornecedores ideais do setor de
+          britagem e mineração — <b>mais rápido</b>, com <b>mais opções</b> e{" "}
+          <b>menos risco</b>.
         </p>
 
         {/* Carrossel */}

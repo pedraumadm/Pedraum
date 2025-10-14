@@ -46,7 +46,11 @@ export default function EditServicePage() {
     setLoading(false);
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  function handleChange(
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) {
     if (!service) return;
     setService({ ...service, [e.target.name]: e.target.value });
   }
@@ -68,20 +72,41 @@ export default function EditServicePage() {
     router.push("/services");
   }
 
-  if (loading) return <div className="flex justify-center items-center min-h-[300px] text-blue-700 animate-pulse"><Loader2 className="animate-spin mr-2" />Carregando...</div>;
-  if (!service) return <div className="text-center text-red-600 py-12">Serviço não encontrado.</div>;
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-[300px] text-blue-700 animate-pulse">
+        <Loader2 className="animate-spin mr-2" />
+        Carregando...
+      </div>
+    );
+  if (!service)
+    return (
+      <div className="text-center text-red-600 py-12">
+        Serviço não encontrado.
+      </div>
+    );
 
   return (
     <div className="max-w-lg mx-auto py-8 px-2 sm:px-6">
       <div className="mb-6 flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-blue-700">
+        <button
+          onClick={() => router.back()}
+          className="p-2 rounded-full hover:bg-gray-100 text-blue-700"
+        >
           <ArrowLeft size={22} />
         </button>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-blue-900">Editar Serviço</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-blue-900">
+          Editar Serviço
+        </h1>
       </div>
-      <form onSubmit={handleSave} className="bg-white rounded-2xl shadow-md px-3 sm:px-6 py-6 space-y-4">
+      <form
+        onSubmit={handleSave}
+        className="bg-white rounded-2xl shadow-md px-3 sm:px-6 py-6 space-y-4"
+      >
         <div>
-          <label className="block font-bold text-blue-800 mb-1">Título do Serviço</label>
+          <label className="block font-bold text-blue-800 mb-1">
+            Título do Serviço
+          </label>
           <input
             name="titulo"
             value={service.titulo}
@@ -91,7 +116,9 @@ export default function EditServicePage() {
           />
         </div>
         <div>
-          <label className="block font-bold text-blue-800 mb-1">Descrição</label>
+          <label className="block font-bold text-blue-800 mb-1">
+            Descrição
+          </label>
           <textarea
             name="descricao"
             value={service.descricao ?? ""}
@@ -102,7 +129,9 @@ export default function EditServicePage() {
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-4">
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Categoria</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Categoria
+            </label>
             <input
               name="categoria"
               value={service.categoria ?? ""}
@@ -112,7 +141,9 @@ export default function EditServicePage() {
             />
           </div>
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Estado (UF)</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Estado (UF)
+            </label>
             <input
               name="estado"
               value={service.estado ?? ""}
@@ -124,7 +155,9 @@ export default function EditServicePage() {
         </div>
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-4">
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Prestador</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Prestador
+            </label>
             <input
               name="prestador"
               value={service.prestador ?? ""}
@@ -134,7 +167,9 @@ export default function EditServicePage() {
             />
           </div>
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Preço (opcional)</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Preço (opcional)
+            </label>
             <input
               name="preco"
               value={service.preco ?? ""}
@@ -147,8 +182,14 @@ export default function EditServicePage() {
           </div>
         </div>
         <div className="flex justify-end pt-2">
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl bg-orange-500 text-white font-extrabold hover:bg-orange-600 transition-all shadow disabled:opacity-70 disabled:cursor-not-allowed">
-            {saving ? <Loader2 className="animate-spin inline-block mr-2" /> : null}
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 rounded-xl bg-orange-500 text-white font-extrabold hover:bg-orange-600 transition-all shadow disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <Loader2 className="animate-spin inline-block mr-2" />
+            ) : null}
             Salvar Alterações
           </button>
         </div>

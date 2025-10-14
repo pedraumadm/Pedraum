@@ -7,25 +7,63 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/firebaseConfig";
 import {
-  doc, getDoc, updateDoc, deleteDoc, getDocs, collection, query, where, writeBatch,
-  serverTimestamp, orderBy, limit, startAfter, startAt, endAt, onSnapshot,
-  arrayRemove, arrayUnion,
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  collection,
+  query,
+  where,
+  writeBatch,
+  serverTimestamp,
+  orderBy,
+  limit,
+  startAfter,
+  startAt,
+  endAt,
+  onSnapshot,
+  arrayRemove,
+  arrayUnion,
 } from "firebase/firestore";
 import {
-  Loader as LoaderIcon, ArrowLeft, Save, Trash2, Upload, Tag, Send, Users, Filter,
-  DollarSign, ShieldCheck, Search, RefreshCw, CheckCircle2, LockOpen, CreditCard,
-  Undo2, XCircle, Ban, Layers, FileText, Image as ImageIcon
+  Loader as LoaderIcon,
+  ArrowLeft,
+  Save,
+  Trash2,
+  Upload,
+  Tag,
+  Send,
+  Users,
+  Filter,
+  DollarSign,
+  ShieldCheck,
+  RefreshCw,
+  CheckCircle2,
+  LockOpen,
+  CreditCard,
+  Undo2,
+  XCircle,
+  Ban,
+  Layers,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
 import nextDynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 // ============ Lazy (mesma assinatura do create) ============
-const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), { ssr: false }) as any;
-const DrivePDFViewer = nextDynamic(() => import("@/components/DrivePDFViewer"), { ssr: false }) as any;
+const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+}) as any;
+const DrivePDFViewer = nextDynamic(
+  () => import("@/components/DrivePDFViewer"),
+  { ssr: false },
+) as any;
 
 /* ================== Tipos ================== */
-// Formato igual ao create: Cat -> Subcat -> Item
+// Formato igual ao create: Cat -> Subcat -> Item (mantido no FORM da demanda)
 type Item = { nome: string; slug?: string };
 type Subcat = { nome: string; slug?: string; itens?: Item[] };
 type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
@@ -34,15 +72,15 @@ type Usuario = {
   id: string;
   nome?: string;
   email?: string;
-  whatsapp?: string;          // dígitos “55…”
-  whatsappE164?: string;      // “+55…”
-  telefone?: string;          // legado/livre
+  whatsapp?: string; // dígitos “55…”
+  whatsappE164?: string; // “+55…”
+  telefone?: string; // legado/livre
   estado?: string;
   ufs?: string[];
   atendeBrasil?: boolean;
   cidade?: string;
   categorias?: string[];
-  categoriasAtuacaoPairs?: { categoria: string; subcategoria: string }[];
+  categoriasAtuacaoPairs?: { categoria: string; subcategoria: string }[]; // compat
   photoURL?: string;
 };
 
@@ -54,7 +92,13 @@ type Assignment = {
   demandId: string;
   supplierId: string;
   status: AssignmentStatus;
-  pricing?: { amount?: number; currency?: string; exclusive?: boolean; cap?: number | null; soldCount?: number };
+  pricing?: {
+    amount?: number;
+    currency?: string;
+    exclusive?: boolean;
+    cap?: number | null;
+    soldCount?: number;
+  };
   paymentStatus?: PaymentStatus;
   createdAt?: any;
   updatedAt?: any;
@@ -93,30 +137,110 @@ type Demanda = {
   // novos campos de contato (editáveis no admin)
   contatoNome?: string;
   contatoEmail?: string;
-  contatoWhatsappE164?: string;   // dígitos iniciando por 55 (sem +) — compat
+  contatoWhatsappE164?: string; // dígitos iniciando por 55 (sem +) — compat
   contatoWhatsappMasked?: string; // exibição "+55 (31) 9xxxx-xxxx"
 };
 
 /* ================== Constantes ================== */
-const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"] as const;
+const UFS = [
+  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+] as const;
+// --- Map de nome completo -> sigla (sem acento) ---
+const UF_MAP: Record<string, string> = {
+  "acre":"AC","alagoas":"AL","amapa":"AP","amazonas":"AM","bahia":"BA","ceara":"CE",
+  "distrito federal":"DF","espirito santo":"ES","goias":"GO","maranhao":"MA","mato grosso":"MT",
+  "mato grosso do sul":"MS","minas gerais":"MG","para":"PA","paraiba":"PB","parana":"PR",
+  "pernambuco":"PE","piaui":"PI","rio de janeiro":"RJ","rio grande do norte":"RN","rio grande do sul":"RS",
+  "rondonia":"RO","roraima":"RR","santa catarina":"SC","sao paulo":"SP","sergipe":"SE","tocantins":"TO",
+  "brasil":"BRASIL","nacional":"BRASIL"
+};
+
+const noAcento = (s: string) =>
+  (s || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+
+const toUF = (val?: string): string => {
+  if (!val) return "";
+  const raw = noAcento(val);
+  // já é sigla?
+  const upp = val.toUpperCase().trim();
+  if (UFS.includes(upp as any)) return upp;
+  // nome completo -> sigla
+  return UF_MAP[raw] || "";
+};
+
+// quebra textos livres e tenta achar UFs em cada token
+const extractUFsFromFreeText = (val?: string): string[] => {
+  if (!val) return [];
+  const parts = val
+    .replace(/[|/\\\-–—,;:\(\)\[\]]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  const out = new Set<string>();
+  for (const p of parts) {
+    const uf = toUF(p);
+    if (uf) out.add(uf);
+  }
+  return Array.from(out);
+};
+
+// junta todas as possíveis fontes de UF do usuário
+const getUFSetFromUser = (u: any): Set<string> => {
+  const out = new Set<string>();
+
+  // arrays esperadas
+  if (Array.isArray(u.ufs)) u.ufs.forEach((x: string) => { const uf = toUF(x); if (uf) out.add(uf); });
+  if (Array.isArray(u.ufsAtendidas)) u.ufsAtendidas.forEach((x: string) => { const uf = toUF(x); if (uf) out.add(uf); });
+
+  // campos simples
+  [u.estado, u.state, u.uf, u.endereco?.uf, u.endereco?.estado].forEach((x: string) => {
+    const uf = toUF(x);
+    if (uf) out.add(uf);
+  });
+
+  // textos livres que às vezes guardam “Contagem/MG”, “Brasil”, etc.
+  [u.cidade, u.localizacao, u.regioes, u.regioesAtendidas, u.endereco?.cidade]
+    .forEach((x: string) => extractUFsFromFreeText(x).forEach((uf) => out.add(uf)));
+
+  // abrangência nacional
+  if (u.atendeBrasil) out.add("BRASIL");
+
+  return out;
+};
 
 /* ================== Helpers gerais ================== */
 const toReais = (cents?: number) =>
-  `R$ ${((Number(cents || 0) / 100) || 0).toFixed(2).replace(".", ",")}`;
+  `R$ ${(Number(cents || 0) / 100 || 0).toFixed(2).replace(".", ",")}`;
 
 const reaisToCents = (val: string) => {
-  const n = Number(String(val || "0").replace(/\./g, "").replace(",", ".")); // "19,90" -> 19.90
+  const n = Number(
+    String(val || "0")
+      .replace(/\./g, "")
+      .replace(",", "."),
+  ); // "19,90" -> 19.90
   if (Number.isNaN(n)) return 0;
   return Math.round(n * 100);
 };
 
 const chip = (bg: string, fg: string): React.CSSProperties => ({
-  display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px",
-  borderRadius: 999, background: bg, color: fg, border: "1px solid #e5e7eb",
-  fontSize: 12, fontWeight: 800, lineHeight: 1.2,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "3px 10px",
+  borderRadius: 999,
+  background: bg,
+  color: fg,
+  border: "1px solid #e5e7eb",
+  fontSize: 12,
+  fontWeight: 800,
+  lineHeight: 1.2,
 });
 
-const isNonEmptyString = (v: any): v is string => typeof v === "string" && v.trim() !== "";
+const isNonEmptyString = (v: any): v is string =>
+  typeof v === "string" && v.trim() !== "";
 
 const norm = (s?: string) =>
   (s || "")
@@ -125,12 +249,6 @@ const norm = (s?: string) =>
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
-
-function pairToken(cat?: string, sub?: string) {
-  const c = norm(cat);
-  const s = norm(sub);
-  return c && s ? `${c}::${s}` : "";
-}
 
 /* ========= Helpers de telefone/WhatsApp BR (+55) ========= */
 const onlyDigits = (v: string) => (v || "").replace(/\D/g, "");
@@ -171,10 +289,10 @@ export default function EditDemandaPage() {
     typeof params?.id === "string"
       ? params.id
       : Array.isArray(params?.id)
-      ? params!.id[0]
-      : "";
+        ? params!.id[0]
+        : "";
 
-  // 🔗 Taxonomia (3 níveis, igual ao create)
+  // 🔗 Taxonomia (3 níveis, igual ao create) — mantida para o FORM da demanda
   const { categorias, loading: taxLoading } = useTaxonomia() as {
     categorias: Cat[];
     loading: boolean;
@@ -191,13 +309,35 @@ export default function EditDemandaPage() {
   const [tagInput, setTagInput] = useState("");
 
   const [form, setForm] = useState<{
-    titulo: string; descricao: string; categoria: string; subcategoria: string; itemFinal: string;
-    estado: string; cidade: string; prazo: string; orcamento: string; whatsapp: string; observacoes: string;
-    contatoNome: string; contatoEmail: string; contatoWhatsappMasked: string;
+    titulo: string;
+    descricao: string;
+    categoria: string;
+    subcategoria: string;
+    itemFinal: string;
+    estado: string;
+    cidade: string;
+    prazo: string;
+    orcamento: string;
+    whatsapp: string;
+    observacoes: string;
+    contatoNome: string;
+    contatoEmail: string;
+    contatoWhatsappMasked: string;
   }>({
-    titulo: "", descricao: "", categoria: "", subcategoria: "", itemFinal: "",
-    estado: "", cidade: "", prazo: "", orcamento: "", whatsapp: "", observacoes: "",
-    contatoNome: "", contatoEmail: "", contatoWhatsappMasked: "",
+    titulo: "",
+    descricao: "",
+    categoria: "",
+    subcategoria: "",
+    itemFinal: "",
+    estado: "",
+    cidade: "",
+    prazo: "",
+    orcamento: "",
+    whatsapp: "",
+    observacoes: "",
+    contatoNome: "",
+    contatoEmail: "",
+    contatoWhatsappMasked: "",
   });
 
   const [createdAt, setCreatedAt] = useState<string>("");
@@ -208,39 +348,35 @@ export default function EditDemandaPage() {
 
   const [unlockCap, setUnlockCap] = useState<number | null>(null);
 
-  /** ------- Busca/lista de usuários ------- */
+  /** ------- Lista de usuários ------- */
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
-  const [paging, setPaging] = useState<{ last?: any; ended?: boolean }>({ ended: false });
+  const [paging, setPaging] = useState<{ last?: any; ended?: boolean }>({
+    ended: false,
+  });
   const [selUsuarios, setSelUsuarios] = useState<string[]>([]);
   const [envLoading, setEnvLoading] = useState(false);
 
   /** ------- Enviados (stream) ------- */
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const jaEnviados = useMemo(() => new Set(assignments.map(a => a.supplierId)), [assignments]);
+  const jaEnviados = useMemo(
+    () => new Set(assignments.map((a) => a.supplierId)),
+    [assignments],
+  );
 
-  /** ------- Filtros e busca ------- */
-  const [busca, setBusca] = useState("");
+  /** ------- Filtros (somente Categoria e UF) ------- */
   const [fCat, setFCat] = useState("");
-  const [fSub, setFSub] = useState("");
   const [fUF, setFUF] = useState("");
-
-  const debounceRef = useRef<any>(null);
 
   // ======= Taxonomia (3 níveis) – para o FORM (demanda) =======
   const subsForm: Subcat[] = useMemo(
-    () => (categorias.find(c => c.nome === form.categoria)?.subcategorias ?? []),
-    [categorias, form.categoria]
+    () =>
+      categorias.find((c) => c.nome === form.categoria)?.subcategorias ?? [],
+    [categorias, form.categoria],
   );
   const itemsForm: Item[] = useMemo(
-    () => (subsForm.find(s => s.nome === form.subcategoria)?.itens ?? []),
-    [subsForm, form.subcategoria]
-  );
-
-  // ======= Taxonomia – para o FILTRO (usuários) [apenas 2 níveis] =======
-  const sub1Filtro: Subcat[] = useMemo(
-    () => (categorias.find(c => c.nome === fCat)?.subcategorias ?? []),
-    [categorias, fCat]
+    () => subsForm.find((s) => s.nome === form.subcategoria)?.itens ?? [],
+    [subsForm, form.subcategoria],
   );
 
   /** ================== Carregar Demanda ================== */
@@ -271,27 +407,28 @@ export default function EditDemandaPage() {
 
         contatoNome: d.contatoNome || d.autorNome || "",
         contatoEmail: d.contatoEmail || d.autorEmail || "",
-        contatoWhatsappMasked:
-          d.contatoWhatsappMasked
-            ? d.contatoWhatsappMasked
-            : d.contatoWhatsappE164
-              ? formatWhatsappBRIntl("+" + d.contatoWhatsappE164)
-              : d.autorWhatsapp
-                ? formatWhatsappBRIntl(
-                    d.autorWhatsapp.startsWith("+") ? d.autorWhatsapp : `+55 ${d.autorWhatsapp}`
-                  )
-                : "",
+        contatoWhatsappMasked: d.contatoWhatsappMasked
+          ? d.contatoWhatsappMasked
+          : d.contatoWhatsappE164
+            ? formatWhatsappBRIntl("+" + d.contatoWhatsappE164)
+            : d.autorWhatsapp
+              ? formatWhatsappBRIntl(
+                  d.autorWhatsapp.startsWith("+")
+                    ? d.autorWhatsapp
+                    : `+55 ${d.autorWhatsapp}`,
+                )
+              : "",
       });
 
       setTags(d.tags || []);
       setImagens(d.imagens || []);
-      setPdfUrl(d.pdfUrl ?? null); // <— carrega PDF
+      setPdfUrl(d.pdfUrl ?? null);
       setUserId(d.userId || "");
 
       setCreatedAt(
         d.createdAt?.seconds
           ? new Date(d.createdAt.seconds * 1000).toLocaleString("pt-BR")
-          : ""
+          : "",
       );
 
       const cents = d?.pricingDefault?.amount ?? 1990;
@@ -302,7 +439,6 @@ export default function EditDemandaPage() {
 
       // Pré-filtro sugerido pela demanda
       setFCat(d.categoria || "");
-      setFSub(d.subcategoria || "");
       setFUF(d.estado || "");
 
       setLoading(false);
@@ -316,15 +452,18 @@ export default function EditDemandaPage() {
     const qAssign = query(
       collection(db, "demandAssignments"),
       where("demandId", "==", demandaId),
-      limit(1000)
+      limit(1000),
     );
     const unsub = onSnapshot(
       qAssign,
       (snap) => {
-        const arr: Assignment[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        const arr: Assignment[] = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as any),
+        }));
         setAssignments(arr);
       },
-      (e) => console.warn("Falha ao carregar envios:", e)
+      (e) => console.warn("Falha ao carregar envios:", e),
     );
     return () => unsub();
   }, [demandaId]);
@@ -337,15 +476,20 @@ export default function EditDemandaPage() {
     if (Array.isArray(raw.categoriasAtuacao)) categorias = raw.categoriasAtuacao;
     else if (Array.isArray(raw.categorias)) categorias = raw.categorias;
 
-    const ufsRaw =
-      Array.isArray(raw.ufsAtendidas) ? raw.ufsAtendidas :
-      Array.isArray(raw.ufs) ? raw.ufs :
-      [];
+    const ufsRaw = Array.isArray(raw.ufsAtendidas)
+      ? raw.ufsAtendidas
+      : Array.isArray(raw.ufs)
+        ? raw.ufs
+        : [];
 
-    const ufsNorm = (ufsRaw || []).map((x: string) => (x || "").toString().trim().toUpperCase());
+    const ufsNorm = (ufsRaw || []).map((x: string) =>
+      (x || "").toString().trim().toUpperCase(),
+    );
     if (raw.atendeBrasil && !ufsNorm.includes("BRASIL")) ufsNorm.push("BRASIL");
 
-    const pairs = Array.isArray(raw.categoriasAtuacaoPairs) ? raw.categoriasAtuacaoPairs : [];
+    const pairs = Array.isArray(raw.categoriasAtuacaoPairs)
+      ? raw.categoriasAtuacaoPairs
+      : [];
 
     return {
       id: d.id ?? raw.id,
@@ -357,170 +501,77 @@ export default function EditDemandaPage() {
     } as Usuario;
   }
 
-  /** ================== Busca “Servidor” com filtros ================== */
-  async function smartFetchUsuarios(reset = true) {
-    setLoadingUsuarios(true);
-    try {
-      const PAGE = 40;
-      const merged = new Map<string, Usuario>();
+  /** ================== Busca de usuários: SOMENTE Categoria + UF ================== */
+ /** ================== Busca de usuários: Versão robusta (categoria + UF) ================== */
+async function smartFetchUsuarios(reset = true) {
+  setLoadingUsuarios(true);
+  try {
+    const PAGE = 400; // busca ampla para filtrar localmente
+    const all: Usuario[] = [];
 
-      const hasBusca = !!busca.trim();
-      const token = pairToken(fCat, fSub);
-      const ufN  = (fUF || "").toString().trim().toUpperCase();
+    // Busca todos os usuários
+    const snap = await getDocs(
+      query(collection(db, "usuarios"), orderBy("nome"), limit(PAGE))
+    );
+    snap.forEach((d) => all.push(docToUsuario(d)));
 
-      // ===== A) Sem texto de busca: só filtros
-      if (!hasBusca) {
-        // 1) cat+sub -> pairsSearch (+ UF)
-        if (token) {
-          let qBase: any = query(collection(db, "usuarios"), where("pairsSearch", "array-contains", token));
-          if (ufN) qBase = query(qBase, where("ufsSearch", "array-contains", ufN));
+    const ufN = (fUF || "").trim().toUpperCase();
+    const catN = norm(fCat);
 
-          let qFinal = reset || !paging.last
-            ? query(qBase, orderBy("nome"), limit(PAGE))
-            : query(qBase, orderBy("nome"), startAfter(paging.last), limit(PAGE));
+    const filtrados = all.filter((u) => {
+      let matchCat = true;
+      let matchUF = true;
 
-          const snap = await getDocs(qFinal);
-          snap.forEach(d => merged.set(d.id, docToUsuario(d)));
+      // --------- Categoria ---------
+      if (catN) {
+        const possibleCats: string[] = [];
 
-          setUsuarios(Array.from(merged.values()));
-          setPaging({ last: snap.docs[snap.docs.length - 1], ended: snap.size < PAGE });
-          return;
-        }
-
-        // 2) só categoria: consultar “novo” e “legado” e unificar
-        if (isNonEmptyString(fCat)) {
-          const queries: any[] = [];
-
-          let qNew: any = query(collection(db, "usuarios"), where("categoriesAll", "array-contains", fCat));
-          if (ufN) qNew = query(qNew, where("ufsSearch", "array-contains", ufN));
-          qNew = reset || !paging.last
-            ? query(qNew, orderBy("nome"), limit(PAGE))
-            : query(qNew, orderBy("nome"), startAfter(paging.last), limit(PAGE));
-          queries.push(qNew);
-
-          let qLegacy: any = query(collection(db, "usuarios"), where("categorias", "array-contains", fCat));
-          if (ufN) qLegacy = query(qLegacy, where("ufsSearch", "array-contains", ufN));
-          qLegacy = reset || !paging.last
-            ? query(qLegacy, orderBy("nome"), limit(PAGE))
-            : query(qLegacy, orderBy("nome"), startAfter(paging.last), limit(PAGE));
-          queries.push(qLegacy);
-
-          const snaps = await Promise.all(queries.map(getDocs));
-          snaps.forEach(s => s.forEach(d => merged.set(d.id, docToUsuario(d))));
-
-          const lastDoc =
-            snaps
-              .map(s => s.docs[s.docs.length - 1])
-              .filter(Boolean)
-              .at(-1);
-          const ended = snaps.every(s => s.size < PAGE);
-
-          const fUFN = ufN;
-          const fCatN = norm(fCat);
-          const refined = Array.from(merged.values()).filter(u => {
-            const hitCat =
-              (u.categorias || []).some(c => norm(c) === fCatN) ||
-              (u.categoriasAtuacaoPairs || []).some(p => norm(p?.categoria) === fCatN);
-
-            if (!hitCat) return false;
-
-            const hitUF =
-              !fUFN ||
-              u.atendeBrasil === true ||
-              (Array.isArray(u.ufs) && (u.ufs.includes("BRASIL") || u.ufs.includes(fUFN))) ||
-              (u.estado && u.estado.toString().trim().toUpperCase() === fUFN);
-
-            return hitUF;
-          });
-
-          setUsuarios(refined);
-          setPaging({ last: lastDoc, ended });
-          return;
-        }
-
-        // 3) sem filtros -> pagina por nome
-        {
-          let q: any = reset || !paging.last
-            ? query(collection(db, "usuarios"), orderBy("nome"), limit(PAGE))
-            : query(collection(db, "usuarios"), orderBy("nome"), startAfter(paging.last), limit(PAGE));
-
-          const snap = await getDocs(q);
-          snap.forEach(d => merged.set(d.id, docToUsuario(d)));
-          setUsuarios(Array.from(merged.values()));
-          setPaging({ last: snap.docs[snap.docs.length - 1], ended: snap.size < PAGE });
-          return;
-        }
-      }
-
-      // ===== B) Com texto de busca
-      const t = busca.trim();
-
-      // por id
-      if (t.length >= 8) {
-        try {
-          const byId = await getDoc(doc(db, "usuarios", t));
-          if (byId.exists()) merged.set(byId.id, docToUsuario(byId));
-        } catch {}
-      }
-
-      // exato por e-mail
-      try {
-        const sEmailEq = await getDocs(
-          query(collection(db, "usuarios"), where("email", "==", t.toLowerCase()), limit(1))
-        );
-        sEmailEq.forEach(d => merged.set(d.id, docToUsuario(d)));
-      } catch {}
-
-      // prefix por nome
-      const tCap = t.charAt(0).toUpperCase() + t.slice(1);
-      try {
-        const sNome = await getDocs(
-          query(collection(db, "usuarios"), orderBy("nome"), startAt(tCap), endAt(tCap + "\uf8ff"), limit(40))
-        );
-        sNome.forEach(d => merged.set(d.id, docToUsuario(d)));
-      } catch {}
-
-      // prefix por email
-      try {
-        const tLower = t.toLowerCase();
-        const sEmail = await getDocs(
-          query(collection(db, "usuarios"), orderBy("email"), startAt(tLower), endAt(tLower + "\uf8ff"), limit(40))
-        );
-        sEmail.forEach(d => merged.set(d.id, docToUsuario(d)));
-      } catch {}
-
-      const fCatN = norm(fCat);
-      const fSubN = norm(fSub);
-      const fUFN = ufN;
-      const refined = Array.from(merged.values()).filter(u => {
-        const hitCat =
-          !fCatN ||
-          (u.categorias || []).some(c => norm(c) === fCatN) ||
-          (u.categoriasAtuacaoPairs || []).some(p => norm(p?.categoria) === fCatN);
-        if (!hitCat) return false;
-
-        const hitSub =
-          !fSubN ||
-          (u.categoriasAtuacaoPairs || []).some(
-            p => norm(p?.categoria) === fCatN && norm(p?.subcategoria) === fSubN
+        if (Array.isArray(u.categorias)) possibleCats.push(...u.categorias);
+        if (Array.isArray((u as any).categoriesAll))
+          possibleCats.push(...(u as any).categoriesAll);
+        if (Array.isArray((u as any).categoriasAtuacaoPairs))
+          possibleCats.push(
+            ...(u as any).categoriasAtuacaoPairs.map((p: any) => p?.categoria)
           );
-        if (!hitSub) return false;
+        if (Array.isArray((u as any).atuacaoBasica))
+          possibleCats.push(
+            ...(u as any).atuacaoBasica.map((a: any) => a?.categoria)
+          );
 
-        const hitUF =
-          !fUFN ||
-          u.atendeBrasil === true ||
-          (Array.isArray(u.ufs) && (u.ufs.includes("BRASIL") || u.ufs.includes(fUFN))) ||
-          (u.estado && u.estado.toString().trim().toUpperCase() === fUFN);
+        matchCat = possibleCats.some(
+          (c) => c && norm(c).includes(catN) // aceita parcial
+        );
+      }
 
-        return hitUF;
-      });
-
-      setUsuarios(refined);
-      setPaging({ ended: true });
-    } finally {
-      setLoadingUsuarios(false);
-    }
+     // --------- UF (robusto) ---------
+if (ufN) {
+  const ufWanted = toUF(ufN) || ufN.toUpperCase(); // aceita “MT” ou “Mato Grosso”
+  if (ufWanted === "BRASIL") {
+    matchUF = true;
+  } else if (u.atendeBrasil === true) {
+    matchUF = true;
+  } else {
+    const setUFs = getUFSetFromUser(u); // olha em todos os lugares possíveis
+    matchUF = setUFs.has(ufWanted) || setUFs.has("BRASIL");
   }
+}
+
+
+      return matchCat && matchUF;
+    });
+
+    // Ordena alfabeticamente para visualização estável
+    filtrados.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+
+    setUsuarios(filtrados);
+    setPaging({ ended: true });
+  } catch (e) {
+    console.error("Erro ao buscar usuários:", e);
+  } finally {
+    setLoadingUsuarios(false);
+  }
+}
+
 
   // load inicial
   useEffect(() => {
@@ -532,66 +583,39 @@ export default function EditDemandaPage() {
   useEffect(() => {
     smartFetchUsuarios(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fCat, fSub, fUF]);
-
-  /** ================== Busca (debounce) ================== */
-  function executarBusca() {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => smartFetchUsuarios(true), 400);
-  }
-  useEffect(() => {
-    executarBusca();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busca]);
-
-  /** ================== Refinos locais (extra safety) ================== */
-  const candidatos = useMemo(() => {
-    const fCatN = norm(fCat);
-    const fSubN = norm(fSub);
-    const fUFN = (fUF || "").toString().trim().toUpperCase();
-
-    return usuarios.filter(u => {
-      const hitCat =
-        !fCatN ||
-        (u.categorias || []).some(c => norm(c) === fCatN) ||
-        (u.categoriasAtuacaoPairs || []).some(p => norm(p?.categoria) === fCatN);
-      if (!hitCat) return false;
-
-      const hitSub =
-        !fSubN ||
-        (u.categoriasAtuacaoPairs || []).some(
-          p => norm(p?.categoria) === fCatN && norm(p?.subcategoria) === fSubN
-        );
-      if (!hitSub) return false;
-
-      const hitUF =
-        !fUFN ||
-        u.atendeBrasil === true ||
-        (Array.isArray(u.ufs) && (u.ufs.includes("BRASIL") || u.ufs.includes(fUFN))) ||
-        (u.estado && u.estado.toString().trim().toUpperCase() === fUFN);
-
-      return hitUF;
-    });
-  }, [usuarios, fCat, fSub, fUF]);
+  }, [fCat, fUF]);
 
   /** ================== Handlers básicos ================== */
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  function handleChange(
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) {
     const { name, value } = e.target;
 
     // resets em cascata na taxonomia (3 níveis)
     if (name === "categoria") {
-      setForm(f => ({ ...f, categoria: value, subcategoria: "", itemFinal: "" }));
+      setForm((f) => ({
+        ...f,
+        categoria: value,
+        subcategoria: "",
+        itemFinal: "",
+      }));
       return;
     }
     if (name === "subcategoria") {
-      setForm(f => ({ ...f, subcategoria: value, itemFinal: "" }));
+      setForm((f) => ({ ...f, subcategoria: value, itemFinal: "" }));
       return;
     }
 
     setForm({ ...form, [name]: value });
   }
   function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if ((e.key === "Enter" || e.key === ",") && tagInput.trim() && tags.length < 3) {
+    if (
+      (e.key === "Enter" || e.key === ",") &&
+      tagInput.trim() &&
+      tags.length < 3
+    ) {
       setTags([...tags, tagInput.trim()]);
       setTagInput("");
       e.preventDefault();
@@ -609,8 +633,11 @@ export default function EditDemandaPage() {
       const cents = reaisToCents(precoPadraoReais);
 
       // normaliza e valida whatsapp
-      const e164Digits = extractDigits55FromMasked(form.contatoWhatsappMasked || "");
-      const contatoOk = !form.contatoWhatsappMasked || isValidBRWhatsappDigits(e164Digits);
+      const e164Digits = extractDigits55FromMasked(
+        form.contatoWhatsappMasked || "",
+      );
+      const contatoOk =
+        !form.contatoWhatsappMasked || isValidBRWhatsappDigits(e164Digits);
       if (!contatoOk) {
         alert("WhatsApp inválido. Use o formato +55 (DDD) número.");
         setSalvando(false);
@@ -630,7 +657,7 @@ export default function EditDemandaPage() {
         observacoes: form.observacoes || "",
         tags,
         imagens,
-        pdfUrl: pdfUrl || null, // <— salva PDF
+        pdfUrl: pdfUrl || null,
         pricingDefault: { amount: cents, currency: "BRL" },
         unlockCap: unlockCap ?? null,
 
@@ -658,7 +685,12 @@ export default function EditDemandaPage() {
   }
 
   async function handleDelete() {
-    if (!window.confirm("Deseja mesmo excluir esta demanda? Esta ação é irreversível!")) return;
+    if (
+      !window.confirm(
+        "Deseja mesmo excluir esta demanda? Esta ação é irreversível!",
+      )
+    )
+      return;
     setRemovendo(true);
     try {
       await deleteDoc(doc(db, "demandas", demandaId));
@@ -672,17 +704,34 @@ export default function EditDemandaPage() {
 
   /** ================== Envio p/ usuários ================== */
   function toggleUsuario(id: string, checked: boolean) {
-    setSelUsuarios(prev => checked ? [...new Set([...prev, id])] : prev.filter(x => x !== id));
+    setSelUsuarios((prev) =>
+      checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id),
+    );
   }
   function selecionarTodosVisiveis() {
-    setSelUsuarios(prev => Array.from(new Set([...prev, ...candidatos.filter(c=>!jaEnviados.has(c.id)).map(c => c.id)])));
+    setSelUsuarios((prev) =>
+      Array.from(
+        new Set([
+          ...prev,
+          ...usuarios.filter((c) => !jaEnviados.has(c.id)).map((c) => c.id),
+        ]),
+      ),
+    );
   }
-  function limparSelecao() { setSelUsuarios([]); }
+  function limparSelecao() {
+    setSelUsuarios([]);
+  }
 
   async function enviarParaSelecionados() {
-    if (!selUsuarios.length) { alert("Selecione pelo menos um usuário."); return; }
+    if (!selUsuarios.length) {
+      alert("Selecione pelo menos um usuário.");
+      return;
+    }
     const cents = reaisToCents(precoEnvioReais || precoPadraoReais);
-    if (!cents || cents < 100) { alert("Defina um preço válido em reais. Ex.: 19,90"); return; }
+    if (!cents || cents < 100) {
+      alert("Defina um preço válido em reais. Ex.: 19,90");
+      return;
+    }
 
     setEnvLoading(true);
     try {
@@ -690,17 +739,29 @@ export default function EditDemandaPage() {
       selUsuarios.forEach((uid) => {
         if (jaEnviados.has(uid)) return;
         const aRef = doc(db, "demandAssignments", `${demandaId}_${uid}`);
-        batch.set(aRef, {
-          demandId: demandaId,
-          supplierId: uid,
-          status: "sent" as AssignmentStatus,
-          pricing: { amount: cents, currency: "BRL", exclusive: false, cap: unlockCap ?? null, soldCount: 0 },
-          paymentStatus: "pending" as PaymentStatus,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
+        batch.set(
+          aRef,
+          {
+            demandId: demandaId,
+            supplierId: uid,
+            status: "sent" as AssignmentStatus,
+            pricing: {
+              amount: cents,
+              currency: "BRL",
+              exclusive: false,
+              cap: unlockCap ?? null,
+              soldCount: 0,
+            },
+            paymentStatus: "pending" as PaymentStatus,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
       });
-      batch.update(doc(db, "demandas", demandaId), { lastSentAt: serverTimestamp() });
+      batch.update(doc(db, "demandas", demandaId), {
+        lastSentAt: serverTimestamp(),
+      });
       await batch.commit();
       alert(`Enviado para ${selUsuarios.length} usuário(s).`);
       setSelUsuarios([]);
@@ -716,7 +777,10 @@ export default function EditDemandaPage() {
   async function setPaymentStatus(supplierId: string, status: PaymentStatus) {
     try {
       const ref = doc(db, "demandAssignments", `${demandaId}_${supplierId}`);
-      await updateDoc(ref, { paymentStatus: status, updatedAt: serverTimestamp() });
+      await updateDoc(ref, {
+        paymentStatus: status,
+        updatedAt: serverTimestamp(),
+      });
     } catch (e: any) {
       console.error(e);
       alert("Erro ao atualizar pagamento.");
@@ -729,8 +793,13 @@ export default function EditDemandaPage() {
       const dData = dSnap.data() as Demanda;
       const cap = typeof dData?.unlockCap === "number" ? dData.unlockCap : null;
 
-      const curUnlocked = assignments.filter(a => a.status === "unlocked").length;
-      if (cap != null && curUnlocked >= cap) { alert(`Limite de desbloqueios atingido (${cap}).`); return; }
+      const curUnlocked = assignments.filter(
+        (a) => a.status === "unlocked",
+      ).length;
+      if (cap != null && curUnlocked >= cap) {
+        alert(`Limite de desbloqueios atingido (${cap}).`);
+        return;
+      }
 
       await updateDoc(aRef, {
         status: "unlocked",
@@ -749,12 +818,26 @@ export default function EditDemandaPage() {
     }
   }
   async function cancelAssignment(supplierId: string) {
-    if (!window.confirm("Cancelar o envio? O fornecedor não poderá pagar/desbloquear.")) return;
+    if (
+      !window.confirm(
+        "Cancelar o envio? O fornecedor não poderá pagar/desbloquear.",
+      )
+    )
+      return;
     try {
       const aRef = doc(db, "demandAssignments", `${demandaId}_${supplierId}`);
-      await updateDoc(aRef, { status: "canceled", paymentStatus: "pending", updatedAt: serverTimestamp() });
-      await updateDoc(doc(db, "demandas", demandaId), { liberadoPara: arrayRemove(supplierId), updatedAt: serverTimestamp() }).catch(() => {});
-      await deleteDoc(doc(db, "demandas", demandaId, "acessos", supplierId)).catch(() => {});
+      await updateDoc(aRef, {
+        status: "canceled",
+        paymentStatus: "pending",
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "demandas", demandaId), {
+        liberadoPara: arrayRemove(supplierId),
+        updatedAt: serverTimestamp(),
+      }).catch(() => {});
+      await deleteDoc(
+        doc(db, "demandas", demandaId, "acessos", supplierId),
+      ).catch(() => {});
     } catch (e: any) {
       console.error(e);
       alert("Erro ao cancelar envio.");
@@ -763,18 +846,34 @@ export default function EditDemandaPage() {
   async function reactivateAssignment(supplierId: string) {
     try {
       const aRef = doc(db, "demandAssignments", `${demandaId}_${supplierId}`);
-      await updateDoc(aRef, { status: "sent", paymentStatus: "pending", updatedAt: serverTimestamp() });
+      await updateDoc(aRef, {
+        status: "sent",
+        paymentStatus: "pending",
+        updatedAt: serverTimestamp(),
+      });
     } catch (e: any) {
       console.error(e);
       alert("Erro ao reativar envio.");
     }
   }
   async function deleteAssignment(supplierId: string) {
-    if (!window.confirm("Excluir completamente o envio? Isso remove o acesso e do painel do fornecedor.")) return;
+    if (
+      !window.confirm(
+        "Excluir completamente o envio? Isso remove o acesso e do painel do fornecedor.",
+      )
+    )
+      return;
     try {
-      await updateDoc(doc(db, "demandas", demandaId), { liberadoPara: arrayRemove(supplierId), updatedAt: serverTimestamp() }).catch(() => {});
-      await deleteDoc(doc(db, "demandas", demandaId, "acessos", supplierId)).catch(() => {});
-      await deleteDoc(doc(db, "demandAssignments", `${demandaId}_${supplierId}`));
+      await updateDoc(doc(db, "demandas", demandaId), {
+        liberadoPara: arrayRemove(supplierId),
+        updatedAt: serverTimestamp(),
+      }).catch(() => {});
+      await deleteDoc(
+        doc(db, "demandas", demandaId, "acessos", supplierId),
+      ).catch(() => {});
+      await deleteDoc(
+        doc(db, "demandAssignments", `${demandaId}_${supplierId}`),
+      );
     } catch (e: any) {
       console.error(e);
       alert("Erro ao excluir envio.");
@@ -782,8 +881,12 @@ export default function EditDemandaPage() {
   }
 
   /** ================== Contagens úteis ================== */
-  const unlockedCount = useMemo(() => assignments.filter(a => a.status === "unlocked").length, [assignments]);
-  const capInfo = unlockCap != null ? `${unlockedCount}/${unlockCap}` : String(unlockedCount);
+  const unlockedCount = useMemo(
+    () => assignments.filter((a) => a.status === "unlocked").length,
+    [assignments],
+  );
+  const capInfo =
+    unlockCap != null ? `${unlockedCount}/${unlockCap}` : String(unlockedCount);
 
   /** ================== CSS responsivo injetado com segurança ================== */
   useEffect(() => {
@@ -810,51 +913,126 @@ export default function EditDemandaPage() {
         .sticky { position: sticky; top: 0; }
       }
     `;
-    return () => { try { el && el.remove(); } catch {} };
+    return () => {
+      try {
+        el && el.remove();
+      } catch {}
+    };
   }, []);
 
   /** ================== Render ================== */
   if (loading) {
     return (
       <div style={centerBox}>
-        <LoaderIcon className="animate-spin" size={28} />&nbsp; Carregando demanda...
+        <LoaderIcon className="animate-spin" size={28} />
+        &nbsp; Carregando demanda...
       </div>
     );
   }
 
   return (
-    <section style={{ maxWidth: 1320, margin: "0 auto", padding: "32px 2vw 60px" }}>
-      <Link href="/admin/demandas" style={backLink}><ArrowLeft size={19} /> Voltar</Link>
+    <section
+      style={{ maxWidth: 1320, margin: "0 auto", padding: "32px 2vw 60px" }}
+    >
+      <Link href="/admin/demandas" style={backLink}>
+        <ArrowLeft size={19} /> Voltar
+      </Link>
 
       <div style={gridWrap}>
         {/* ================= Editar Demanda ================= */}
         <div style={card}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
             <h2 style={cardTitle}>Editar Necessidade</h2>
-            <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-              <div style={{fontSize:12,color:"#64748b",fontWeight:800}}>Limite de desbloqueios</div>
-              <input type="number" min={0} value={unlockCap ?? ""} onChange={(e) => setUnlockCap(e.target.value === "" ? null : Math.max(0, Number(e.target.value)))} style={{...input, width: 110}} placeholder="Ex.: 5" />
-              <div style={{fontSize:12,color:"#64748b",fontWeight:800}}>Liberados: <b>{capInfo}</b></div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ fontSize: 12, color: "#64748b", fontWeight: 800 }}>
+                Limite de desbloqueios
+              </div>
+              <input
+                type="number"
+                min={0}
+                value={unlockCap ?? ""}
+                onChange={(e) =>
+                  setUnlockCap(
+                    e.target.value === ""
+                      ? null
+                      : Math.max(0, Number(e.target.value)),
+                  )
+                }
+                style={{ ...input, width: 110 }}
+                placeholder="Ex.: 5"
+              />
+              <div style={{ fontSize: 12, color: "#64748b", fontWeight: 800 }}>
+                Liberados: <b>{capInfo}</b>
+              </div>
             </div>
           </div>
 
           <div style={metaLine}>
-            <div><b>ID:</b> {demandaId}</div>
-            {createdAt && <div><b>Criada:</b> {createdAt}</div>}
-            {userId && <div><b>UserID:</b> {userId}</div>}
+            <div>
+              <b>ID:</b> {demandaId}
+            </div>
+            {createdAt && (
+              <div>
+                <b>Criada:</b> {createdAt}
+              </div>
+            )}
+            {userId && (
+              <div>
+                <b>UserID:</b> {userId}
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleSubmit}>
             <label style={label}>Título da Demanda</label>
-            <input name="titulo" value={form.titulo} onChange={handleChange} required placeholder="Ex: Preciso de peça X / serviço Y" style={input} />
+            <input
+              name="titulo"
+              value={form.titulo}
+              onChange={handleChange}
+              required
+              placeholder="Ex: Preciso de peça X / serviço Y"
+              style={input}
+            />
 
             <label style={label}>Descrição</label>
-            <textarea name="descricao" value={form.descricao} onChange={handleChange} required placeholder="Detalhe sua necessidade..." style={{ ...input, minHeight: 110, resize: "vertical" }} />
+            <textarea
+              name="descricao"
+              value={form.descricao}
+              onChange={handleChange}
+              required
+              placeholder="Detalhe sua necessidade..."
+              style={{ ...input, minHeight: 110, resize: "vertical" }}
+            />
 
             {/* ===== Taxonomia 3 níveis (Cat -> Subcat -> Item) ===== */}
             <div style={twoCols}>
               <div style={{ flex: 1 }}>
-                <label style={label}><span style={{display:"inline-flex",alignItems:"center",gap:6}}><Layers size={16}/> Categoria</span></label>
+                <label style={label}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Layers size={16} /> Categoria
+                  </span>
+                </label>
                 <select
                   name="categoria"
                   value={form.categoria}
@@ -863,9 +1041,13 @@ export default function EditDemandaPage() {
                   style={input}
                   disabled={taxLoading}
                 >
-                  <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+                  <option value="">
+                    {taxLoading ? "Carregando..." : "Selecione"}
+                  </option>
                   {categorias.map((c) => (
-                    <option key={c.slug || c.nome} value={c.nome}>{c.nome}</option>
+                    <option key={c.slug || c.nome} value={c.nome}>
+                      {c.nome}
+                    </option>
                   ))}
                 </select>
 
@@ -877,9 +1059,15 @@ export default function EditDemandaPage() {
                   style={input}
                   disabled={!form.categoria}
                 >
-                  <option value="">{form.categoria ? "Selecione a subcategoria" : "Selecione a categoria"}</option>
+                  <option value="">
+                    {form.categoria
+                      ? "Selecione a subcategoria"
+                      : "Selecione a categoria"}
+                  </option>
                   {subsForm.map((s) => (
-                    <option key={s.slug || s.nome} value={s.nome}>{s.nome}</option>
+                    <option key={s.slug || s.nome} value={s.nome}>
+                      {s.nome}
+                    </option>
                   ))}
                 </select>
 
@@ -893,9 +1081,15 @@ export default function EditDemandaPage() {
                     style={input}
                     disabled={!form.subcategoria}
                   >
-                    <option value="">{form.subcategoria ? "Selecione o item final" : "Selecione a subcategoria"}</option>
+                    <option value="">
+                      {form.subcategoria
+                        ? "Selecione o item final"
+                        : "Selecione a subcategoria"}
+                    </option>
                     {itemsForm.map((it) => (
-                      <option key={it.slug || it.nome} value={it.nome}>{it.nome}</option>
+                      <option key={it.slug || it.nome} value={it.nome}>
+                        {it.nome}
+                      </option>
                     ))}
                   </select>
                 )}
@@ -905,24 +1099,60 @@ export default function EditDemandaPage() {
             <div style={twoCols}>
               <div style={{ flex: 1 }}>
                 <label style={label}>Estado (UF)</label>
-                <select name="estado" value={form.estado} onChange={handleChange} required style={input}>
+                <select
+                  name="estado"
+                  value={form.estado}
+                  onChange={handleChange}
+                  required
+                  style={input}
+                >
                   <option value="">Selecione</option>
-                  {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                  {UFS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div style={{ flex: 1 }}>
                 <label style={label}>Cidade</label>
-                <input name="cidade" value={form.cidade} onChange={handleChange} placeholder="Ex.: Belo Horizonte" style={input} />
+                <input
+                  name="cidade"
+                  value={form.cidade}
+                  onChange={handleChange}
+                  placeholder="Ex.: Belo Horizonte"
+                  style={input}
+                />
               </div>
             </div>
 
             {/* ===== Anexos (Imagens + PDF) ===== */}
-            <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Upload size={16} color="#2563eb" /> Anexos
-            </span></label>
-            <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr", border: "1px solid #eaeef4", borderRadius: 12, padding: 12 }}>
+            <label style={label}>
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Upload size={16} color="#2563eb" /> Anexos
+              </span>
+            </label>
+            <div
+              style={{
+                display: "grid",
+                gap: 12,
+                gridTemplateColumns: "1fr",
+                border: "1px solid #eaeef4",
+                borderRadius: 12,
+                padding: 12,
+              }}
+            >
               {/* Imagens */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #eef6ff 0%, transparent 60%), #ffffff" }}>
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{
+                  borderColor: "#e6ebf2",
+                  background:
+                    "radial-gradient(1200px 300px at -200px -200px, #eef6ff 0%, transparent 60%), #ffffff",
+                }}
+              >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
                   <strong className="text-[#0f172a]">Imagens (opcional)</strong>
@@ -931,12 +1161,21 @@ export default function EditDemandaPage() {
                   <div className="rounded-lg border border-dashed p-3">
                     <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
                   </div>
-                  <p className="text-xs text-slate-500 mt-2">Adicione até 5 imagens.</p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Adicione até 5 imagens.
+                  </p>
                 </div>
               </div>
 
               {/* PDF */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "radial-gradient(1200px 300px at -200px -200px, #fff1e6 0%, transparent 60%), #ffffff" }}>
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{
+                  borderColor: "#e6ebf2",
+                  background:
+                    "radial-gradient(1200px 300px at -200px -200px, #fff1e6 0%, transparent 60%), #ffffff",
+                }}
+              >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
                   <strong className="text-[#0f172a]">Anexo PDF (opcional)</strong>
@@ -954,20 +1193,36 @@ export default function EditDemandaPage() {
                         height={300}
                       />
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                        <a href={pdfUrl} target="_blank" rel="noreferrer" style={ghostBtn}>Abrir em nova aba</a>
-                        <button type="button" onClick={() => setPdfUrl(null)} style={dangerBtn}>Remover PDF</button>
+                        <a href={pdfUrl} target="_blank" rel="noreferrer" style={ghostBtn}>
+                          Abrir em nova aba
+                        </a>
+                        <button type="button" onClick={() => setPdfUrl(null)} style={dangerBtn}>
+                          Remover PDF
+                        </button>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Envie orçamento, memorial ou ficha técnica (até ~8MB).</p>
+                    <p className="text-xs text-slate-500">
+                      Envie orçamento, memorial ou ficha técnica (até ~8MB).
+                    </p>
                   )}
                 </div>
               </div>
             </div>
 
             {/* ===== Contato do solicitante (novo bloco) ===== */}
-            <div style={{ marginTop: 14, padding: "12px", border: "1px dashed #e2e8f0", borderRadius: 12, background: "#f8fafc" }}>
-              <div style={{ fontWeight: 900, color: "#023047", marginBottom: 8 }}>Contato do solicitante</div>
+            <div
+              style={{
+                marginTop: 14,
+                padding: "12px",
+                border: "1px dashed #e2e8f0",
+                borderRadius: 12,
+                background: "#f8fafc",
+              }}
+            >
+              <div style={{ fontWeight: 900, color: "#023047", marginBottom: 8 }}>
+                Contato do solicitante
+              </div>
 
               <div style={twoCols}>
                 <div style={{ flex: 1 }}>
@@ -975,7 +1230,9 @@ export default function EditDemandaPage() {
                   <input
                     name="contatoNome"
                     value={form.contatoNome}
-                    onChange={(e)=>setForm(f=>({...f, contatoNome: e.target.value}))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, contatoNome: e.target.value }))
+                    }
                     placeholder="Ex.: João da Silva"
                     style={input}
                   />
@@ -985,7 +1242,9 @@ export default function EditDemandaPage() {
                   <input
                     name="contatoEmail"
                     value={form.contatoEmail}
-                    onChange={(e)=>setForm(f=>({...f, contatoEmail: e.target.value}))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, contatoEmail: e.target.value }))
+                    }
                     placeholder="exemplo@empresa.com"
                     style={input}
                     type="email"
@@ -999,17 +1258,40 @@ export default function EditDemandaPage() {
                   <input
                     name="contatoWhatsappMasked"
                     value={form.contatoWhatsappMasked}
-                    onChange={(e)=>setForm(f=>({...f, contatoWhatsappMasked: formatWhatsappBRIntl(e.target.value)}))}
-                    onFocus={()=>setForm(f=>({...f, contatoWhatsappMasked: ensurePlus55Prefix(f.contatoWhatsappMasked)}))}
-                    onBlur={()=>setForm(f=>({...f, contatoWhatsappMasked: formatWhatsappBRIntl(f.contatoWhatsappMasked)}))}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        contatoWhatsappMasked: formatWhatsappBRIntl(e.target.value),
+                      }))
+                    }
+                    onFocus={() =>
+                      setForm((f) => ({
+                        ...f,
+                        contatoWhatsappMasked: ensurePlus55Prefix(
+                          f.contatoWhatsappMasked,
+                        ),
+                      }))
+                    }
+                    onBlur={() =>
+                      setForm((f) => ({
+                        ...f,
+                        contatoWhatsappMasked: formatWhatsappBRIntl(
+                          f.contatoWhatsappMasked,
+                        ),
+                      }))
+                    }
                     placeholder="+55 (DD) número"
                     style={input}
                     maxLength={20}
                     inputMode="tel"
                   />
                   {(() => {
-                    const d55 = extractDigits55FromMasked(form.contatoWhatsappMasked);
-                    const ok = !form.contatoWhatsappMasked || isValidBRWhatsappDigits(d55);
+                    const d55 = extractDigits55FromMasked(
+                      form.contatoWhatsappMasked,
+                    );
+                    const ok =
+                      !form.contatoWhatsappMasked ||
+                      isValidBRWhatsappDigits(d55);
                     return ok ? null : (
                       <div style={{ fontSize: 12, color: "#b45309", marginTop: 6 }}>
                         Informe no padrão +55 (DDD) 8–9 dígitos.
@@ -1023,7 +1305,9 @@ export default function EditDemandaPage() {
                   <input
                     name="orcamento"
                     value={form.orcamento}
-                    onChange={(e)=>setForm(f=>({...f, orcamento: e.target.value}))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, orcamento: e.target.value }))
+                    }
                     type="number"
                     min={0}
                     placeholder="R$"
@@ -1034,38 +1318,94 @@ export default function EditDemandaPage() {
             </div>
 
             <div style={{ marginTop: 10 }}>
-              <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <DollarSign size={16} /> Preço padrão do desbloqueio (R$)
-              </span></label>
-              <input value={precoPadraoReais} onChange={(e)=>setPrecoPadraoReais(e.target.value)} placeholder="Ex.: 19,90" style={input} />
-              <div style={hintText}>Sugerido ao enviar para usuários. Pode ser sobrescrito no envio.</div>
+              <label style={label}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <DollarSign size={16} /> Preço padrão do desbloqueio (R$)
+                </span>
+              </label>
+              <input
+                value={precoPadraoReais}
+                onChange={(e) => setPrecoPadraoReais(e.target.value)}
+                placeholder="Ex.: 19,90"
+                style={input}
+              />
+              <div style={hintText}>
+                Sugerido ao enviar para usuários. Pode ser sobrescrito no envio.
+              </div>
             </div>
 
-            <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Tag size={16} color="#fb8500" /> Referências <span style={{ color: "#94a3b8", fontWeight: 600, fontSize: 12 }}>(até 3)</span>
-            </span></label>
+            <label style={label}>
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+              >
+                <Tag size={16} color="#fb8500" /> Referências{" "}
+                <span style={{ color: "#94a3b8", fontWeight: 600, fontSize: 12 }}>
+                  (até 3)
+                </span>
+              </span>
+            </label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {tags.map((tg, idx) => (
                 <span key={idx} style={chipTag}>
                   {tg}
-                  <button type="button" onClick={() => removeTag(idx)} style={chipClose}>×</button>
+                  <button
+                    type="button"
+                    onClick={() => removeTag(idx)}
+                    style={chipClose}
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
               {tags.length < 3 && (
-                <input value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyDown={handleTagKeyDown} placeholder="Nova tag" maxLength={16} style={{ ...input, width: 140 }} />
+                <input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Nova tag"
+                  maxLength={16}
+                  style={{ ...input, width: 140 }}
+                />
               )}
             </div>
 
-            {/* Imagens já está acima nos anexos */}
-
             <label style={label}>Observações (opcional)</label>
-            <textarea name="observacoes" value={form.observacoes} onChange={handleChange} placeholder="Alguma observação extra?" style={{ ...input, minHeight: 70 }} />
+            <textarea
+              name="observacoes"
+              value={form.observacoes}
+              onChange={handleChange}
+              placeholder="Alguma observação extra?"
+              style={{ ...input, minHeight: 70 }}
+            />
 
-            <div style={{ display:"flex", gap: 10, flexWrap: "wrap", marginTop: 14, justifyContent:"space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginTop: 14,
+                justifyContent: "space-between",
+              }}
+            >
               <div />
-              <div style={{ display:"flex", gap: 10, flexWrap:"wrap" }}>
-                <button type="submit" disabled={salvando} style={primaryBtn}><Save size={20} /> {salvando ? "Salvando..." : "Salvar Alterações"}</button>
-                <button type="button" disabled={removendo} onClick={handleDelete} style={dangerBtn}><Trash2 size={20} /> {removendo ? "Excluindo..." : "Excluir"}</button>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button type="submit" disabled={salvando} style={primaryBtn}>
+                  <Save size={20} /> {salvando ? "Salvando..." : "Salvar Alterações"}
+                </button>
+                <button
+                  type="button"
+                  disabled={removendo}
+                  onClick={handleDelete}
+                  style={dangerBtn}
+                >
+                  <Trash2 size={20} /> {removendo ? "Excluindo..." : "Excluir"}
+                </button>
               </div>
             </div>
           </form>
@@ -1073,106 +1413,196 @@ export default function EditDemandaPage() {
 
         {/* ================= Enviar demanda ================= */}
         <div style={card}>
-          <h2 style={cardTitle}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Send size={20} color="#2563eb" /> Enviar esta demanda para usuários
-          </span></h2>
+          <h2 style={cardTitle}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <Send size={20} color="#2563eb" /> Enviar esta demanda para usuários
+            </span>
+          </h2>
 
           <div style={twoCols}>
             <div style={{ flex: 1 }}>
-              <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <DollarSign size={16} /> Preço do envio (R$)
-              </span></label>
-              <input value={precoEnvioReais} onChange={(e)=>setPrecoEnvioReais(e.target.value)} placeholder={`Sugerido: ${precoPadraoReais}`} style={input} />
+              <label style={label}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <DollarSign size={16} /> Preço do envio (R$)
+                </span>
+              </label>
+              <input
+                value={precoEnvioReais}
+                onChange={(e) => setPrecoEnvioReais(e.target.value)}
+                placeholder={`Sugerido: ${precoPadraoReais}`}
+                style={input}
+              />
               <div style={hintText}>Digite em reais, ex.: 25,00.</div>
             </div>
             <div style={{ flex: 1 }}>
-              <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <ShieldCheck size={16} /> Limite de desbloqueios (cap)
-              </span></label>
-              <input type="number" min={0} value={unlockCap ?? ""} onChange={(e) => setUnlockCap(e.target.value === "" ? null : Math.max(0, Number(e.target.value)))} style={input} placeholder="Ex.: 5" />
-              <div style={hintText}>A demanda respeita este limite total de desbloqueios.</div>
+              <label style={label}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  <ShieldCheck size={16} /> Limite de desbloqueios (cap)
+                </span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={unlockCap ?? ""}
+                onChange={(e) =>
+                  setUnlockCap(
+                    e.target.value === ""
+                      ? null
+                      : Math.max(0, Number(e.target.value)),
+                  )
+                }
+                style={input}
+                placeholder="Ex.: 5"
+              />
+              <div style={hintText}>
+                A demanda respeita este limite total de desbloqueios.
+              </div>
             </div>
           </div>
 
-          {/* Filtros (busca mais limpa e sticky) */}
-          <div style={{ ...twoCols, marginTop: 10, alignItems: "flex-end", position:"sticky", top: 0, background:"#fff", zIndex: 1, paddingTop: 10, borderBottom: "1px solid #eef2f7", paddingBottom: 8 }}>
-            <div style={{ flex: 1 }}>
-              <label style={label}><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <Search size={16} /> Buscar por nome, e-mail ou ID
-              </span></label>
-              <div style={{ position: "relative" }}>
-                <input
-                  value={busca}
-                  onChange={(e)=>setBusca(e.target.value)}
-                  onKeyDown={(e)=> e.key === "Enter" ? smartFetchUsuarios(true) : undefined}
-                  placeholder="Digite e tecle Enter"
-                  style={{ ...input, paddingLeft: 36 }}
-                />
-                <Search size={16} style={{ position: "absolute", left: 10, top: 12, color: "#a3a3a3" }} />
-              </div>
-            </div>
-
+          {/* Filtros (somente Categoria + UF) */}
+          <div
+            style={{
+              ...twoCols,
+              marginTop: 10,
+              alignItems: "flex-end",
+              position: "sticky",
+              top: 0,
+              background: "#fff",
+              zIndex: 1,
+              paddingTop: 10,
+              borderBottom: "1px solid #eef2f7",
+              paddingBottom: 8,
+            }}
+          >
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <div>
-                <label style={miniLabel}><Filter size={13} /> Categoria</label>
+                <label style={miniLabel}>
+                  <Filter size={13} /> Categoria
+                </label>
                 <select
                   value={fCat}
-                  onChange={(e)=>{ setFCat(e.target.value); setFSub(""); }}
-                  style={{ ...input, width: 240 }}
+                  onChange={(e) => setFCat(e.target.value)}
+                  style={{ ...input, width: 260 }}
                   disabled={taxLoading}
                 >
                   <option value="">{taxLoading ? "Carregando..." : "Todas"}</option>
-                  {categorias.map((c) => <option key={c.slug || c.nome} value={c.nome}>{c.nome}</option>)}
-                </select>
-
-                <select
-                  value={fSub}
-                  onChange={(e)=>setFSub(e.target.value)}
-                  style={{ ...input, width: 240 }}
-                  disabled={!fCat}
-                >
-                  <option value="">{fCat ? "Todas" : "Selecione a Cat."}</option>
-                  {sub1Filtro.map((s) => <option key={s.slug || s.nome} value={s.nome}>{s.nome}</option>)}
+                  {categorias.map((c) => (
+                    <option key={c.slug || c.nome} value={c.nome}>
+                      {c.nome}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label style={miniLabel}><Filter size={13} /> UF</label>
-                <select value={fUF} onChange={(e)=>setFUF(e.target.value)} style={{ ...input, width: 120 }}>
+                <label style={miniLabel}>
+                  <Filter size={13} /> UF
+                </label>
+                <select
+                  value={fUF}
+                  onChange={(e) => setFUF(e.target.value)}
+                  style={{ ...input, width: 140 }}
+                >
                   <option value="">Todas</option>
-                  {UFS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                  {UFS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
                 </select>
               </div>
-              <button type="button" onClick={()=>smartFetchUsuarios(true)} style={ghostBtn}><RefreshCw size={16} /> Atualizar</button>
-              <button type="button" onClick={()=>smartFetchUsuarios(false)} style={ghostBtn}><Search size={16} /> Carregar mais</button>
+              <button type="button" onClick={() => smartFetchUsuarios(true)} style={ghostBtn}>
+                <RefreshCw size={16} /> Atualizar
+              </button>
+              <button type="button" onClick={() => smartFetchUsuarios(false)} style={ghostBtn}>
+                <RefreshCw size={16} /> Carregar mais
+              </button>
             </div>
           </div>
 
-          {/* Lista de candidatos */}
+          {/* Lista de usuários */}
           <div style={listBox}>
             <div style={listHeader}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#334155", fontWeight: 800, fontSize: 13 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  color: "#334155",
+                  fontWeight: 800,
+                  fontSize: 13,
+                }}
+              >
                 <Users size={16} /> Usuários
               </div>
-              <div style={{ fontSize: 12, color: "#64748b" }}>Selecionados: <b>{selUsuarios.length}</b></div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>
+                Selecionados: <b>{selUsuarios.length}</b>
+              </div>
             </div>
 
             <div style={{ maxHeight: "56vh", overflow: "auto" }}>
-              {candidatos.map((u) => {
+              {usuarios.map((u) => {
                 const nome = u.nome || u.email || `Usuário ${u.id}`;
                 const contato = u.whatsappE164 || u.whatsapp || u.telefone || "—";
-                const regioes = u.atendeBrasil ? "BRASIL" : (u.ufs?.length ? u.ufs.join(", ") : (u.estado || "—"));
+                const regioes = u.atendeBrasil
+                  ? "BRASIL"
+                  : u.ufs?.length
+                    ? u.ufs.join(", ")
+                    : u.estado || "—";
                 const cats = u.categorias?.length ? u.categorias.join(", ") : "—";
                 const already = jaEnviados.has(u.id);
                 const selected = selUsuarios.includes(u.id);
                 return (
-                  <label key={u.id} style={rowItem(already ? "#f1fff6" : selected ? "#f1f5ff" : "#fff")}>
-                    <input type="checkbox" checked={selected || already} disabled={already} onChange={(e) => toggleUsuario(u.id, e.target.checked)} />
+                  <label
+                    key={u.id}
+                    style={rowItem(already ? "#f1fff6" : selected ? "#f1f5ff" : "#fff")}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected || already}
+                      disabled={already}
+                      onChange={(e) => toggleUsuario(u.id, e.target.checked)}
+                    />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, color: "#0f172a" }}>
-                        <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nome}</span>
-                        {already && <span style={chip("#eef2ff", "#3730a3")}><CheckCircle2 size={12}/> enviado</span>}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          fontWeight: 800,
+                          color: "#0f172a",
+                        }}
+                      >
+                        <span
+                          style={{
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {nome}
+                        </span>
+                        {already && (
+                          <span style={chip("#eef2ff", "#3730a3")}>
+                            <CheckCircle2 size={12} /> enviado
+                          </span>
+                        )}
                       </div>
-                      <div style={subLine}>{u.email || "—"} • {contato} • {u.cidade || "—"}/{regioes}</div>
+                      <div style={subLine}>
+                        {u.email || "—"} • {contato} • {u.cidade || "—"}/{regioes}
+                      </div>
                       <div style={subMicro}>Categorias: {cats}</div>
                     </div>
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>#{u.id}</span>
@@ -1180,15 +1610,31 @@ export default function EditDemandaPage() {
                 );
               })}
 
-              {!loadingUsuarios && candidatos.length === 0 && (
-                <div style={{ padding: "24px 12px", textAlign: "center", color: "#64748b", fontSize: 14 }}>
-                  Nenhum usuário encontrado. Ajuste a busca ou os filtros.
+              {!loadingUsuarios && usuarios.length === 0 && (
+                <div
+                  style={{
+                    padding: "24px 12px",
+                    textAlign: "center",
+                    color: "#64748b",
+                    fontSize: 14,
+                  }}
+                >
+                  Nenhum usuário encontrado. Ajuste os filtros.
                 </div>
               )}
 
               {loadingUsuarios && (
-                <div style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, color: "#64748b", fontSize: 14 }}>
-                  <LoaderIcon className="animate-spin" size={16}/> Carregando...
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    color: "#64748b",
+                    fontSize: 14,
+                  }}
+                >
+                  <LoaderIcon className="animate-spin" size={16} /> Carregando...
                 </div>
               )}
             </div>
@@ -1196,37 +1642,51 @@ export default function EditDemandaPage() {
 
           {/* Ações de envio */}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
-            <button type="button" onClick={selecionarTodosVisiveis} style={ghostBtn}>Selecionar visíveis</button>
-            <button type="button" onClick={limparSelecao} style={ghostBtn}>Limpar seleção</button>
+            <button type="button" onClick={selecionarTodosVisiveis} style={ghostBtn}>
+              Selecionar visíveis
+            </button>
+            <button type="button" onClick={limparSelecao} style={ghostBtn}>
+              Limpar seleção
+            </button>
             <div style={{ flex: 1 }} />
-            <button type="button" onClick={enviarParaSelecionados} disabled={envLoading || selUsuarios.length === 0} style={primaryBtn}>
-              <Send size={18}/> {envLoading ? "Enviando..." : `Enviar (${selUsuarios.length})`}
+            <button
+              type="button"
+              onClick={enviarParaSelecionados}
+              disabled={envLoading || selUsuarios.length === 0}
+              style={primaryBtn}
+            >
+              <Send size={18} /> {envLoading ? "Enviando..." : `Enviar (${selUsuarios.length})`}
             </button>
           </div>
         </div>
 
         {/* ================= Envios realizados ================= */}
         <div style={card}>
-          <h2 style={cardTitle}><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <Users size={20} color="#2563eb" /> Envios realizados
-          </span></h2>
+          <h2 style={cardTitle}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <Users size={20} color="#2563eb" /> Envios realizados
+            </span>
+          </h2>
 
           {assignments.length === 0 ? (
             <div style={emptyBox}>Nenhum envio ainda.</div>
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
               <div style={tableHeader}>
-                <div style={{flex: 1.7}}>Fornecedor</div>
-                <div style={{flex: 1}}>Status</div>
-                <div style={{flex: 0.8}}>Pagamento</div>
-                <div style={{flex: 0.6, textAlign:"right"}}>Preço</div>
-                <div style={{flex: 0.6, textAlign:"right"}}>Cap</div>
-                <div style={{flex: 1.6, textAlign:"right"}}>Ações</div>
+                <div style={{ flex: 1.7 }}>Fornecedor</div>
+                <div style={{ flex: 1 }}>Status</div>
+                <div style={{ flex: 0.8 }}>Pagamento</div>
+                <div style={{ flex: 0.6, textAlign: "right" }}>Preço</div>
+                <div style={{ flex: 0.6, textAlign: "right" }}>Cap</div>
+                <div style={{ flex: 1.6, textAlign: "right" }}>Ações</div>
               </div>
 
               {assignments
                 .slice()
-                .sort((a,b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0))
+                .sort(
+                  (a, b) =>
+                    (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
+                )
                 .map((a) => (
                   <AssignmentRow
                     key={a.id}
@@ -1238,7 +1698,7 @@ export default function EditDemandaPage() {
                     onExcluir={() => deleteAssignment(a.supplierId)}
                     onReativar={() => reactivateAssignment(a.supplierId)}
                   />
-              ))}
+                ))}
             </div>
           )}
         </div>
@@ -1249,7 +1709,13 @@ export default function EditDemandaPage() {
 
 /** ================= Assignment Row ================= */
 function AssignmentRow({
-  a, onPago, onPendente, onLiberar, onCancelar, onExcluir, onReativar,
+  a,
+  onPago,
+  onPendente,
+  onLiberar,
+  onCancelar,
+  onExcluir,
+  onReativar,
 }: {
   a: Assignment;
   onPago: () => void;
@@ -1276,59 +1742,120 @@ function AssignmentRow({
   const pago = a.paymentStatus === "paid";
 
   const stChip =
-    a.status === "unlocked" ? chip("#ecfdf5", "#065f46")
-    : a.status === "canceled" ? chip("#fff1f2", "#9f1239")
-    : a.status === "viewed" ? chip("#eef2ff", "#3730a3")
-    : chip("#f1f5f9", "#111827");
+    a.status === "unlocked"
+      ? chip("#ecfdf5", "#065f46")
+      : a.status === "canceled"
+        ? chip("#fff1f2", "#9f1239")
+        : a.status === "viewed"
+          ? chip("#eef2ff", "#3730a3")
+          : chip("#f1f5f9", "#111827");
 
   const payChip = pago ? chip("#ecfdf5", "#065f46") : chip("#fff7ed", "#9a3412");
 
   return (
     <div style={tableRow}>
-      <div style={{flex:1.7,minWidth:0}}>
+      <div style={{ flex: 1.7, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 800 }}>
           {user?.photoURL ? (
-            <img src={user.photoURL} alt={nome} style={{ width: 28, height: 28, borderRadius: "50%" }}/>
+            <img
+              src={user.photoURL}
+              alt={nome}
+              style={{ width: 28, height: 28, borderRadius: "50%" }}
+            />
           ) : (
             <div style={avatarBox}>{(nome || "?").charAt(0).toUpperCase()}</div>
           )}
-          <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nome}</span>
+          <span
+            style={{
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {nome}
+          </span>
         </div>
         <div style={subLine}>{user?.email || "—"} • {contato} • {cidadeUf}</div>
       </div>
 
-      <div style={{flex:1}}>
+      <div style={{ flex: 1 }}>
         <span style={stChip}>
-          {a.status === "unlocked" ? <LockOpen size={12}/> :
-           a.status === "canceled" ? <Ban size={12}/> :
-           a.status === "viewed" ? <CheckCircle2 size={12}/> : <CheckCircle2 size={12}/> }
+          {a.status === "unlocked" ? (
+            <LockOpen size={12} />
+          ) : a.status === "canceled" ? (
+            <Ban size={12} />
+          ) : a.status === "viewed" ? (
+            <CheckCircle2 size={12} />
+          ) : (
+            <CheckCircle2 size={12} />
+          )}
           {a.status}
         </span>
       </div>
 
-      <div style={{flex:0.8}}>
-        <span style={payChip}><CreditCard size={12}/> {pago ? "pago" : "pendente"}</span>
+      <div style={{ flex: 0.8 }}>
+        <span style={payChip}>
+          <CreditCard size={12} /> {pago ? "pago" : "pendente"}
+        </span>
       </div>
 
-      <div style={{flex:0.6,textAlign:"right",fontWeight:900,color:"#0f172a"}}>{toReais(a.pricing?.amount)}</div>
-      <div style={{flex:0.6,textAlign:"right",color:"#64748b",fontWeight:800}}>{a.pricing?.cap != null ? a.pricing.cap : "—"}</div>
+      <div
+        style={{
+          flex: 0.6,
+          textAlign: "right",
+          fontWeight: 900,
+          color: "#0f172a",
+        }}
+      >
+        {toReais(a.pricing?.amount)}
+      </div>
+      <div
+        style={{
+          flex: 0.6,
+          textAlign: "right",
+          color: "#64748b",
+          fontWeight: 800,
+        }}
+      >
+        {a.pricing?.cap != null ? a.pricing.cap : "—"}
+      </div>
 
-      <div style={{flex:1.6,display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap"}}>
+      <div
+        style={{
+          flex: 1.6,
+          display: "flex",
+          gap: 8,
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+        }}
+      >
         {!pago ? (
-          <button onClick={onPago} style={miniBtnGreen}><CreditCard size={14}/> Marcar pago</button>
+          <button onClick={onPago} style={miniBtnGreen}>
+            <CreditCard size={14} /> Marcar pago
+          </button>
         ) : (
-          <button onClick={onPendente} style={miniBtnYellow}><Undo2 size={14}/> Pendente</button>
+          <button onClick={onPendente} style={miniBtnYellow}>
+            <Undo2 size={14} /> Pendente
+          </button>
         )}
         {a.status !== "unlocked" && a.status !== "canceled" && (
-          <button onClick={onLiberar} style={miniBtnBlue}><LockOpen size={14}/> Liberar contato</button>
+          <button onClick={onLiberar} style={miniBtnBlue}>
+            <LockOpen size={14} /> Liberar contato
+          </button>
         )}
         {a.status !== "canceled" && a.status !== "unlocked" && (
-          <button onClick={onCancelar} style={miniBtnOrange}><Ban size={14}/> Cancelar envio</button>
+          <button onClick={onCancelar} style={miniBtnOrange}>
+            <Ban size={14} /> Cancelar envio
+          </button>
         )}
         {a.status === "canceled" && (
-          <button onClick={onReativar} style={miniBtnGray}><RefreshCw size={14}/> Reativar envio</button>
+          <button onClick={onReativar} style={miniBtnGray}>
+            <RefreshCw size={14} /> Reativar envio
+          </button>
         )}
-        <button onClick={onExcluir} style={miniBtnRed}><XCircle size={14}/> Excluir envio</button>
+        <button onClick={onExcluir} style={miniBtnRed}>
+          <XCircle size={14} /> Excluir envio
+        </button>
       </div>
     </div>
   );
@@ -1336,99 +1863,290 @@ function AssignmentRow({
 
 /** ================= Estilos ================= */
 const backLink: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 18,
-  color: "#2563eb", fontWeight: 800, fontSize: 16, textDecoration: "none"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 18,
+  color: "#2563eb",
+  fontWeight: 800,
+  fontSize: 16,
+  textDecoration: "none",
 };
-const gridWrap: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr", gap: 18 };
+const gridWrap: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr",
+  gap: 18,
+};
 const card: React.CSSProperties = {
-  background: "#fff", borderRadius: 18, boxShadow: "0 2px 16px #0001",
-  padding: "26px 22px"
+  background: "#fff",
+  borderRadius: 18,
+  boxShadow: "0 2px 16px #0001",
+  padding: "26px 22px",
 };
-const cardTitle: React.CSSProperties = { fontWeight: 900, fontSize: "1.55rem", color: "#023047", marginBottom: 10 };
+const cardTitle: React.CSSProperties = {
+  fontWeight: 900,
+  fontSize: "1.55rem",
+  color: "#023047",
+  marginBottom: 10,
+};
 const metaLine: React.CSSProperties = {
-  display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12, color: "#94a3b8", fontSize: 13
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 16,
+  marginBottom: 12,
+  color: "#94a3b8",
+  fontSize: 13,
 };
-const twoCols: React.CSSProperties = { display: "flex", gap: 14, flexWrap: "wrap" };
-const label: React.CSSProperties = { fontWeight: 800, fontSize: 15, color: "#2563eb", marginBottom: 7, marginTop: 14, display: "block" };
-const miniLabel: React.CSSProperties = { fontWeight: 800, fontSize: 12, color: "#64748b", marginBottom: 6, display: "block" };
+const twoCols: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  flexWrap: "wrap",
+};
+const label: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: 15,
+  color: "#2563eb",
+  marginBottom: 7,
+  marginTop: 14,
+  display: "block",
+};
+const miniLabel: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: 12,
+  color: "#64748b",
+  marginBottom: 6,
+  display: "block",
+};
 const input: React.CSSProperties = {
-  width: "100%", marginTop: 6, padding: "12px 13px", borderRadius: 10,
-  border: "1.5px solid #e5e7eb", fontSize: 16, color: "#023047",
-  background: "#f8fafc", fontWeight: 600, outline: "none"
+  width: "100%",
+  marginTop: 6,
+  padding: "12px 13px",
+  borderRadius: 10,
+  border: "1.5px solid #e5e7eb",
+  fontSize: 16,
+  color: "#023047",
+  background: "#f8fafc",
+  fontWeight: 600,
+  outline: "none",
 };
 const chipTag: React.CSSProperties = {
-  background: "#fff7ea", color: "#fb8500", fontWeight: 800,
-  padding: "6px 10px", borderRadius: 12, border: "1px solid #ffe4c4",
-  display: "inline-flex", alignItems: "center", gap: 8
+  background: "#fff7ea",
+  color: "#fb8500",
+  fontWeight: 800,
+  padding: "6px 10px",
+  borderRadius: 12,
+  border: "1px solid #ffe4c4",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
 };
-const chipClose: React.CSSProperties = { border: "none", background: "transparent", color: "#fb8500", fontWeight: 900, cursor: "pointer" };
+const chipClose: React.CSSProperties = {
+  border: "none",
+  background: "transparent",
+  color: "#fb8500",
+  fontWeight: 900,
+  cursor: "pointer",
+};
 const primaryBtn: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-  gap: 10, background: "#2563eb", color: "#fff", border: "none",
-  fontWeight: 900, fontSize: "1rem", padding: "12px 16px", borderRadius: 12,
-  cursor: "pointer", boxShadow: "0 2px 14px #0001"
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  background: "#2563eb",
+  color: "#fff",
+  border: "none",
+  fontWeight: 900,
+  fontSize: "1rem",
+  padding: "12px 16px",
+  borderRadius: 12,
+  cursor: "pointer",
+  boxShadow: "0 2px 14px #0001",
 };
 const dangerBtn: React.CSSProperties = { ...primaryBtn, background: "#e11d48" };
 const ghostBtn: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-  gap: 8, background: "#f8fafc", color: "#0f172a", border: "1.5px solid #e5e7eb",
-  fontWeight: 800, fontSize: "0.95rem", padding: "10px 14px", borderRadius: 10, cursor: "pointer"
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  background: "#f8fafc",
+  color: "#0f172a",
+  border: "1.5px solid #e5e7eb",
+  fontWeight: 800,
+  fontSize: "0.95rem",
+  padding: "10px 14px",
+  borderRadius: 10,
+  cursor: "pointer",
 };
-const listBox: React.CSSProperties = { border: "1.5px solid #eaeef4", borderRadius: 14, overflow: "hidden", marginTop: 14 };
+const listBox: React.CSSProperties = {
+  border: "1.5px solid #eaeef4",
+  borderRadius: 14,
+  overflow: "hidden",
+  marginTop: 14,
+};
 const listHeader: React.CSSProperties = {
-  display: "flex", justifyContent: "space-between", alignItems: "center",
-  padding: "10px 12px", background: "#f8fafc", borderBottom: "1px solid #eef2f7"
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "10px 12px",
+  background: "#f8fafc",
+  borderBottom: "1px solid #eef2f7",
 };
-const rowItem = (bg:string): React.CSSProperties => ({
-  display: "flex", alignItems: "center", gap: 10, padding: "10px 12px",
-  background: bg
+const rowItem = (bg: string): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "10px 12px",
+  background: bg,
 });
-const subLine: React.CSSProperties = { fontSize: 12, color: "#64748b", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const subMicro: React.CSSProperties = { fontSize: 11, color: "#94a3b8", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const hintText: React.CSSProperties = { fontSize: 11, color: "#94a3b8", marginTop: 6 };
-const centerBox: React.CSSProperties = { minHeight: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "#2563eb" };
-const emptyBox: React.CSSProperties = { background: "#f8fafc", border: "1px dashed #e2e8f0", borderRadius: 12, padding: 16, color: "#475569" };
+const subLine: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  marginTop: 2,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+const subMicro: React.CSSProperties = {
+  fontSize: 11,
+  color: "#94a3b8",
+  marginTop: 2,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+const hintText: React.CSSProperties = {
+  fontSize: 11,
+  color: "#94a3b8",
+  marginTop: 6,
+};
+const centerBox: React.CSSProperties = {
+  minHeight: 300,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#2563eb",
+};
+const emptyBox: React.CSSProperties = {
+  background: "#f8fafc",
+  border: "1px dashed #e2e8f0",
+  borderRadius: 12,
+  padding: 16,
+  color: "#475569",
+};
 
 const tableHeader: React.CSSProperties = {
-  display: "flex", gap: 12, padding: "10px 12px", background: "#f8fafc",
-  border: "1px solid #eef2f7", borderRadius: 12, fontSize: 12, color: "#475569", fontWeight: 900,
+  display: "flex",
+  gap: 12,
+  padding: "10px 12px",
+  background: "#f8fafc",
+  border: "1px solid #eef2f7",
+  borderRadius: 12,
+  fontSize: 12,
+  color: "#475569",
+  fontWeight: 900,
 };
 const tableRow: React.CSSProperties = {
-  display: "flex", gap: 12, padding: "12px 12px", background: "#fff",
-  border: "1px solid #e5e7eb", borderRadius: 12, alignItems: "center",
+  display: "flex",
+  gap: 12,
+  padding: "12px 12px",
+  background: "#fff",
+  border: "1px solid #e5e7eb",
+  borderRadius: 12,
+  alignItems: "center",
 };
 const avatarBox: React.CSSProperties = {
-  width: 28, height: 28, borderRadius: "50%", background: "#f1f5f9",
-  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900
+  width: 28,
+  height: 28,
+  borderRadius: "50%",
+  background: "#f1f5f9",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 12,
+  fontWeight: 900,
 };
 
 const miniBtnGreen: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#16a34a", color: "#fff",
-  border: "1px solid #16a34a", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #16a34a22"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#16a34a",
+  color: "#fff",
+  border: "1px solid #16a34a",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #16a34a22",
 };
 const miniBtnYellow: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#f59e0b", color: "#fff",
-  border: "1px solid #f59e0b", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #f59e0b22"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#f59e0b",
+  color: "#fff",
+  border: "1px solid #f59e0b",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #f59e0b22",
 };
 const miniBtnBlue: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap:  6, background: "#2563eb", color: "#fff",
-  border: "1px solid #2563eb", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #2563eb22"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#2563eb",
+  color: "#fff",
+  border: "1px solid #2563eb",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #2563eb22",
 };
 const miniBtnOrange: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#fb923c", color: "#fff",
-  border: "1px solid #fb923c", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #fb923c22"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#fb923c",
+  color: "#fff",
+  border: "1px solid #fb923c",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #fb923c22",
 };
 const miniBtnGray: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#475569", color: "#fff",
-  border: "1px solid #475569", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #47556922"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#475569",
+  color: "#fff",
+  border: "1px solid #475569",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #47556922",
 };
 const miniBtnRed: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 6, background: "#e11d48", color: "#fff",
-  border: "1px solid #e11d48", fontWeight: 800, fontSize: 12, padding: "8px 10px",
-  borderRadius: 9, cursor: "pointer", boxShadow: "0 2px 10px #e11d4822"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  background: "#e11d48",
+  color: "#fff",
+  border: "1px solid #e11d48",
+  fontWeight: 800,
+  fontSize: 12,
+  padding: "8px 10px",
+  borderRadius: 9,
+  cursor: "pointer",
+  boxShadow: "0 2px 10px #e11d4822",
 };

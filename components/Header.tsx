@@ -53,7 +53,8 @@ export default function Header() {
       setIsAuthed(true);
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
-        const tipo = (snap.exists() ? snap.data()?.tipo : "usuario") || "usuario";
+        const tipo =
+          (snap.exists() ? snap.data()?.tipo : "usuario") || "usuario";
         setIsAdmin(tipo === "admin");
         setPainelHref(tipo === "admin" ? "/admin" : "/painel");
       } catch {
@@ -79,12 +80,14 @@ export default function Header() {
       desc: "Veja pedidos de compradores e feche negócios.",
       icon: <ClipboardList size={16} />,
     },
-   
+
     {
       href: painelHref,
       label: "Painel",
       desc: isAuthed
-        ? (isAdmin ? "Painel do Administrador." : "Gerencie seus cadastros e leads.")
+        ? isAdmin
+          ? "Painel do Administrador."
+          : "Gerencie seus cadastros e leads."
         : "Entre para acessar seu painel.",
       icon: <User size={16} />,
     },
@@ -166,16 +169,27 @@ export default function Header() {
           </ul>
 
           {/* Ações (desktop + mobile) */}
-          <div className="actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            className="actions"
+            style={{ display: "flex", alignItems: "center", gap: 10 }}
+          >
             {/* Ícone de Login/Perfil sempre visível no mobile (e também no desktop) */}
             {isAuthed ? (
-              <Link href="/perfil" title="Meu Perfil" className="login-mobile no-underline">
+              <Link
+                href="/perfil"
+                title="Meu Perfil"
+                className="login-mobile no-underline"
+              >
                 <span style={{ color: "#219EBC", padding: 6, borderRadius: 9 }}>
                   <User size={24} strokeWidth={2.1} />
                 </span>
               </Link>
             ) : (
-              <Link href="/auth/login" title="Login" className="login-mobile no-underline">
+              <Link
+                href="/auth/login"
+                title="Login"
+                className="login-mobile no-underline"
+              >
                 <span style={{ color: "#FB8500", padding: 6, borderRadius: 9 }}>
                   <LogIn size={24} strokeWidth={2.1} />
                 </span>
@@ -184,7 +198,10 @@ export default function Header() {
 
             {/* Botão Cadastrar (desktop) — só para não logados */}
             {authChecked && !isAuthed && (
-              <Link href="/auth/register" className="btn-register-desktop no-underline">
+              <Link
+                href="/auth/register"
+                className="btn-register-desktop no-underline"
+              >
                 <span
                   style={{
                     background: "#FB8500",
@@ -203,7 +220,11 @@ export default function Header() {
             )}
 
             {/* Hambúrguer */}
-            <button className="hamburger" onClick={() => setOpen(true)} aria-label="Abrir menu">
+            <button
+              className="hamburger"
+              onClick={() => setOpen(true)}
+              aria-label="Abrir menu"
+            >
               <Menu size={30} />
             </button>
           </div>
@@ -225,21 +246,40 @@ export default function Header() {
           }}
         >
           <div className="mobile-head">
-            <button onClick={() => setOpen(false)} aria-label="Fechar menu" className="close">
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Fechar menu"
+              className="close"
+            >
               <X size={30} />
             </button>
 
-            <Link href="/" onClick={() => setOpen(false)} className="logo-mobile" aria-label="Início">
+            <Link
+              href="/"
+              onClick={() => setOpen(false)}
+              className="logo-mobile"
+              aria-label="Início"
+            >
               <img src="/logo-pedraum.png" alt="Pedraum Brasil" />
             </Link>
 
             {/* Ícone de Login/Perfil também no topo do drawer */}
             {isAuthed ? (
-              <Link href="/perfil" onClick={() => setOpen(false)} title="Meu Perfil" className="icon-top">
+              <Link
+                href="/perfil"
+                onClick={() => setOpen(false)}
+                title="Meu Perfil"
+                className="icon-top"
+              >
                 <User size={22} />
               </Link>
             ) : (
-              <Link href="/auth/login" onClick={() => setOpen(false)} title="Login" className="icon-top">
+              <Link
+                href="/auth/login"
+                onClick={() => setOpen(false)}
+                title="Login"
+                className="icon-top"
+              >
                 <LogIn size={22} />
               </Link>
             )}
@@ -253,7 +293,9 @@ export default function Header() {
                     <span className="left">
                       {icon}
                       <span>{label}</span>
-                      {label === "Painel" && isAdmin && <small className="badge">ADMIN</small>}
+                      {label === "Painel" && isAdmin && (
+                        <small className="badge">ADMIN</small>
+                      )}
                     </span>
                     <ChevronDown size={18} className="chev" />
                   </span>
@@ -265,16 +307,28 @@ export default function Header() {
             {/* Ações rápidas no mobile */}
             {!isAuthed ? (
               <li className="quick-actions">
-                <Link href="/auth/login" onClick={() => setOpen(false)} className="btn-ghost">
+                <Link
+                  href="/auth/login"
+                  onClick={() => setOpen(false)}
+                  className="btn-ghost"
+                >
                   Entrar
                 </Link>
-                <Link href="/auth/register" onClick={() => setOpen(false)} className="btn-cta">
+                <Link
+                  href="/auth/register"
+                  onClick={() => setOpen(false)}
+                  className="btn-cta"
+                >
                   Cadastrar
                 </Link>
               </li>
             ) : (
               <li className="quick-actions">
-                <Link href={painelHref} onClick={() => setOpen(false)} className="btn-cta">
+                <Link
+                  href={painelHref}
+                  onClick={() => setOpen(false)}
+                  className="btn-cta"
+                >
                   Ir para o Painel
                 </Link>
               </li>

@@ -45,12 +45,12 @@ export default function HomePage() {
         const machinesQuery = query(
           collection(db, "machines"),
           orderBy("createdAt", "desc"),
-          limit(8)
+          limit(8),
         );
         const demandasQuery = query(
           collection(db, "demandas"),
           orderBy("createdAt", "desc"),
-          limit(6)
+          limit(6),
         );
         const [machinesSnapshot, demandasSnapshot] = await Promise.all([
           getDocs(machinesQuery),
@@ -58,10 +58,16 @@ export default function HomePage() {
         ]);
 
         setMachines(
-          machinesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Machine[]
+          machinesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Machine[],
         );
         setDemandas(
-          demandasSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Demanda[]
+          demandasSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Demanda[],
         );
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -73,7 +79,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#e8f0ff] via-[#fdf7ee] to-[#e8eaff] font-inter">
       {/* HERO com banners + CTA principal */}
-     
+
       <Hero />
 
       {/* Seção de benefícios (mantendo a sua) */}

@@ -52,7 +52,8 @@ const config: Config = {
         "3xl": "0 40px 60px -12px rgba(0,0,0,0.20)",
       },
       backgroundImage: {
-        "hero-gradient": "linear-gradient(120deg, rgba(2,48,71,0.8) 0%, rgba(251,133,0,0.50) 100%)",
+        "hero-gradient":
+          "linear-gradient(120deg, rgba(2,48,71,0.8) 0%, rgba(251,133,0,0.50) 100%)",
       },
       animation: {
         "hero-fade": "fadeinhero 1.2s cubic-bezier(.28,.79,.66,1.14)",

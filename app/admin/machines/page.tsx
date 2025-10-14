@@ -47,24 +47,30 @@ function ListaMaquinasAdmin() {
     async function fetchMaquinas() {
       setLoading(true);
       const snap = await getDocs(collection(db, "machines"));
-      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
       setMaquinas(data);
       setLoading(false);
     }
     fetchMaquinas();
   }, []);
-function handleDelete(machineId: string) {
-  if (!window.confirm("Tem certeza que deseja excluir esta máquina?")) return;
-  deleteDoc(doc(db, "machines", machineId))
-    .then(() => {
-      alert("Máquina excluída com sucesso!");
-      window.location.reload(); // Ou faça um setState para remover da lista sem reload
-    })
-    .catch(() => alert("Erro ao excluir. Tente novamente."));
-}
+  function handleDelete(machineId: string) {
+    if (!window.confirm("Tem certeza que deseja excluir esta máquina?")) return;
+    deleteDoc(doc(db, "machines", machineId))
+      .then(() => {
+        alert("Máquina excluída com sucesso!");
+        window.location.reload(); // Ou faça um setState para remover da lista sem reload
+      })
+      .catch(() => alert("Erro ao excluir. Tente novamente."));
+  }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f9fafb", padding: "40px 0 0 0" }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f9fafb",
+        padding: "40px 0 0 0",
+      }}
+    >
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 2vw" }}>
         {/* Título + botão */}
         <div
@@ -97,21 +103,29 @@ function handleDelete(machineId: string) {
 
         {/* Grid de cards */}
         {loading ? (
-          <div style={{
-            padding: 60,
-            textAlign: "center",
-            fontWeight: 700,
-            color: "#919191",
-            fontSize: "1.1rem"
-          }}>Carregando máquinas...</div>
+          <div
+            style={{
+              padding: 60,
+              textAlign: "center",
+              fontWeight: 700,
+              color: "#919191",
+              fontSize: "1.1rem",
+            }}
+          >
+            Carregando máquinas...
+          </div>
         ) : maquinas.length === 0 ? (
-          <div style={{
-            padding: 60,
-            textAlign: "center",
-            fontWeight: 700,
-            color: "#C1B5A0",
-            fontSize: "1.1rem"
-          }}>Nenhuma máquina cadastrada.</div>
+          <div
+            style={{
+              padding: 60,
+              textAlign: "center",
+              fontWeight: 700,
+              color: "#C1B5A0",
+              fontSize: "1.1rem",
+            }}
+          >
+            Nenhuma máquina cadastrada.
+          </div>
         ) : (
           <div
             style={{
@@ -123,21 +137,21 @@ function handleDelete(machineId: string) {
           >
             {maquinas.map((m) => (
               <div
-  key={m.id}
-  style={{
-    boxShadow: "0 2px 18px #0001",
-    transition: "box-shadow .15s, transform .15s",
-    cursor: "pointer",
-    position: "relative",
-    background: "white",
-    borderRadius: "8px",
-    padding: "16px",
-    display: "flex",
-    flexDirection: "column" as React.CSSProperties["flexDirection"],
-    justifyContent: "center",
-  }}
->
-
+                key={m.id}
+                style={{
+                  boxShadow: "0 2px 18px #0001",
+                  transition: "box-shadow .15s, transform .15s",
+                  cursor: "pointer",
+                  position: "relative",
+                  background: "white",
+                  borderRadius: "8px",
+                  padding: "16px",
+                  display: "flex",
+                  flexDirection:
+                    "column" as React.CSSProperties["flexDirection"],
+                  justifyContent: "center",
+                }}
+              >
                 {/* Imagem */}
                 <div
                   style={{
@@ -163,14 +177,22 @@ function handleDelete(machineId: string) {
                   />
                 </div>
                 {/* Nome e tipo */}
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 8,
-                  flexWrap: "wrap",
-                }}>
-                  <span style={{ fontWeight: 900, color: "#023047", fontSize: "1.09rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontWeight: 900,
+                      color: "#023047",
+                      fontSize: "1.09rem",
+                    }}
+                  >
                     {m.nome || "Máquina sem nome"}
                   </span>
                   <span
@@ -187,16 +209,26 @@ function handleDelete(machineId: string) {
                   </span>
                 </div>
                 {/* Preço */}
-                <div style={{ fontWeight: 800, color: "#FB8500", fontSize: "1.17rem" }}>
-                  {m.preco ? `R$ ${Number(m.preco).toLocaleString("pt-BR")}` : "Preço sob consulta"}
+                <div
+                  style={{
+                    fontWeight: 800,
+                    color: "#FB8500",
+                    fontSize: "1.17rem",
+                  }}
+                >
+                  {m.preco
+                    ? `R$ ${Number(m.preco).toLocaleString("pt-BR")}`
+                    : "Preço sob consulta"}
                 </div>
                 {/* Status */}
-                <div style={{
-                  fontSize: ".98rem",
-                  fontWeight: 600,
-                  margin: "5px 0 11px 0",
-                  color: m.status === "Ativo" ? "#119822" : "#b1b5bd",
-                }}>
+                <div
+                  style={{
+                    fontSize: ".98rem",
+                    fontWeight: 600,
+                    margin: "5px 0 11px 0",
+                    color: m.status === "Ativo" ? "#119822" : "#b1b5bd",
+                  }}
+                >
                   {m.status || "Status indefinido"}
                 </div>
                 {/* Ações */}
@@ -229,25 +261,25 @@ function handleDelete(machineId: string) {
                     </a>
                   </Link>
                   <button
-  onClick={() => handleDelete(m.id)}
-  style={{
-    background: "#fff0f0",
-    color: "#d90429",
-    border: "1px solid #ffe5e5",
-    fontWeight: 700,
-    padding: "7px 16px",
-    borderRadius: 10,
-    marginRight: 6,
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    gap: 4
-  }}
-  title="Excluir"
->
-  <Trash2 size={16} style={{ marginRight: 4 }} />
-  Excluir
-</button>
+                    onClick={() => handleDelete(m.id)}
+                    style={{
+                      background: "#fff0f0",
+                      color: "#d90429",
+                      border: "1px solid #ffe5e5",
+                      fontWeight: 700,
+                      padding: "7px 16px",
+                      borderRadius: 10,
+                      marginRight: 6,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    title="Excluir"
+                  >
+                    <Trash2 size={16} style={{ marginRight: 4 }} />
+                    Excluir
+                  </button>
 
                   <Link href={`/machines/${m.id}`} legacyBehavior>
                     <a

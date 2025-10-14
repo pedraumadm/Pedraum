@@ -8,7 +8,8 @@ const posts = [
     id: "1",
     imagem: "/blog1.jpg",
     titulo: "Como avaliar um britador antes de comprar",
-    resumo: "Descubra os principais critérios para não errar na hora de investir em equipamentos de britagem para sua obra ou empresa.",
+    resumo:
+      "Descubra os principais critérios para não errar na hora de investir em equipamentos de britagem para sua obra ou empresa.",
     data: "02/06/2025",
     url: "/blog/como-avaliar-britador",
   },
@@ -16,7 +17,8 @@ const posts = [
     id: "2",
     imagem: "/blog2.jpg",
     titulo: "Tendências em locação de máquinas",
-    resumo: "O mercado está mudando: veja as vantagens de alugar versus comprar equipamentos pesados para mineração e construção.",
+    resumo:
+      "O mercado está mudando: veja as vantagens de alugar versus comprar equipamentos pesados para mineração e construção.",
     data: "30/05/2025",
     url: "/blog/tendencias-locacao-maquinas",
   },
@@ -24,7 +26,8 @@ const posts = [
     id: "3",
     imagem: "/blog3.jpg",
     titulo: "Dicas para prolongar a vida útil do seu maquinário",
-    resumo: "Cuidados simples podem aumentar (muito!) a durabilidade dos seus equipamentos. Veja as melhores práticas.",
+    resumo:
+      "Cuidados simples podem aumentar (muito!) a durabilidade dos seus equipamentos. Veja as melhores práticas.",
     data: "28/05/2025",
     url: "/blog/dicas-vida-util-maquinario",
   },
@@ -32,7 +35,8 @@ const posts = [
     id: "4",
     imagem: "/blog4.jpg",
     titulo: "Case de sucesso: venda rápida no Pedraum",
-    resumo: "Veja como um vendedor conseguiu negociar seu equipamento em menos de 7 dias usando nossa plataforma.",
+    resumo:
+      "Veja como um vendedor conseguiu negociar seu equipamento em menos de 7 dias usando nossa plataforma.",
     data: "25/05/2025",
     url: "/blog/case-sucesso-venda-rapida",
   },
@@ -42,10 +46,12 @@ export default function BlogShowcase() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   function scrollLeft() {
-    if (scrollRef.current) scrollRef.current.scrollBy({ left: -350, behavior: "smooth" });
+    if (scrollRef.current)
+      scrollRef.current.scrollBy({ left: -350, behavior: "smooth" });
   }
   function scrollRight() {
-    if (scrollRef.current) scrollRef.current.scrollBy({ left: 350, behavior: "smooth" });
+    if (scrollRef.current)
+      scrollRef.current.scrollBy({ left: 350, behavior: "smooth" });
   }
 
   return (
@@ -88,7 +94,8 @@ export default function BlogShowcase() {
               lineHeight: 1.55,
             }}
           >
-            Conteúdos e dicas sobre equipamentos, negócios e o mercado de mineração para você se destacar no setor.
+            Conteúdos e dicas sobre equipamentos, negócios e o mercado de
+            mineração para você se destacar no setor.
           </div>
         </div>
 
@@ -104,20 +111,23 @@ export default function BlogShowcase() {
               letterSpacing: ".01em",
               transition: "color .18s",
             }}
-            onMouseOver={e => (e.currentTarget.style.color = "#e17000")}
-            onMouseOut={e => (e.currentTarget.style.color = "#FB8500")}
+            onMouseOver={(e) => (e.currentTarget.style.color = "#e17000")}
+            onMouseOut={(e) => (e.currentTarget.style.color = "#FB8500")}
           >
             Ver todas &rarr;
           </Link>
         </div>
 
         {/* Carrossel com setas */}
-        <div className="blogshowcase-carousel-row" style={{
-          position: "relative",
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-        }}>
+        <div
+          className="blogshowcase-carousel-row"
+          style={{
+            position: "relative",
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           {/* Seta esquerda */}
           <button
             className="carousel-arrow-left"
@@ -213,27 +223,35 @@ export default function BlogShowcase() {
                     flex: 1,
                   }}
                 >
-                  <span style={{
-                    fontSize: 12.8,
-                    color: "#FB8500",
-                    fontWeight: 700,
-                    letterSpacing: ".01em",
-                  }}>{post.data}</span>
-                  <h3 style={{
-                    fontWeight: 800,
-                    fontSize: 17.5,
-                    margin: 0,
-                    color: "#023047",
-                  }}>
+                  <span
+                    style={{
+                      fontSize: 12.8,
+                      color: "#FB8500",
+                      fontWeight: 700,
+                      letterSpacing: ".01em",
+                    }}
+                  >
+                    {post.data}
+                  </span>
+                  <h3
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 17.5,
+                      margin: 0,
+                      color: "#023047",
+                    }}
+                  >
                     {post.titulo}
                   </h3>
-                  <p style={{
-                    fontSize: 14.6,
-                    color: "#354150",
-                    margin: "4px 0 9px 0",
-                    lineHeight: 1.35,
-                    flex: 1,
-                  }}>
+                  <p
+                    style={{
+                      fontSize: 14.6,
+                      color: "#354150",
+                      margin: "4px 0 9px 0",
+                      lineHeight: 1.35,
+                      flex: 1,
+                    }}
+                  >
                     {post.resumo}
                   </p>
                   <Link
@@ -247,8 +265,12 @@ export default function BlogShowcase() {
                       transition: "color .13s",
                       letterSpacing: ".01em",
                     }}
-                    onMouseOver={e => (e.currentTarget.style.color = "#e17000")}
-                    onMouseOut={e => (e.currentTarget.style.color = "#FB8500")}
+                    onMouseOver={(e) =>
+                      (e.currentTarget.style.color = "#e17000")
+                    }
+                    onMouseOut={(e) =>
+                      (e.currentTarget.style.color = "#FB8500")
+                    }
                   >
                     Ler post &rarr;
                   </Link>
@@ -286,13 +308,18 @@ export default function BlogShowcase() {
       </div>
       {/* CSS responsivo */}
       <style jsx>{`
-        .blogshowcase-carousel::-webkit-scrollbar { display: none; }
-        .blogshowcase-carousel { scrollbar-width: none; }
+        .blogshowcase-carousel::-webkit-scrollbar {
+          display: none;
+        }
+        .blogshowcase-carousel {
+          scrollbar-width: none;
+        }
         @media (min-width: 900px) {
           .blogshowcase-carousel {
             gap: 38px !important;
           }
-          .carousel-arrow-left, .carousel-arrow-right {
+          .carousel-arrow-left,
+          .carousel-arrow-right {
             display: flex !important;
           }
         }
@@ -301,7 +328,8 @@ export default function BlogShowcase() {
             gap: 16px !important;
             padding-bottom: 10px !important;
           }
-          .carousel-arrow-left, .carousel-arrow-right {
+          .carousel-arrow-left,
+          .carousel-arrow-right {
             display: none !important;
           }
           .blogshowcase-card {

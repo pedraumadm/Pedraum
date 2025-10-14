@@ -30,7 +30,10 @@ export async function POST(req: Request) {
         : Math.round(Number(unitPriceReais ?? 0) * 100);
 
     if (!title || !priceCents || priceCents <= 0) {
-      return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Parâmetros inválidos." },
+        { status: 400 },
+      );
     }
 
     const unit_price = Number((priceCents / 100).toFixed(2));
@@ -41,9 +44,7 @@ export async function POST(req: Request) {
 
     const pref = await getPreference().create({
       body: {
-        items: [
-          { id, title, quantity, currency_id, unit_price },
-        ],
+        items: [{ id, title, quantity, currency_id, unit_price }],
         back_urls: {
           success: `${baseUrl}/checkout/success`,
           failure: `${baseUrl}/checkout/failure`,
@@ -64,8 +65,11 @@ export async function POST(req: Request) {
   } catch (e: any) {
     console.error("create-preference error:", e?.message || e);
     return NextResponse.json(
-      { error: "Falha ao criar preferência.", details: String(e?.message || e) },
-      { status: 500 }
+      {
+        error: "Falha ao criar preferência.",
+        details: String(e?.message || e),
+      },
+      { status: 500 },
     );
   }
 }

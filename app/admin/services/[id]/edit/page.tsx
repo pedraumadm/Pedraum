@@ -63,29 +63,78 @@ type ServiceDoc = {
 
 /* ===================== Constantes ===================== */
 const categorias = [
-  "Mecânico de Máquinas Pesadas", "Elétrica Industrial", "Transporte de Equipamentos",
-  "Soldador", "Montagem/Desmontagem", "Lubrificação e Manutenção", "Assistência Técnica",
-  "Operação de Máquinas", "Treinamento de Operadores", "Manutenção Preventiva",
-  "Calibração", "Consultoria Técnica", "Topografia", "Transporte de Cargas",
-  "Segurança do Trabalho", "Locação de Equipamentos", "Outros"
+  "Mecânico de Máquinas Pesadas",
+  "Elétrica Industrial",
+  "Transporte de Equipamentos",
+  "Soldador",
+  "Montagem/Desmontagem",
+  "Lubrificação e Manutenção",
+  "Assistência Técnica",
+  "Operação de Máquinas",
+  "Treinamento de Operadores",
+  "Manutenção Preventiva",
+  "Calibração",
+  "Consultoria Técnica",
+  "Topografia",
+  "Transporte de Cargas",
+  "Segurança do Trabalho",
+  "Locação de Equipamentos",
+  "Outros",
 ];
 
 const estados = [
-  "BRASIL", "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG",
-  "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO"
+  "BRASIL",
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ];
 
 const disponibilidades = [
-  "Manhã", "Tarde", "Noite", "Integral", "24 horas", "Sob consulta"
+  "Manhã",
+  "Tarde",
+  "Noite",
+  "Integral",
+  "24 horas",
+  "Sob consulta",
 ];
 
-const statusOpts: ServiceDoc["status"][] = ["ativo", "pausado", "inativo", "expirado"];
+const statusOpts: ServiceDoc["status"][] = [
+  "ativo",
+  "pausado",
+  "inativo",
+  "expirado",
+];
 
 /* ===================== Página ===================== */
 export default function EditServiceAdminPage() {
   const router = useRouter();
   const params = useParams();
-  const serviceId = typeof params?.id === "string" ? params.id : (params?.id as string[])[0];
+  const serviceId =
+    typeof params?.id === "string" ? params.id : (params?.id as string[])[0];
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,7 +148,7 @@ export default function EditServiceAdminPage() {
     titulo: "",
     descricao: "",
     categoria: "",
-    preco: "",                 // string; ao salvar vira number ou "Sob consulta"
+    preco: "", // string; ao salvar vira number ou "Sob consulta"
     estado: "",
     abrangencia: "",
     disponibilidade: "",
@@ -143,8 +192,8 @@ export default function EditServiceAdminPage() {
             typeof s.preco === "number"
               ? String(s.preco)
               : s.preco === "Sob consulta" || !s.preco
-              ? ""
-              : String(s.preco),
+                ? ""
+                : String(s.preco),
           estado: s.estado || "",
           abrangencia: s.abrangencia || "",
           disponibilidade: s.disponibilidade || "",
@@ -167,7 +216,7 @@ export default function EditServiceAdminPage() {
         setCreatedAtStr(
           s.createdAt?.seconds
             ? new Date(s.createdAt.seconds * 1000).toLocaleString("pt-BR")
-            : ""
+            : "",
         );
         if (s.expiraEm?.seconds) {
           const d = new Date(s.expiraEm.seconds * 1000);
@@ -189,7 +238,9 @@ export default function EditServiceAdminPage() {
 
   /* ===================== helpers ===================== */
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -203,18 +254,18 @@ export default function EditServiceAdminPage() {
   }, [form.preco]);
 
   function removeImg(i: number) {
-  setImagens(prev => prev.filter((_, idx) => idx !== i));
-}
+    setImagens((prev) => prev.filter((_, idx) => idx !== i));
+  }
 
-function moveImg(i: number, dir: number) {
-  setImagens(prev => {
-    const arr = [...prev];
-    const j = i + dir;
-    if (j < 0 || j >= arr.length) return arr;
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-    return arr;
-  });
-}
+  function moveImg(i: number, dir: number) {
+    setImagens((prev) => {
+      const arr = [...prev];
+      const j = i + dir;
+      if (j < 0 || j >= arr.length) return arr;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    });
+  }
 
   /* ===================== persistência ===================== */
   async function handleSubmit(e: React.FormEvent) {
@@ -223,8 +274,12 @@ function moveImg(i: number, dir: number) {
 
     // validações mínimas
     if (
-      !form.titulo || !form.descricao || !form.categoria ||
-      !form.estado || !form.abrangencia || !form.disponibilidade
+      !form.titulo ||
+      !form.descricao ||
+      !form.categoria ||
+      !form.estado ||
+      !form.abrangencia ||
+      !form.disponibilidade
     ) {
       setError("Preencha todos os campos obrigatórios (*).");
       return;
@@ -257,9 +312,14 @@ function moveImg(i: number, dir: number) {
 
     // keywords para busca
     const searchBase = [
-      form.titulo, form.descricao, form.categoria, String(preco),
-      form.estado, form.abrangencia, form.disponibilidade,
-      prestadorNome
+      form.titulo,
+      form.descricao,
+      form.categoria,
+      String(preco),
+      form.estado,
+      form.abrangencia,
+      form.disponibilidade,
+      prestadorNome,
     ]
       .filter(Boolean)
       .join(" ")
@@ -296,7 +356,7 @@ function moveImg(i: number, dir: number) {
 
         // datas
         updatedAt: serverTimestamp(),
-        ...(expiraEnTSOrKeep(expiraEmTS)),
+        ...expiraEnTSOrKeep(expiraEmTS),
       };
 
       await updateDoc(doc(db, "services", serviceId), payload);
@@ -326,68 +386,132 @@ function moveImg(i: number, dir: number) {
   if (loading) {
     return (
       <div style={centerBox}>
-        <LoaderIcon className="animate-spin" size={24} />&nbsp; Carregando serviço...
+        <LoaderIcon className="animate-spin" size={24} />
+        &nbsp; Carregando serviço...
       </div>
     );
   }
 
   return (
-    <section style={{ maxWidth: 1240, margin: "0 auto", padding: "42px 2vw 60px 2vw" }}>
+    <section
+      style={{ maxWidth: 1240, margin: "0 auto", padding: "42px 2vw 60px 2vw" }}
+    >
       <Link href="/admin/services" style={backLink}>
         <ArrowLeft size={19} /> Voltar
       </Link>
 
       <div style={card}>
         {/* Header + meta */}
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <h2 style={cardTitle}>Editar Serviço</h2>
-          <div style={{display:"flex",gap:14,flexWrap:"wrap",alignItems:"center",color:"#64748b"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,fontWeight:800}}>
-              <User2 size={16}/><span>{prestadorNome || "—"}</span>
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              flexWrap: "wrap",
+              alignItems: "center",
+              color: "#64748b",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontWeight: 800,
+              }}
+            >
+              <User2 size={16} />
+              <span>{prestadorNome || "—"}</span>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:6,fontFamily:"monospace"}}>
-              <IdCard size={16}/><span>{vendedorId || "—"}</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontFamily: "monospace",
+              }}
+            >
+              <IdCard size={16} />
+              <span>{vendedorId || "—"}</span>
             </div>
           </div>
         </div>
 
         <div style={metaLine}>
-          <div><b>ID:</b> {serviceId}</div>
-          {createdAtStr && <div><b>Criado:</b> {createdAtStr}</div>}
+          <div>
+            <b>ID:</b> {serviceId}
+          </div>
+          {createdAtStr && (
+            <div>
+              <b>Criado:</b> {createdAtStr}
+            </div>
+          )}
         </div>
 
         {/* Dica */}
         <div style={infoBox}>
-          <Info size={16}/> <span>Preço vazio vira <b>Sob consulta</b>. Você pode editar autor, status e data de expiração.</span>
+          <Info size={16} />{" "}
+          <span>
+            Preço vazio vira <b>Sob consulta</b>. Você pode editar autor, status
+            e data de expiração.
+          </span>
         </div>
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
           {/* Imagens */}
-          <label style={label}>
-            Imagens do Serviço *
-          </label>
+          <label style={label}>Imagens do Serviço *</label>
           {/* Uploader sem preview */}
-<ImageUploader imagens={[]} setImagens={setImagens} max={2} />
-<div style={hintText}>Adicione 1 ou 2 imagens reais ou de referência do serviço.</div>
+          <ImageUploader imagens={[]} setImagens={setImagens} max={2} />
+          <div style={hintText}>
+            Adicione 1 ou 2 imagens reais ou de referência do serviço.
+          </div>
 
-{/* Miniaturas compactas */}
-<div style={thumbWrap}>
-  {imagens.map((url, idx) => (
-    <div key={url + idx} style={thumbItem}>
-      <img src={url} alt={`imagem ${idx + 1}`} style={thumbImg} />
-      <div style={thumbActions}>
-        <button type="button" onClick={() => moveImg(idx, -1)} style={miniBtn}>↑</button>
-        <button type="button" onClick={() => moveImg(idx, +1)} style={miniBtn}>↓</button>
-        <button type="button" onClick={() => removeImg(idx)} style={{ ...miniBtn, background:"#e11d48" }}>Remover</button>
-      </div>
-    </div>
-  ))}
-</div>
-
+          {/* Miniaturas compactas */}
+          <div style={thumbWrap}>
+            {imagens.map((url, idx) => (
+              <div key={url + idx} style={thumbItem}>
+                <img src={url} alt={`imagem ${idx + 1}`} style={thumbImg} />
+                <div style={thumbActions}>
+                  <button
+                    type="button"
+                    onClick={() => moveImg(idx, -1)}
+                    style={miniBtn}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveImg(idx, +1)}
+                    style={miniBtn}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeImg(idx)}
+                    style={{ ...miniBtn, background: "#e11d48" }}
+                  >
+                    Remover
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {/* Título */}
-          <label style={label}><Tag size={16}/> Título *</label>
+          <label style={label}>
+            <Tag size={16} /> Título *
+          </label>
           <input
             name="titulo"
             value={form.titulo}
@@ -401,7 +525,9 @@ function moveImg(i: number, dir: number) {
           {/* Grid */}
           <div style={twoCols}>
             <div style={{ flex: 1 }}>
-              <label style={label}><DollarSign size={16}/> Valor (R$)</label>
+              <label style={label}>
+                <DollarSign size={16} /> Valor (R$)
+              </label>
               <input
                 name="preco"
                 value={form.preco}
@@ -416,7 +542,9 @@ function moveImg(i: number, dir: number) {
             </div>
 
             <div style={{ flex: 1 }}>
-              <label style={label}><Layers size={16}/> Categoria *</label>
+              <label style={label}>
+                <Layers size={16} /> Categoria *
+              </label>
               <select
                 name="categoria"
                 value={form.categoria}
@@ -425,14 +553,20 @@ function moveImg(i: number, dir: number) {
                 style={input}
               >
                 <option value="">Selecione</option>
-                {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+                {categorias.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div style={twoCols}>
             <div style={{ flex: 1 }}>
-              <label style={label}><MapPin size={16}/> Estado (UF) *</label>
+              <label style={label}>
+                <MapPin size={16} /> Estado (UF) *
+              </label>
               <select
                 name="estado"
                 value={form.estado}
@@ -441,12 +575,18 @@ function moveImg(i: number, dir: number) {
                 style={input}
               >
                 <option value="">Selecione</option>
-                {estados.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                {estados.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div style={{ flex: 1 }}>
-              <label style={label}><Globe size={16}/> Abrangência *</label>
+              <label style={label}>
+                <Globe size={16} /> Abrangência *
+              </label>
               <input
                 name="abrangencia"
                 value={form.abrangencia}
@@ -460,7 +600,9 @@ function moveImg(i: number, dir: number) {
           </div>
 
           <div style={{ maxWidth: 520 }}>
-            <label style={label}><CalendarClock size={16}/> Disponibilidade *</label>
+            <label style={label}>
+              <CalendarClock size={16} /> Disponibilidade *
+            </label>
             <select
               name="disponibilidade"
               value={form.disponibilidade}
@@ -469,12 +611,18 @@ function moveImg(i: number, dir: number) {
               style={input}
             >
               <option value="">Selecione</option>
-              {disponibilidades.map(d => <option key={d} value={d}>{d}</option>)}
+              {disponibilidades.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
             </select>
           </div>
 
           {/* Descrição */}
-          <label style={label}><Tag size={16}/> Descrição detalhada *</label>
+          <label style={label}>
+            <Tag size={16} /> Descrição detalhada *
+          </label>
           <textarea
             name="descricao"
             value={form.descricao}
@@ -487,13 +635,15 @@ function moveImg(i: number, dir: number) {
 
           {/* Autor */}
           <div style={sectionCard}>
-            <div style={sectionTitle}><User2 size={16}/> Dados do prestador</div>
+            <div style={sectionTitle}>
+              <User2 size={16} /> Dados do prestador
+            </div>
             <div style={twoCols}>
               <div style={{ flex: 1 }}>
                 <label style={miniLabel}>Nome *</label>
                 <input
                   value={prestadorNome}
-                  onChange={(e)=>setPrestadorNome(e.target.value)}
+                  onChange={(e) => setPrestadorNome(e.target.value)}
                   style={input}
                   required
                   placeholder="Nome"
@@ -504,7 +654,7 @@ function moveImg(i: number, dir: number) {
                 <input
                   type="email"
                   value={prestadorEmail}
-                  onChange={(e)=>setPrestadorEmail(e.target.value)}
+                  onChange={(e) => setPrestadorEmail(e.target.value)}
                   style={input}
                   required
                   placeholder="email@exemplo.com"
@@ -515,36 +665,59 @@ function moveImg(i: number, dir: number) {
               <label style={miniLabel}>WhatsApp (opcional)</label>
               <input
                 value={prestadorWhatsapp}
-                onChange={(e)=>setPrestadorWhatsapp(e.target.value)}
+                onChange={(e) => setPrestadorWhatsapp(e.target.value)}
                 style={input}
                 placeholder="(xx) xxxxx-xxxx"
                 inputMode="tel"
               />
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginTop:6,color:"#64748b",fontFamily:"monospace"}}>
-              <IdCard size={14}/> {vendedorId || "—"}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 6,
+                color: "#64748b",
+                fontFamily: "monospace",
+              }}
+            >
+              <IdCard size={14} /> {vendedorId || "—"}
             </div>
           </div>
 
           {/* Status + Expiração */}
           <div style={sectionCard}>
-            <div style={sectionTitle}><Info size={16}/> Status & Expiração</div>
+            <div style={sectionTitle}>
+              <Info size={16} /> Status & Expiração
+            </div>
             <div style={twoCols}>
               <div style={{ flex: 1 }}>
                 <label style={miniLabel}>Status</label>
-                <select value={status || "ativo"} onChange={(e)=>setStatus(e.target.value as any)} style={input}>
-                  {statusOpts.map(s => <option key={s} value={s}>{s}</option>)}
+                <select
+                  value={status || "ativo"}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  style={input}
+                >
+                  {statusOpts.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div style={{ flex: 1 }}>
-                <label style={miniLabel}><CalendarIcon size={14}/> Expira em</label>
+                <label style={miniLabel}>
+                  <CalendarIcon size={14} /> Expira em
+                </label>
                 <input
                   type="date"
                   value={expiraEmInput}
-                  onChange={(e)=>setExpiraEmInput(e.target.value)}
+                  onChange={(e) => setExpiraEmInput(e.target.value)}
                   style={input}
                 />
-                <div style={hintText}>Deixe em branco para manter a data atual.</div>
+                <div style={hintText}>
+                  Deixe em branco para manter a data atual.
+                </div>
               </div>
             </div>
           </div>
@@ -553,11 +726,20 @@ function moveImg(i: number, dir: number) {
           {error && <div style={errorBox}>{error}</div>}
 
           {/* Ações */}
-          <div style={{ display:"flex", gap: 10, flexWrap: "wrap", marginTop: 14, justifyContent:"space-between" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginTop: 14,
+              justifyContent: "space-between",
+            }}
+          >
             <div />
-            <div style={{ display:"flex", gap: 10, flexWrap:"wrap" }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button type="submit" disabled={saving} style={primaryBtn}>
-                <Save size={18}/> {saving ? "Salvando..." : "Salvar alterações"}
+                <Save size={18} />{" "}
+                {saving ? "Salvando..." : "Salvar alterações"}
               </button>
             </div>
           </div>
@@ -569,68 +751,142 @@ function moveImg(i: number, dir: number) {
 
 /* ===================== Estilos ===================== */
 const backLink: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 18,
-  color: "#2563eb", fontWeight: 800, fontSize: 16, textDecoration: "none"
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 18,
+  color: "#2563eb",
+  fontWeight: 800,
+  fontSize: 16,
+  textDecoration: "none",
 };
 const card: React.CSSProperties = {
-  background: "#fff", borderRadius: 18, boxShadow: "0 2px 16px #0001",
-  padding: "26px 22px"
+  background: "#fff",
+  borderRadius: 18,
+  boxShadow: "0 2px 16px #0001",
+  padding: "26px 22px",
 };
 const cardTitle: React.CSSProperties = {
-  fontWeight: 900, fontSize: "1.55rem", color: "#023047", marginBottom: 10
+  fontWeight: 900,
+  fontSize: "1.55rem",
+  color: "#023047",
+  marginBottom: 10,
 };
 const metaLine: React.CSSProperties = {
-  display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 12, color: "#94a3b8", fontSize: 13
+  display: "flex",
+  flexWrap: "wrap",
+  gap: 16,
+  marginBottom: 12,
+  color: "#94a3b8",
+  fontSize: 13,
 };
-const twoCols: React.CSSProperties = { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 6 };
+const twoCols: React.CSSProperties = {
+  display: "flex",
+  gap: 14,
+  flexWrap: "wrap",
+  marginTop: 6,
+};
 const label: React.CSSProperties = {
-  fontWeight: 800, fontSize: 15, color: "#2563eb", marginBottom: 7, marginTop: 14, display: "block"
+  fontWeight: 800,
+  fontSize: 15,
+  color: "#2563eb",
+  marginBottom: 7,
+  marginTop: 14,
+  display: "block",
 };
-const miniLabel: React.CSSProperties = { fontWeight: 800, fontSize: 12, color: "#64748b", marginBottom: 6, display: "block" };
+const miniLabel: React.CSSProperties = {
+  fontWeight: 800,
+  fontSize: 12,
+  color: "#64748b",
+  marginBottom: 6,
+  display: "block",
+};
 const input: React.CSSProperties = {
-  width: "100%", marginTop: 6, padding: "12px 13px", borderRadius: 10,
-  border: "1.5px solid #e5e7eb", fontSize: 16, color: "#023047",
-  background: "#f8fafc", fontWeight: 600, outline: "none"
+  width: "100%",
+  marginTop: 6,
+  padding: "12px 13px",
+  borderRadius: 10,
+  border: "1.5px solid #e5e7eb",
+  fontSize: 16,
+  color: "#023047",
+  background: "#f8fafc",
+  fontWeight: 600,
+  outline: "none",
 };
-const hintText: React.CSSProperties = { fontSize: 11, color: "#94a3b8", marginTop: 6 };
+const hintText: React.CSSProperties = {
+  fontSize: 11,
+  color: "#94a3b8",
+  marginTop: 6,
+};
 const infoBox: React.CSSProperties = {
-  display:"flex", alignItems:"center", gap:8, border:"1px solid #e8eaf0",
-  background:"#f3f6fa", color:"#64748b", fontWeight:700, padding:"10px 12px",
-  borderRadius: 12, margin:"6px 0 14px 0"
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  border: "1px solid #e8eaf0",
+  background: "#f3f6fa",
+  color: "#64748b",
+  fontWeight: 700,
+  padding: "10px 12px",
+  borderRadius: 12,
+  margin: "6px 0 14px 0",
 };
 const sectionCard: React.CSSProperties = {
-  background: "#f8fafc", border: "1.5px solid #eaeef4", borderRadius: 14, padding: "14px 12px", marginTop: 12
+  background: "#f8fafc",
+  border: "1.5px solid #eaeef4",
+  borderRadius: 14,
+  padding: "14px 12px",
+  marginTop: 12,
 };
 const sectionTitle: React.CSSProperties = {
-  fontWeight: 900, color: "#023047", marginBottom: 8, display:"inline-flex", alignItems:"center", gap:8
+  fontWeight: 900,
+  color: "#023047",
+  marginBottom: 8,
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
 };
 const errorBox: React.CSSProperties = {
-  background: "#fff7f7", color: "#d90429", border: "1.5px solid #ffe5e5",
-  padding: "12px 0", borderRadius: 11, textAlign: "center", marginTop: 10, fontWeight: 700
+  background: "#fff7f7",
+  color: "#d90429",
+  border: "1.5px solid #ffe5e5",
+  padding: "12px 0",
+  borderRadius: 11,
+  textAlign: "center",
+  marginTop: 10,
+  fontWeight: 700,
 };
 const primaryBtn: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center",
-  gap: 10, background: "#2563eb", color: "#fff", border: "none",
-  fontWeight: 900, fontSize: "1rem", padding: "12px 16px", borderRadius: 12,
-  cursor: "pointer", boxShadow: "0 2px 14px #0001"
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  background: "#2563eb",
+  color: "#fff",
+  border: "none",
+  fontWeight: 900,
+  fontSize: "1rem",
+  padding: "12px 16px",
+  borderRadius: 12,
+  cursor: "pointer",
+  boxShadow: "0 2px 14px #0001",
 };
 const thumbWrap: React.CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
   gap: 10,
-  marginTop: 10
+  marginTop: 10,
 };
 const thumbItem: React.CSSProperties = {
   border: "1.5px solid #e5e7eb",
   borderRadius: 10,
   overflow: "hidden",
-  background: "#fff"
+  background: "#fff",
 };
 const thumbImg: React.CSSProperties = {
   width: "100%",
-  height: 160,       // miniatura menor
+  height: 160, // miniatura menor
   objectFit: "cover",
-  display: "block"
+  display: "block",
 };
 const thumbActions: React.CSSProperties = {
   display: "flex",
@@ -638,7 +894,7 @@ const thumbActions: React.CSSProperties = {
   justifyContent: "space-between",
   padding: "8px 10px",
   borderTop: "1px solid #eef2f7",
-  background: "#f8fafc"
+  background: "#f8fafc",
 };
 const miniBtn: React.CSSProperties = {
   fontSize: 12,
@@ -649,10 +905,13 @@ const miniBtn: React.CSSProperties = {
   background: "#2563eb",
   color: "#fff",
   cursor: "pointer",
-  boxShadow: "0 1px 6px #2563eb22"
+  boxShadow: "0 1px 6px #2563eb22",
 };
 
 const centerBox: React.CSSProperties = {
-  minHeight: 300, display: "flex", alignItems: "center",
-  justifyContent: "center", color: "#2563eb"
+  minHeight: 300,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#2563eb",
 };

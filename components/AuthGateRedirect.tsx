@@ -17,7 +17,8 @@ export default function AuthGateRedirect() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) {
-        const current = pathname + (searchParams?.toString() ? `?${searchParams}` : "");
+        const current =
+          pathname + (searchParams?.toString() ? `?${searchParams}` : "");
         router.replace(`/auth/login?redirect=${encodeURIComponent(current)}`);
       }
     });

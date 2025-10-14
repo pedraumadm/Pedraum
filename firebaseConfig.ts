@@ -14,7 +14,7 @@ const firebaseConfig = {
   storageBucket: "pedraum-5421e.appspot.com",
   messagingSenderId: "555153735851",
   appId: "1:555153735851:web:6f586ea1b82680db4a37ee",
-  measurementId: "G-M1T8ZSB1MS"
+  measurementId: "G-M1T8ZSB1MS",
 };
 
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);

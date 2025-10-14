@@ -6,7 +6,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Heart, Loader2, Star, Wrench, HelpCircle, Building2 } from "lucide-react";
+import {
+  Heart,
+  Loader2,
+  Star,
+  Wrench,
+  HelpCircle,
+  Building2,
+} from "lucide-react";
 
 // Tipos genéricos para favoritos de diferentes coleções
 interface Machine {
@@ -67,13 +74,16 @@ export default function FavoritosPage() {
   }, []);
 
   function handleRemove(id: string, tipo: string) {
-    setFavoritos((old) => old ? old.filter((f) => !(f.tipo === tipo && f.data.id === id)) : old);
+    setFavoritos((old) =>
+      old ? old.filter((f) => !(f.tipo === tipo && f.data.id === id)) : old,
+    );
   }
 
   if (!favoritos)
     return (
       <div className="flex justify-center py-28 text-blue-700 animate-pulse">
-        <Loader2 className="animate-spin mr-2" />Carregando favoritos...
+        <Loader2 className="animate-spin mr-2" />
+        Carregando favoritos...
       </div>
     );
 
@@ -83,7 +93,9 @@ export default function FavoritosPage() {
         <Heart className="text-orange-500" size={32} /> Meus Favoritos
       </h1>
       {favoritos.length === 0 ? (
-        <div className="text-center text-gray-500 py-24 text-lg">Você ainda não favoritou nenhum item.</div>
+        <div className="text-center text-gray-500 py-24 text-lg">
+          Você ainda não favoritou nenhum item.
+        </div>
       ) : (
         <div className="flex flex-col gap-6">
           {favoritos.map((fav, idx) => (
@@ -93,9 +105,15 @@ export default function FavoritosPage() {
             >
               {/* Ícone/tipo */}
               <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-blue-50 shrink-0">
-                {fav.tipo === "machine" && <Building2 className="text-blue-600" size={26} />}
-                {fav.tipo === "service" && <Wrench className="text-orange-600" size={26} />}
-                {fav.tipo === "demanda" && <HelpCircle className="text-blue-500" size={26} />}
+                {fav.tipo === "machine" && (
+                  <Building2 className="text-blue-600" size={26} />
+                )}
+                {fav.tipo === "service" && (
+                  <Wrench className="text-orange-600" size={26} />
+                )}
+                {fav.tipo === "demanda" && (
+                  <HelpCircle className="text-blue-500" size={26} />
+                )}
               </div>
               {/* Info principal */}
               <div className="flex-1 min-w-0">

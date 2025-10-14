@@ -4,7 +4,9 @@ import { ChevronLeft, Users, Lightbulb, Star, BookOpen } from "lucide-react";
 
 export default function PerfilPublicoInstitucional() {
   return (
-    <section style={{ maxWidth: 680, margin: "0 auto", padding: "44px 4vw 60px 4vw" }}>
+    <section
+      style={{ maxWidth: 680, margin: "0 auto", padding: "44px 4vw 60px 4vw" }}
+    >
       <Link
         href="/"
         style={{
@@ -74,29 +76,40 @@ export default function PerfilPublicoInstitucional() {
             lineHeight: 1.6,
           }}
         >
-          Bem-vindo ao <b>Pedraum</b>! Aqui você encontra o maior marketplace de máquinas e soluções para mineração e britagem do Brasil.
+          Bem-vindo ao <b>Pedraum</b>! Aqui você encontra o maior marketplace de
+          máquinas e soluções para mineração e britagem do Brasil.
         </p>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 my-6" style={{ width: "100%" }}>
+        <div
+          className="grid grid-cols-1 md:grid-cols-3 gap-8 my-6"
+          style={{ width: "100%" }}
+        >
           <div style={{ background: "#f3f6fa", borderRadius: 15, padding: 24 }}>
             <Users size={40} className="mx-auto mb-2 text-[#219ebc]" />
-            <div className="font-bold text-[#023047] mb-1">Conexão de Profissionais</div>
+            <div className="font-bold text-[#023047] mb-1">
+              Conexão de Profissionais
+            </div>
             <span style={{ fontSize: 15, color: "#666", lineHeight: 1.45 }}>
-              Conecte compradores, vendedores e prestadores em um só lugar. Mais agilidade e confiança nas negociações.
+              Conecte compradores, vendedores e prestadores em um só lugar. Mais
+              agilidade e confiança nas negociações.
             </span>
           </div>
           <div style={{ background: "#f3f6fa", borderRadius: 15, padding: 24 }}>
             <Lightbulb size={40} className="mx-auto mb-2 text-[#FB8500]" />
-            <div className="font-bold text-[#023047] mb-1">Soluções Inovadoras</div>
+            <div className="font-bold text-[#023047] mb-1">
+              Soluções Inovadoras
+            </div>
             <span style={{ fontSize: 15, color: "#666", lineHeight: 1.45 }}>
-              Ferramentas modernas para gestão de anúncios, leads, mensagens e avaliação de reputação.
+              Ferramentas modernas para gestão de anúncios, leads, mensagens e
+              avaliação de reputação.
             </span>
           </div>
           <div style={{ background: "#f3f6fa", borderRadius: 15, padding: 24 }}>
             <Star size={40} className="mx-auto mb-2 text-[#e85d04]" />
             <div className="font-bold text-[#023047] mb-1">Mercado Premium</div>
             <span style={{ fontSize: 15, color: "#666", lineHeight: 1.45 }}>
-              Estrutura premium, visual profissional e suporte dedicado para sua experiência ser a melhor possível.
+              Estrutura premium, visual profissional e suporte dedicado para sua
+              experiência ser a melhor possível.
             </span>
           </div>
         </div>
@@ -117,7 +130,10 @@ export default function PerfilPublicoInstitucional() {
           }}
         >
           <BookOpen size={20} className="mr-2" />
-          <Link href="/blog" style={{ color: "#2563eb", textDecoration: "underline" }}>
+          <Link
+            href="/blog"
+            style={{ color: "#2563eb", textDecoration: "underline" }}
+          >
             Leia o blog do Pedraum
           </Link>
         </div>

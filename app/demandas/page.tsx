@@ -58,7 +58,8 @@ function isFechada(d: any) {
   return s === "fechada" || !!d?.fechada;
 }
 function getContatoFromDemanda(d: any) {
-  const nome = d?.nomeContato || d?.contatoNome || d?.solicitante || d?.nome || null;
+  const nome =
+    d?.nomeContato || d?.contatoNome || d?.solicitante || d?.nome || null;
   const whatsapp = d?.whatsapp || d?.telefone || d?.fone || null;
   const email = d?.email || d?.contatoEmail || null;
   return { nome, whatsapp, email };
@@ -83,7 +84,11 @@ function detectPatrocinador(p: any): boolean {
   }
   if (p.financeiro && typeof p.financeiro === "object") {
     if (strEq(p.financeiro.plano, "patrocinador")) return true;
-    if (strEq(p.financeiro.status, "ativo") && strEq(p.financeiro.tipo, "patrocinador")) return true;
+    if (
+      strEq(p.financeiro.status, "ativo") &&
+      strEq(p.financeiro.tipo, "patrocinador")
+    )
+      return true;
   }
   return false;
 }
@@ -132,7 +137,7 @@ export default function VitrineDemandas() {
       typeof v === "string" && v.trim().length > 0;
 
     if (pairs.length) {
-      const cats = pairs.map(p => p?.categoria ?? "").filter(notEmptyString);
+      const cats = pairs.map((p) => p?.categoria ?? "").filter(notEmptyString);
       return Array.from(new Set<string>(cats)).slice(0, 10);
     }
     const legacyCats = legacy.filter(notEmptyString);
@@ -145,7 +150,8 @@ export default function VitrineDemandas() {
     const cat = (d?.categoria || "").trim();
     const cats = Array.isArray(d?.categorias) ? d.categorias : [];
     const byString = !!cat && myCats.includes(cat);
-    const byArray = !!cats?.length && cats.some((c: string) => myCats.includes(String(c)));
+    const byArray =
+      !!cats?.length && cats.some((c: string) => myCats.includes(String(c)));
     return byString || byArray;
   }
   function canSeeContacts(d: any) {
@@ -211,7 +217,7 @@ export default function VitrineDemandas() {
       const qRef = query(
         collection(db, "demandas"),
         orderBy("createdAt", "desc"),
-        limit(pageSize)
+        limit(pageSize),
       );
       const snap = await getDocs(qRef);
 
@@ -240,7 +246,7 @@ export default function VitrineDemandas() {
       collection(db, "demandas"),
       orderBy("createdAt", "desc"),
       startAfter(lastDocRef.current),
-      limit(pageSize)
+      limit(pageSize),
     );
     const snap = await getDocs(qRef);
 
@@ -326,7 +332,9 @@ export default function VitrineDemandas() {
       const cat = (d.categoria || "").trim();
       if (cat) set.add(cat);
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+    );
   }, [demandas]);
 
   const categoriasLiberadasPatrocinador = useMemo(() => {
@@ -337,14 +345,22 @@ export default function VitrineDemandas() {
         if (cat) set.add(cat);
       }
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+    return Array.from(set).sort((a, b) =>
+      a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandas, perfil, userCats, isPatrocinador]);
 
   const categoriasDisponiveis = useMemo(() => {
-    if (isPatrocinador && !explorarOutras) return categoriasLiberadasPatrocinador;
+    if (isPatrocinador && !explorarOutras)
+      return categoriasLiberadasPatrocinador;
     return categoriasTodasCarregadas;
-  }, [isPatrocinador, explorarOutras, categoriasLiberadasPatrocinador, categoriasTodasCarregadas]);
+  }, [
+    isPatrocinador,
+    explorarOutras,
+    categoriasLiberadasPatrocinador,
+    categoriasTodasCarregadas,
+  ]);
 
   // se a seleção atual ficar inválida após alternar modo/estado, limpa
   useEffect(() => {
@@ -379,7 +395,9 @@ export default function VitrineDemandas() {
 
   /* ================== UI ================== */
   return (
-    <section style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 80px 2vw" }}>
+    <section
+      style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 80px 2vw" }}
+    >
       <h1
         style={{
           fontSize: "2.35rem",
@@ -431,7 +449,8 @@ export default function VitrineDemandas() {
           }}
         >
           <Info size={18} />
-          Explorando outras categorias. Contatos fora da sua categoria permanecem bloqueados.
+          Explorando outras categorias. Contatos fora da sua categoria
+          permanecem bloqueados.
           <button
             type="button"
             onClick={() => setExplorarOutras(false)}
@@ -456,7 +475,15 @@ export default function VitrineDemandas() {
       )}
 
       {/* Barra de ação / CTA topo */}
-      <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 14,
+          marginBottom: 24,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <Link
           href="/create-demanda"
           className="hover:scale-[1.04] transition"
@@ -559,7 +586,10 @@ export default function VitrineDemandas() {
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
           disabled={!estado}
-          style={{ opacity: estado ? 1 : 0.6, cursor: estado ? "pointer" : "not-allowed" }}
+          style={{
+            opacity: estado ? 1 : 0.6,
+            cursor: estado ? "pointer" : "not-allowed",
+          }}
         >
           <option value="">{estado ? "Cidade" : "Selecione um estado"}</option>
           {cidadesDisponiveis.map((cid) => (
@@ -618,7 +648,13 @@ export default function VitrineDemandas() {
 
       {/* Skeleton / Empty / Grid */}
       {carregandoLista ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: "34px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
+            gap: "34px",
+          }}
+        >
           {[...Array(8)].map((_, idx) => (
             <div
               key={idx}
@@ -649,9 +685,12 @@ export default function VitrineDemandas() {
           {isPatrocinador && !explorarOutras ? (
             <>
               <div style={{ fontSize: 22, marginBottom: 8 }}>
-                Não há demandas com contato disponível nas suas categorias por enquanto.
+                Não há demandas com contato disponível nas suas categorias por
+                enquanto.
               </div>
-              <div style={{ fontWeight: 500, color: "#64748b", marginBottom: 18 }}>
+              <div
+                style={{ fontWeight: 500, color: "#64748b", marginBottom: 18 }}
+              >
                 Você pode explorar outras oportunidades sem liberar os contatos.
               </div>
               <button
@@ -687,7 +726,13 @@ export default function VitrineDemandas() {
         </div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: "34px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
+              gap: "34px",
+            }}
+          >
             {demandasVisiveis.map((item) => {
               const fechada = isFechada(item);
               const contato = getContatoFromDemanda(item);
@@ -757,7 +802,9 @@ export default function VitrineDemandas() {
                       }
                     >
                       <ShieldCheck size={14} />
-                      {contatoLiberado ? "Contato disponível" : "Contato bloqueado"}
+                      {contatoLiberado
+                        ? "Contato disponível"
+                        : "Contato bloqueado"}
                     </span>
                   )}
 
@@ -770,7 +817,14 @@ export default function VitrineDemandas() {
                       justifyContent: "space-between",
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 15, marginBottom: 8 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 15,
+                        marginBottom: 8,
+                      }}
+                    >
                       <div
                         style={{
                           width: 53,
@@ -814,7 +868,13 @@ export default function VitrineDemandas() {
                     </div>
 
                     {item.descricao && (
-                      <div style={{ margin: "7px 0", color: "#444", fontWeight: 500 }}>
+                      <div
+                        style={{
+                          margin: "7px 0",
+                          color: "#444",
+                          fontWeight: 500,
+                        }}
+                      >
                         {resumo(item.descricao, 140)}
                       </div>
                     )}
@@ -831,7 +891,8 @@ export default function VitrineDemandas() {
                         fontWeight: 600,
                       }}
                     >
-                      <MapPin size={17} /> {item.cidade || "-"}, {item.estado || "-"}
+                      <MapPin size={17} /> {item.cidade || "-"},{" "}
+                      {item.estado || "-"}
                       <Calendar size={16} />
                       {fmtData(item.createdAt)}
                       <Eye size={17} />
@@ -841,52 +902,89 @@ export default function VitrineDemandas() {
                     </div>
 
                     {/* Bloco de contato — apenas quando liberado */}
-                    {contatoLiberado && (contato?.whatsapp || contato?.email || contato?.nome) && (
-                      <div
-                        style={{
-                          border: "1px dashed #bbf7d0",
-                          background: "#f0fdf4",
-                          padding: "12px 14px",
-                          borderRadius: 12,
-                          marginTop: 6,
-                          display: "grid",
-                          gap: 8,
-                        }}
-                        title="Visível porque esta demanda é da sua categoria"
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#166534", fontWeight: 800 }}>
-                          <ShieldCheck size={16} />
-                          Contato da Demanda (incluso no plano)
+                    {contatoLiberado &&
+                      (contato?.whatsapp ||
+                        contato?.email ||
+                        contato?.nome) && (
+                        <div
+                          style={{
+                            border: "1px dashed #bbf7d0",
+                            background: "#f0fdf4",
+                            padding: "12px 14px",
+                            borderRadius: 12,
+                            marginTop: 6,
+                            display: "grid",
+                            gap: 8,
+                          }}
+                          title="Visível porque esta demanda é da sua categoria"
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              color: "#166534",
+                              fontWeight: 800,
+                            }}
+                          >
+                            <ShieldCheck size={16} />
+                            Contato da Demanda (incluso no plano)
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 6,
+                              color: "#065f46",
+                              fontWeight: 600,
+                            }}
+                          >
+                            {contato?.nome && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <User2 size={16} />
+                                {contato.nome}
+                              </div>
+                            )}
+                            {contato?.whatsapp && (
+                              <Link
+                                href={`https://wa.me/${String(contato.whatsapp).replace(/\D/g, "")}`}
+                                target="_blank"
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  textDecoration: "none",
+                                  color: "#065f46",
+                                }}
+                              >
+                                <Phone size={16} />
+                                {contato.whatsapp}
+                              </Link>
+                            )}
+                            {contato?.email && (
+                              <a
+                                href={`mailto:${contato.email}`}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  textDecoration: "none",
+                                  color: "#065f46",
+                                }}
+                              >
+                                <Mail size={16} />
+                                {contato.email}
+                              </a>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, color: "#065f46", fontWeight: 600 }}>
-                          {contato?.nome && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <User2 size={16} />
-                              {contato.nome}
-                            </div>
-                          )}
-                          {contato?.whatsapp && (
-                            <Link
-                              href={`https://wa.me/${String(contato.whatsapp).replace(/\D/g, "")}`}
-                              target="_blank"
-                              style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "#065f46" }}
-                            >
-                              <Phone size={16} />
-                              {contato.whatsapp}
-                            </Link>
-                          )}
-                          {contato?.email && (
-                            <a
-                              href={`mailto:${contato.email}`}
-                              style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", color: "#065f46" }}
-                            >
-                              <Mail size={16} />
-                              {contato.email}
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Botões de ação */}
                     {fechada ? (
@@ -911,7 +1009,14 @@ export default function VitrineDemandas() {
                       </button>
                     ) : isPatrocinador ? (
                       contatoLiberado ? (
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: 10,
+                            marginTop: 14,
+                          }}
+                        >
                           <Link
                             href={`/demandas/${item.id}`}
                             className="group-hover:scale-[1.02] transition"
@@ -1025,7 +1130,13 @@ export default function VitrineDemandas() {
 
           {/* Carregar mais */}
           {!finishedRef.current && (
-            <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                marginTop: 28,
+              }}
+            >
               <button
                 onClick={carregarMais}
                 disabled={carregandoMais}
@@ -1043,7 +1154,11 @@ export default function VitrineDemandas() {
                 }}
               >
                 {carregandoMais ? "Carregando..." : "Carregar mais"}
-                {carregandoMais ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                {carregandoMais ? (
+                  <ChevronUp size={16} />
+                ) : (
+                  <ChevronDown size={16} />
+                )}
               </button>
             </div>
           )}

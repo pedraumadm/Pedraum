@@ -1,5 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;700;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -9,15 +9,15 @@
 :root {
   /* Cores principais */
   --color-brand: #023047;
-  --color-accent: #FB8500;
+  --color-accent: #fb8500;
   --color-accent-dark: #e17000;
-  --color-highlight: #FFB703;
+  --color-highlight: #ffb703;
   --color-dark: #181818;
-  --color-muted: #F6F9FA;
+  --color-muted: #f6f9fa;
 
   /* Tipografia */
-  --font-base: 'Inter', 'Poppins', ui-sans-serif, system-ui, sans-serif;
-  --font-title: 'Poppins', 'Inter', sans-serif;
+  --font-base: "Inter", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-title: "Poppins", "Inter", sans-serif;
 
   /* Spacing */
   --space-xs: 0.5rem;
@@ -36,9 +36,9 @@
 
 /* ===== Dark Mode por classe ===== */
 html.dark {
-  --color-brand: #219EBC;
-  --color-accent: #FB8500;
-  --color-highlight: #FFB703;
+  --color-brand: #219ebc;
+  --color-accent: #fb8500;
+  --color-highlight: #ffb703;
   --color-dark: #ededed;
   --color-muted: #101828;
   --color-accent-dark: #e17000;
@@ -62,7 +62,13 @@ body {
 }
 
 /* ===== Tipografia ===== */
-h1, h2, h3, h4, h5, h6, .font-title {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-title {
   font-family: var(--font-title);
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -81,7 +87,9 @@ img {
 }
 
 /* ===== Inputs, Textareas, Selects ===== */
-input, textarea, select {
+input,
+textarea,
+select {
   outline: none;
   border-radius: var(--radius-base);
   font-family: inherit;
@@ -91,13 +99,16 @@ input, textarea, select {
   transition: border-color 0.2s;
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus,
+textarea:focus,
+select:focus {
   box-shadow: 0 0 0 2px var(--color-accent);
   border-color: var(--color-accent);
 }
 
 /* ===== Botão base ===== */
-button, .btn {
+button,
+.btn {
   font-family: inherit;
   font-weight: 600;
   border-radius: var(--radius-xl);
@@ -111,7 +122,10 @@ button, .btn {
   box-shadow: 0 4px 24px #0001;
 }
 
-button:hover, button:focus, .btn:hover, .btn:focus {
+button:hover,
+button:focus,
+.btn:hover,
+.btn:focus {
   background: var(--color-accent-dark);
 }
 a {
@@ -125,40 +139,79 @@ a:hover {
 }
 
 /* ===== Scrollbar Custom Premium ===== */
-.scrollbar-thin { scrollbar-width: thin; }
-::-webkit-scrollbar { width: 8px; background: transparent; }
-::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 8px; }
-::-webkit-scrollbar-thumb:hover { background: #ccc; }
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #ccc;
+}
 
 /* ===== Masonry Utility ===== */
-.columns-2 { column-count: 2; }
-.columns-3 { column-count: 3; }
-.break-inside-avoid { break-inside: avoid; }
+.columns-2 {
+  column-count: 2;
+}
+.columns-3 {
+  column-count: 3;
+}
+.break-inside-avoid {
+  break-inside: avoid;
+}
 
 /* ===== Hero Premium: Branco Garantido ===== */
 .hero-premium h1,
 .hero-premium p,
 .hero-premium a {
   color: #fff !important;
-  text-shadow: 0 4px 24px #2226, 0 1px 0 #0003;
+  text-shadow:
+    0 4px 24px #2226,
+    0 1px 0 #0003;
 }
 
 /* ===== Animações Premium ===== */
 @keyframes fade {
-  from { opacity: 0; transform: translateY(-5px);}
-  to { opacity: 1; transform: translateY(0);}
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-fade { animation: fade 0.3s ease forwards; }
+.animate-fade {
+  animation: fade 0.3s ease forwards;
+}
 
 @keyframes slideup {
-  0% { opacity: 0; transform: translateY(10px);}
-  100% { opacity: 1; transform: translateY(0);}
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.animate-slideup { animation: slideup 0.4s ease forwards; }
+.animate-slideup {
+  animation: slideup 0.4s ease forwards;
+}
 
 @keyframes gradient-x {
-  0%,100% { background-position:0% 50%; }
-  50% { background-position:100% 50%; }
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
 }
 .animate-gradient-x {
   background-size: 200% 200%;
@@ -166,10 +219,17 @@ a:hover {
 }
 
 @keyframes text-glow {
-  0%,100% { filter: drop-shadow(0 0 0px #FB8500cc);}
-  50% { filter: drop-shadow(0 1px 15px #FB8500cc);}
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0px #fb8500cc);
+  }
+  50% {
+    filter: drop-shadow(0 1px 15px #fb8500cc);
+  }
 }
-.animate-text-glow { animation: text-glow 2s ease-in-out infinite;}
+.animate-text-glow {
+  animation: text-glow 2s ease-in-out infinite;
+}
 
 /* ==== Acessibilidade (melhora navegação) ==== */
 :focus-visible {
@@ -183,7 +243,10 @@ a:hover {
 
 /* ===== Responsividade Extra (Mobile) ===== */
 @media (max-width: 600px) {
-  .columns-2, .columns-3 { column-count: 1; }
+  .columns-2,
+  .columns-3 {
+    column-count: 1;
+  }
   .hero-premium h1,
   .hero-premium p {
     text-align: center !important;

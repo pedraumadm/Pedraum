@@ -14,7 +14,8 @@ export default function SectionTransition() {
         Pronto para negociar?
       </h2>
       <p className="text-base md:text-lg text-gray-500 text-center">
-        Confira as demandas recentes publicadas na plataforma ou cadastre sua oferta agora mesmo!
+        Confira as demandas recentes publicadas na plataforma ou cadastre sua
+        oferta agora mesmo!
       </p>
     </section>
   );

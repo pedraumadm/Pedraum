@@ -2,13 +2,18 @@
 import { getAdmin } from "@/lib/firebaseAdmin";
 
 export type CheckoutKind = "lead" | "produto" | "servico" | "demanda";
-export type PaymentStatus = "pending" | "approved" | "rejected" | "cancelled" | "in_process";
+export type PaymentStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "cancelled"
+  | "in_process";
 
 export type OrderDoc = {
-  id: string;                 // orderId (UUID)
+  id: string; // orderId (UUID)
   userId?: string | null;
   kind: CheckoutKind;
-  refId: string;              // id do item relacionado
+  refId: string; // id do item relacionado
   title: string;
   unitPriceCents: number;
   quantity: number;
@@ -23,7 +28,10 @@ export type OrderDoc = {
   raw?: any;
 };
 
-export async function createOrderDoc(orderId: string, data: Omit<OrderDoc, "id">) {
+export async function createOrderDoc(
+  orderId: string,
+  data: Omit<OrderDoc, "id">,
+) {
   const { db } = getAdmin();
   const ref = db.collection("orders").doc(orderId);
   await ref.set(
@@ -33,11 +41,14 @@ export async function createOrderDoc(orderId: string, data: Omit<OrderDoc, "id">
       createdAt: new Date(),
       updatedAt: new Date(),
     },
-    { merge: true }
+    { merge: true },
   );
 }
 
-export async function updateOrderStatus(orderId: string, updates: Partial<OrderDoc>) {
+export async function updateOrderStatus(
+  orderId: string,
+  updates: Partial<OrderDoc>,
+) {
   const { db } = getAdmin();
   const ref = db.collection("orders").doc(orderId);
   await ref.set(
@@ -45,7 +56,7 @@ export async function updateOrderStatus(orderId: string, updates: Partial<OrderD
       ...updates,
       updatedAt: new Date(),
     },
-    { merge: true }
+    { merge: true },
   );
 }
 

@@ -9,10 +9,15 @@ import { getFirestore as _getFirestore } from "firebase-admin/firestore";
  * 2) FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY (com \n escapado)
  */
 function buildCredential() {
-  const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const json =
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (json) {
     const svc = JSON.parse(json);
-    if (typeof svc.private_key === "string" && svc.private_key.includes("\\n")) {
+    if (
+      typeof svc.private_key === "string" &&
+      svc.private_key.includes("\\n")
+    ) {
       svc.private_key = svc.private_key.replace(/\\n/g, "\n");
     }
     return svc;
@@ -29,7 +34,7 @@ function buildCredential() {
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error(
       "Firebase Admin misconfigured: defina FIREBASE_SERVICE_ACCOUNT_JSON (ou KEY) " +
-      "OU FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY."
+        "OU FIREBASE_PROJECT_ID + FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY.",
     );
   }
 

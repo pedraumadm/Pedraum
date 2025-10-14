@@ -15,7 +15,8 @@ export default function PatrocinadorPage() {
           Seja Patrocinador do Pedraum
         </h1>
         <p className="text-[#475569] font-semibold mt-2">
-          Acesse <b>todas as demandas</b> com <b>contatos liberados</b> e fale direto com quem compra.
+          Acesse <b>todas as demandas</b> com <b>contatos liberados</b> e fale
+          direto com quem compra.
         </p>
 
         {/* Benefícios */}
@@ -36,8 +37,12 @@ export default function PatrocinadorPage() {
         <div className="bg-white rounded-2xl p-6 border shadow-sm mt-8">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <div className="text-2xl font-black text-[#023047]">Plano Mensal</div>
-              <div className="text-[#64748b] font-semibold">Cancele quando quiser</div>
+              <div className="text-2xl font-black text-[#023047]">
+                Plano Mensal
+              </div>
+              <div className="text-[#64748b] font-semibold">
+                Cancele quando quiser
+              </div>
             </div>
             <div className="flex items-end gap-2">
               <div className="text-4xl font-black text-[#023047]">R$ 297</div>
@@ -48,13 +53,17 @@ export default function PatrocinadorPage() {
           <a
             href={checkoutUrl}
             className="inline-flex items-center justify-center mt-6 px-6 py-3 rounded-xl font-black text-white"
-            style={{ background: "linear-gradient(90deg,#fb8500,#fb8500)", boxShadow: "0 6px 18px #fb850033" }}
+            style={{
+              background: "linear-gradient(90deg,#fb8500,#fb8500)",
+              boxShadow: "0 6px 18px #fb850033",
+            }}
           >
             Assinar agora
           </a>
 
           <div className="text-xs text-[#94a3b8] mt-3">
-            Ao clicar, você será redirecionado para o Mercado Pago para concluir a assinatura.
+            Ao clicar, você será redirecionado para o Mercado Pago para concluir
+            a assinatura.
           </div>
         </div>
 

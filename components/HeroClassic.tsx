@@ -67,7 +67,8 @@ export default function Hero() {
           bottom: 0,
           height: "120px",
           zIndex: 2,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0) 10%, #f6f9fa 100%)",
+          background:
+            "linear-gradient(to bottom, rgba(0,0,0,0) 10%, #f6f9fa 100%)",
           pointerEvents: "none",
         }}
       />
@@ -132,8 +133,9 @@ export default function Hero() {
             fontWeight: 500,
           }}
         >
-          Conectamos suas demandas a fornecedores <b>qualificados</b> de produtos e serviços
-          para britagem e mineração. <b>Mais opções</b>, <b>menos risco</b> e zero complicação.
+          Conectamos suas demandas a fornecedores <b>qualificados</b> de
+          produtos e serviços para britagem e mineração. <b>Mais opções</b>,{" "}
+          <b>menos risco</b> e zero complicação.
         </p>
 
         <div
@@ -161,7 +163,9 @@ export default function Hero() {
                 letterSpacing: ".01em",
                 transition: "background .15s",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.background = "#e17000")}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.background = "#e17000")
+              }
               onMouseOut={(e) => (e.currentTarget.style.background = "#FB8500")}
             >
               Cadastrar Demanda
@@ -185,13 +189,17 @@ export default function Hero() {
                 transition: "background .15s",
               }}
               onMouseOver={(e) => (e.currentTarget.style.background = "#fff")}
-              onMouseOut={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.92)")}
+              onMouseOut={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,.92)")
+              }
             >
               Ver Fornecedores
             </a>
           </Link>
 
-          <span style={{ color: "rgba(255,255,255,.88)", fontSize: 13 }}>Grátis e rápido</span>
+          <span style={{ color: "rgba(255,255,255,.88)", fontSize: 13 }}>
+            Grátis e rápido
+          </span>
         </div>
       </div>
 

@@ -172,35 +172,53 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
       setRecents((prev) => {
         const arr = [v, ...prev.filter((x) => x !== v)].slice(0, 5);
         try {
-          localStorage.setItem(`combo:recent:${recentKey}`, JSON.stringify(arr));
+          localStorage.setItem(
+            `combo:recent:${recentKey}`,
+            JSON.stringify(arr),
+          );
         } catch {}
         return arr;
       });
     },
-    [recentKey]
+    [recentKey],
   );
 
   // ranking + grupos
   const ranked = React.useMemo(() => {
-    const withScore = options.map((o) => ({ ...o, __score: scoreMatch(debouncedQuery, o) }));
-    let list = debouncedQuery ? withScore.filter((i: any) => i.__score > 0) : withScore;
+    const withScore = options.map((o) => ({
+      ...o,
+      __score: scoreMatch(debouncedQuery, o),
+    }));
+    let list = debouncedQuery
+      ? withScore.filter((i: any) => i.__score > 0)
+      : withScore;
     if (!debouncedQuery && recents.length) {
-      list = list.map((i: any) => (recents.includes(i.value) ? { ...i, __score: 999 } : i));
+      list = list.map((i: any) =>
+        recents.includes(i.value) ? { ...i, __score: 999 } : i,
+      );
     }
     list.sort(
       (a: any, b: any) =>
-        b.__score - a.__score || a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })
+        b.__score - a.__score ||
+        a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }),
     );
     return list as ComboOption[];
   }, [options, debouncedQuery, recents]);
 
   const groups = React.useMemo(() => {
     if (!ranked.length) return [];
-    if (debouncedQuery) return [{ title: null as string | null, items: ranked }];
+    if (debouncedQuery)
+      return [{ title: null as string | null, items: ranked }];
     if (recents.length) {
       return [
-        { title: "Recentes", items: ranked.filter((x) => recents.includes(x.value)) },
-        { title: "Todas as opções", items: ranked.filter((x) => !recents.includes(x.value)) },
+        {
+          title: "Recentes",
+          items: ranked.filter((x) => recents.includes(x.value)),
+        },
+        {
+          title: "Todas as opções",
+          items: ranked.filter((x) => !recents.includes(x.value)),
+        },
       ];
     }
     return [{ title: "Todas as opções", items: ranked }];
@@ -209,7 +227,7 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
   const flat = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
   const selected = React.useMemo(
     () => options.find((o) => o.value === value),
-    [options, value]
+    [options, value],
   );
 
   // fechar ao clicar fora (field + dropdown com portal)
@@ -338,7 +356,10 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
             left: r.left,
             width: r.width,
             zIndex: 10000,
-            maxHeight: Math.min(420, window.innerHeight - (r.bottom + spacer) - 16),
+            maxHeight: Math.min(
+              420,
+              window.innerHeight - (r.bottom + spacer) - 16,
+            ),
           });
         } else {
           // relativo ao container
@@ -373,7 +394,7 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
   React.useEffect(() => {
     if (!open || focusIndex < 0) return;
     const el = dropdownRef.current?.querySelector(
-      `[data-combo-idx="${focusIndex}"]`
+      `[data-combo-idx="${focusIndex}"]`,
     ) as HTMLElement | null;
     el?.scrollIntoView({ block: "nearest" });
   }, [focusIndex, open]);
@@ -383,9 +404,9 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
     opt: ComboOption,
     idx: number,
     focused: boolean,
-    isSelected: boolean
+    isSelected: boolean,
   ) {
-    const chip = useChipRight ? opt.parent ?? "" : "";
+    const chip = useChipRight ? (opt.parent ?? "") : "";
 
     return (
       <div
@@ -408,7 +429,9 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
       >
         <div className="flex items-center gap-3 min-w-0">
           {opt.icon ? (
-            <div className="shrink-0 w-6 h-6 flex items-center justify-center">{opt.icon}</div>
+            <div className="shrink-0 w-6 h-6 flex items-center justify-center">
+              {opt.icon}
+            </div>
           ) : null}
           <div className="min-w-0">
             <div className="truncate text-[15px] font-semibold text-[#0B2441]">
@@ -466,7 +489,10 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
       {flat.length === 0 ? (
         <div className="px-4 py-6 text-sm text-slate-500">{noResultsText}</div>
       ) : (
-        <div className="overflow-auto" style={{ maxHeight: `${52 * maxVisible}px` }}>
+        <div
+          className="overflow-auto"
+          style={{ maxHeight: `${52 * maxVisible}px` }}
+        >
           {groups.map((g, gIdx) => (
             <div key={gIdx}>
               {g.title && (
@@ -484,7 +510,9 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
               )}
 
               {g.items.map((opt, idx) => {
-                const before = groups.slice(0, gIdx).reduce((acc, gg) => acc + gg.items.length, 0);
+                const before = groups
+                  .slice(0, gIdx)
+                  .reduce((acc, gg) => acc + gg.items.length, 0);
                 const realIndex = before + idx;
                 const isFocused = realIndex === focusIndex;
                 const isSelected = value === opt.value;
@@ -508,7 +536,14 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
   return (
     <div ref={containerRef} className={["relative", className].join(" ")}>
       {/* hidden input espelho para validação nativa do form */}
-      {name ? <input type="hidden" name={name} value={value} required={formRequired} /> : null}
+      {name ? (
+        <input
+          type="hidden"
+          name={name}
+          value={value}
+          required={formRequired}
+        />
+      ) : null}
 
       {/* label */}
       {compact ? (
@@ -569,7 +604,7 @@ const SmartComboPro: React.FC<SmartComboProProps> = ({
             "min-w-0", // evita overflow em telas pequenas
             inputClassName,
           ].join(" ")}
-          value={open ? query : selected?.label ?? ""}
+          value={open ? query : (selected?.label ?? "")}
           onChange={(e) => {
             setQuery(e.target.value);
             setOpen(true);

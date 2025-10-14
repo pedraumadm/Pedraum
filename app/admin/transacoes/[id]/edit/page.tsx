@@ -8,7 +8,12 @@ import { Loader2 } from "lucide-react";
 export default function EditTransacaoPage() {
   const router = useRouter();
   const params = useParams();
-  const id = typeof params?.id === "string" ? params.id : Array.isArray(params?.id) ? params.id[0] : "";
+  const id =
+    typeof params?.id === "string"
+      ? params.id
+      : Array.isArray(params?.id)
+        ? params.id[0]
+        : "";
 
   const [loading, setLoading] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -44,7 +49,9 @@ export default function EditTransacaoPage() {
   }, [id]);
 
   // Atualizar form ao digitar
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
@@ -62,24 +69,32 @@ export default function EditTransacaoPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f9fafb", padding: "40px 0" }}>
-      <div style={{
-        maxWidth: 540,
-        margin: "0 auto",
-        background: "#fff",
-        borderRadius: 20,
-        boxShadow: "0 2px 32px #0001",
-        padding: "36px 26px 32px 26px",
-        minHeight: 340
-      }}>
-        <h1 style={{
-          fontWeight: 900,
-          fontSize: "2rem",
-          color: "#023047",
-          marginBottom: 30,
-          letterSpacing: "-1px",
-          textAlign: "center"
-        }}>Editar Transação</h1>
+    <main
+      style={{ minHeight: "100vh", background: "#f9fafb", padding: "40px 0" }}
+    >
+      <div
+        style={{
+          maxWidth: 540,
+          margin: "0 auto",
+          background: "#fff",
+          borderRadius: 20,
+          boxShadow: "0 2px 32px #0001",
+          padding: "36px 26px 32px 26px",
+          minHeight: 340,
+        }}
+      >
+        <h1
+          style={{
+            fontWeight: 900,
+            fontSize: "2rem",
+            color: "#023047",
+            marginBottom: 30,
+            letterSpacing: "-1px",
+            textAlign: "center",
+          }}
+        >
+          Editar Transação
+        </h1>
         {loading ? (
           <div style={{ textAlign: "center", padding: 50 }}>
             <Loader2 className="animate-spin" size={28} color="#219EBC" />
@@ -157,10 +172,16 @@ export default function EditTransacaoPage() {
                 cursor: salvando ? "not-allowed" : "pointer",
                 boxShadow: "0 2px 18px #0001",
                 letterSpacing: ".01em",
-                transition: "background .15s, transform .13s"
+                transition: "background .15s, transform .13s",
               }}
             >
-              {salvando ? <Loader2 className="animate-spin" size={20} style={{ marginRight: 8, marginBottom: -4 }} /> : null}
+              {salvando ? (
+                <Loader2
+                  className="animate-spin"
+                  size={20}
+                  style={{ marginRight: 8, marginBottom: -4 }}
+                />
+              ) : null}
               {salvando ? "Salvando..." : "Salvar Alterações"}
             </button>
           </form>
@@ -174,7 +195,7 @@ export default function EditTransacaoPage() {
               textDecoration: "none",
               fontSize: "1rem",
               marginTop: 5,
-              display: "inline-block"
+              display: "inline-block",
             }}
           >
             ← Voltar para listagem
@@ -190,7 +211,7 @@ const labelStyle = {
   fontWeight: 600,
   marginBottom: 4,
   marginTop: 14,
-  display: "block"
+  display: "block",
 };
 const inputStyle = {
   width: "100%",
@@ -204,5 +225,5 @@ const inputStyle = {
   fontWeight: 500,
   outline: "none" as const,
   color: "#023047",
-  transition: "border .13s"
+  transition: "border .13s",
 };

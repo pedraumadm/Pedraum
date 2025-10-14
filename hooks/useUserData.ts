@@ -30,7 +30,10 @@ export function useUserData() {
         const snapshot = await getDoc(ref);
 
         if (snapshot.exists()) {
-          setUserData({ ...snapshot.data(), email: user.email || "" } as UserData);
+          setUserData({
+            ...snapshot.data(),
+            email: user.email || "",
+          } as UserData);
         }
       }
 

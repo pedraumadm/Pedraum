@@ -2,13 +2,24 @@
 import type { Firestore } from "firebase-admin/firestore";
 
 // onde procurar (ajuste se quiser simplificar ao seu padrão)
-const FIELD_CANDIDATES = ["precoLead", "preco", "price", "valorLead", "valor"] as const;
+const FIELD_CANDIDATES = [
+  "precoLead",
+  "preco",
+  "price",
+  "valorLead",
+  "valor",
+] as const;
 
 const PATHS = {
   LEAD: (leadId: string) => [`leads`, leadId],
   OPP: (leadId: string) => [`oportunidades`, leadId],
   OPP_EN: (leadId: string) => [`opportunities`, leadId],
-  DEM_LEAD: (demandaId: string, leadId: string) => [`demandas`, demandaId, `leads`, leadId],
+  DEM_LEAD: (demandaId: string, leadId: string) => [
+    `demandas`,
+    demandaId,
+    `leads`,
+    leadId,
+  ],
   DEMANDA: (demandaId: string) => [`demandas`, demandaId],
 };
 
@@ -17,12 +28,18 @@ async function tryDoc(db: Firestore, parts: string[]) {
   if (!snap.exists) return null;
   for (const f of FIELD_CANDIDATES) {
     const v = snap.get(f);
-    if (typeof v === "number" && isFinite(v) && v > 0) return { price: v, path: parts.join("/"), field: f };
+    if (typeof v === "number" && isFinite(v) && v > 0)
+      return { price: v, path: parts.join("/"), field: f };
   }
   return null;
 }
 
-export async function resolvePrice(db: Firestore, leadId: string, demandaId?: string, pathHint?: string) {
+export async function resolvePrice(
+  db: Firestore,
+  leadId: string,
+  demandaId?: string,
+  pathHint?: string,
+) {
   if (pathHint) {
     const parts = pathHint.split("/").filter(Boolean);
     const hinted = await tryDoc(db, parts);

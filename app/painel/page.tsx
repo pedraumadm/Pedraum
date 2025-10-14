@@ -39,15 +39,39 @@ import {
 } from "lucide-react";
 
 // =============== Aliases de campos/flags =================
-const USER_EQ_FIELDS_NOTIFS = ["usuarioId", "userId", "uid", "recipientId", "ownerId"];
-const USER_EQ_FIELDS_MSGS = ["destinatarioId", "toUserId", "usuarioId", "userId", "recipientId", "ownerId"];
-const USER_ARRAY_FIELDS = ["users", "participants", "members", "recipients", "threadUsers"];
+const USER_EQ_FIELDS_NOTIFS = [
+  "usuarioId",
+  "userId",
+  "uid",
+  "recipientId",
+  "ownerId",
+];
+const USER_EQ_FIELDS_MSGS = [
+  "destinatarioId",
+  "toUserId",
+  "usuarioId",
+  "userId",
+  "recipientId",
+  "ownerId",
+];
+const USER_ARRAY_FIELDS = [
+  "users",
+  "participants",
+  "members",
+  "recipients",
+  "threadUsers",
+];
 const READ_FLAGS = ["lida", "lido", "read", "seen", "visualizado", "visto"];
 
 // =============== Helpers de consulta =====================
 
 // monta um query usando o primeiro campo que existir
-function qByAnyUserField(colName: string, uid: string, eqFields: string[], extra?: (base: Query) => Query): Query {
+function qByAnyUserField(
+  colName: string,
+  uid: string,
+  eqFields: string[],
+  extra?: (base: Query) => Query,
+): Query {
   const colRef = collection(db, colName);
   for (const f of eqFields) {
     try {
@@ -58,7 +82,9 @@ function qByAnyUserField(colName: string, uid: string, eqFields: string[], extra
     }
   }
   // fallback (scan)
-  return extra ? extra(colRef as unknown as Query) : (colRef as unknown as Query);
+  return extra
+    ? extra(colRef as unknown as Query)
+    : (colRef as unknown as Query);
 }
 
 // contagem segura
@@ -83,7 +109,7 @@ async function countBy(
   uid: string,
   ownerFields: string[],
   extra?: (base: Query) => Query,
-  labelForLog?: string
+  labelForLog?: string,
 ): Promise<number> {
   let best = 0;
   for (const colName of colNames) {
@@ -93,7 +119,10 @@ async function countBy(
         const q = extra ? extra(base) : base;
         const n = await safeCount(q);
         if (n > best) best = n;
-        if (n > 0) console.debug(`[metrics] ${labelForLog || colName}: ${colName}.${f} => ${n}`);
+        if (n > 0)
+          console.debug(
+            `[metrics] ${labelForLog || colName}: ${colName}.${f} => ${n}`,
+          );
       } catch (e) {
         console.debug(`[metrics] falha em ${colName}.${f}`, e);
       }
@@ -108,10 +137,12 @@ async function smartScanCount(
   uid: string,
   eqFields: string[],
   arrayFields: string[],
-  considerUnread = false
+  considerUnread = false,
 ) {
   try {
-    const snap = await getDocs(query(collection(db, colName), orderBy("__name__", "desc"), limit(200)));
+    const snap = await getDocs(
+      query(collection(db, colName), orderBy("__name__", "desc"), limit(200)),
+    );
     let total = 0;
     let unread = 0;
 
@@ -120,7 +151,9 @@ async function smartScanCount(
 
       const match =
         eqFields.some((f) => data?.[f] === uid) ||
-        arrayFields.some((arr) => Array.isArray(data?.[arr]) && data[arr].includes(uid));
+        arrayFields.some(
+          (arr) => Array.isArray(data?.[arr]) && data[arr].includes(uid),
+        );
 
       if (!match) continue;
 
@@ -151,10 +184,17 @@ async function smartScanCount(
 }
 
 // não lidas primeiro; senão total; senão scan
-async function robustUnreadOrTotal(colName: string, uid: string, eqFields: string[], arrayFields: string[]): Promise<number> {
+async function robustUnreadOrTotal(
+  colName: string,
+  uid: string,
+  eqFields: string[],
+  arrayFields: string[],
+): Promise<number> {
   let unreadSum = 0;
   for (const flag of READ_FLAGS) {
-    const qUnread = qByAnyUserField(colName, uid, eqFields, (base) => query(base, where(flag as any, "==", false)));
+    const qUnread = qByAnyUserField(colName, uid, eqFields, (base) =>
+      query(base, where(flag as any, "==", false)),
+    );
     unreadSum += await safeCount(qUnread);
   }
   if (unreadSum > 0) return unreadSum;
@@ -210,7 +250,7 @@ export default function PainelUnificado() {
       setUser(u);
       try {
         const s = await getDoc(doc(db, "usuarios", u.uid));
-        setNome(s.exists() ? (s.data() as any)?.nome ?? "" : "");
+        setNome(s.exists() ? ((s.data() as any)?.nome ?? "") : "");
       } catch {
         setNome("");
       } finally {
@@ -243,7 +283,14 @@ export default function PainelUnificado() {
       const cMsgs = ["mensagens", "messages"];
       const cOpps = ["demandAssignments", "assignments"];
 
-      const ownerUser = ["usuarioId", "userId", "ownerId", "uid", "autorId", "authorId"];
+      const ownerUser = [
+        "usuarioId",
+        "userId",
+        "ownerId",
+        "uid",
+        "autorId",
+        "authorId",
+      ];
 
       const [
         maquinas,
@@ -266,19 +313,53 @@ export default function PainelUnificado() {
         countBy(cPropostas, uid, ownerUser, undefined, "propostas"),
         countBy(cPedidos, uid, ownerUser, undefined, "pedidos"),
         countBy(cSugestoes, uid, ownerUser, undefined, "sugestoes"),
-        countBy(cAval, uid, ["avaliadoId", ...ownerUser], undefined, "avaliacoes"),
+        countBy(
+          cAval,
+          uid,
+          ["avaliadoId", ...ownerUser],
+          undefined,
+          "avaliacoes",
+        ),
       ]);
 
       const [notificacoes, mensagens] = await Promise.all([
-        robustUnreadOrTotal(cNotifs[0], uid, USER_EQ_FIELDS_NOTIFS, USER_ARRAY_FIELDS),
-        robustUnreadOrTotal(cMsgs[0], uid, USER_EQ_FIELDS_MSGS, USER_ARRAY_FIELDS),
+        robustUnreadOrTotal(
+          cNotifs[0],
+          uid,
+          USER_EQ_FIELDS_NOTIFS,
+          USER_ARRAY_FIELDS,
+        ),
+        robustUnreadOrTotal(
+          cMsgs[0],
+          uid,
+          USER_EQ_FIELDS_MSGS,
+          USER_ARRAY_FIELDS,
+        ),
       ]);
 
       const oppOwnerFields = ["supplierId", "usuarioId", "userId"];
       const [oppSent, oppViewed, oppUnlocked] = await Promise.all([
-        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "sent")), "opp.sent"),
-        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "viewed")), "opp.viewed"),
-        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "unlocked")), "opp.unlocked"),
+        countBy(
+          cOpps,
+          uid,
+          oppOwnerFields,
+          (b) => query(b, where("status", "==", "sent")),
+          "opp.sent",
+        ),
+        countBy(
+          cOpps,
+          uid,
+          oppOwnerFields,
+          (b) => query(b, where("status", "==", "viewed")),
+          "opp.viewed",
+        ),
+        countBy(
+          cOpps,
+          uid,
+          oppOwnerFields,
+          (b) => query(b, where("status", "==", "unlocked")),
+          "opp.unlocked",
+        ),
       ]);
 
       setMetrics({
@@ -326,12 +407,31 @@ export default function PainelUnificado() {
           minHeight: "100vh",
           display: "grid",
           placeItems: "center",
-          background: "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
+          background:
+            "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-          <div className="animate-spin" style={{ width: 36, height: 36, border: "4px solid #e2e8f0", borderTopColor: "#2563eb", borderRadius: "999px" }} />
-          <span style={{ color: "#64748b", fontWeight: 700 }}>Carregando seu painel…</span>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <div
+            className="animate-spin"
+            style={{
+              width: 36,
+              height: 36,
+              border: "4px solid #e2e8f0",
+              borderTopColor: "#2563eb",
+              borderRadius: "999px",
+            }}
+          />
+          <span style={{ color: "#64748b", fontWeight: 700 }}>
+            Carregando seu painel…
+          </span>
         </div>
       </div>
     );
@@ -342,7 +442,8 @@ export default function PainelUnificado() {
     <main
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
+        background:
+          "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -360,7 +461,14 @@ export default function PainelUnificado() {
         }}
       >
         {/* Cabeçalho */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 18,
+            marginBottom: 24,
+          }}
+        >
           <div
             style={{
               display: "flex",
@@ -394,7 +502,12 @@ export default function PainelUnificado() {
                 <img
                   src={user.photoURL}
                   alt={nome || user?.email || "Usuário"}
-                  style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    borderRadius: "50%",
+                  }}
                 />
               ) : (
                 initials
@@ -402,48 +515,212 @@ export default function PainelUnificado() {
             </div>
 
             <div style={{ flex: 1, minWidth: 240 }}>
-              <div style={{ fontWeight: 800, fontSize: "1.65rem", color: "#023047", marginBottom: 2 }}>
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: "1.65rem",
+                  color: "#023047",
+                  marginBottom: 2,
+                }}
+              >
                 Bem-vindo{nome ? `, ${nome}` : ""}!
               </div>
-              <div style={{ fontSize: "1.01rem", color: "#6b7680" }}>{user?.email}</div>
+              <div style={{ fontSize: "1.01rem", color: "#6b7680" }}>
+                {user?.email}
+              </div>
 
               {/* Acesso rápido */}
-              <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
-                <QuickLink href="/dashboard/oportunidades" label="Ver Oportunidades" />
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  marginTop: 14,
+                  flexWrap: "wrap",
+                }}
+              >
+                <QuickLink
+                  href="/dashboard/oportunidades"
+                  label="Ver Oportunidades"
+                />
                 <QuickLink href="/notificacoes" label="Notificações" />
                 <QuickLink href="/meus-servicos" label="Meus Serviços" />
               </div>
             </div>
 
             {/* Métricas rápidas */}
-            <div style={{ display: "flex", gap: 11, flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <MetricBadge icon={<Target size={17} />} value={loadingMetrics ? "..." : metrics.oportunidades} label="oportunidades" color="#2563eb" />
-              <MetricBadge icon={<ClipboardList size={15} />} value={loadingMetrics ? "..." : metrics.emAtendimento} label="em atendimento" color="#059669" />
-              <MetricBadge icon={<Layers size={17} />} value={loadingMetrics ? "..." : metrics.produtos + metrics.maquinas} label="produtos" color="#FB8500" />
-              <MetricBadge icon={<Briefcase size={15} />} value={loadingMetrics ? "..." : metrics.servicos} label="serviços" color="#219ebc" />
-              <MetricBadge icon={<Inbox size={15} />} value={loadingMetrics ? "..." : metrics.leads} label="contatos" color="#FB8500" />
-              <MetricBadge icon={<MessageCircle size={15} />} value={loadingMetrics ? "..." : metrics.mensagens} label="mensagens" color="#2563eb" />
-              <MetricBadge icon={<Bell size={15} />} value={loadingMetrics ? "..." : metrics.notificacoes} label="notificações" color="#FB8500" />
+            <div
+              style={{
+                display: "flex",
+                gap: 11,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
+              <MetricBadge
+                icon={<Target size={17} />}
+                value={loadingMetrics ? "..." : metrics.oportunidades}
+                label="oportunidades"
+                color="#2563eb"
+              />
+              <MetricBadge
+                icon={<ClipboardList size={15} />}
+                value={loadingMetrics ? "..." : metrics.emAtendimento}
+                label="em atendimento"
+                color="#059669"
+              />
+              <MetricBadge
+                icon={<Layers size={17} />}
+                value={
+                  loadingMetrics ? "..." : metrics.produtos + metrics.maquinas
+                }
+                label="produtos"
+                color="#FB8500"
+              />
+              <MetricBadge
+                icon={<Briefcase size={15} />}
+                value={loadingMetrics ? "..." : metrics.servicos}
+                label="serviços"
+                color="#219ebc"
+              />
+              <MetricBadge
+                icon={<Inbox size={15} />}
+                value={loadingMetrics ? "..." : metrics.leads}
+                label="contatos"
+                color="#FB8500"
+              />
+              <MetricBadge
+                icon={<MessageCircle size={15} />}
+                value={loadingMetrics ? "..." : metrics.mensagens}
+                label="mensagens"
+                color="#2563eb"
+              />
+              <MetricBadge
+                icon={<Bell size={15} />}
+                value={loadingMetrics ? "..." : metrics.notificacoes}
+                label="notificações"
+                color="#FB8500"
+              />
             </div>
           </div>
         </div>
 
         {/* Grid de Cards */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 28 }}>
-          <Tile href="/dashboard/oportunidades" color="#2563eb" bg="#f3f7ff" icon={<Target size={36} />} title="Demandas" desc="Novas demandas enviadas para você. Desbloqueie e atenda!" badge={loadingMetrics ? undefined : metrics.oportunidades} />
-          <Tile href="/minhas-demandas" color="#219ebc" bg="#e0f7fa" icon={<ClipboardList size={36} />} title="Minhas Demandas" desc="Gerencie suas Demandas publicadas." badge={loadingMetrics ? undefined : metrics.demandas} />
-          <Tile href="/meus-produtos" color="#FB8500" bg="#fff7ed" icon={<Layers size={36} />} title="Meus Produtos/Máquinas" desc="Gerencie seus produtos e máquinas." badge={loadingMetrics ? undefined : metrics.produtos + metrics.maquinas} />
-          <Tile href="/meus-servicos" color="#219ebc" bg="#e0f7fa" icon={<Briefcase size={36} />} title="Meus Serviços" desc="Gerencie serviços e soluções oferecidas." badge={loadingMetrics ? undefined : metrics.servicos} />
-          <Tile href="/meus-leads" color="#FB8500" bg="#fff7ed" icon={<Inbox size={36} />} title="Contatos Interessados" desc="Veja clientes interessados nas suas ofertas." badge={loadingMetrics ? undefined : metrics.leads} />
-          <Tile href="/mensagens" color="#2563eb" bg="#f3f7ff" icon={<MessageCircle size={36} />} title="Mensagens" desc="Converse com clientes e negocie direto." badge={loadingMetrics ? undefined : metrics.mensagens} />
-          <Tile href="/notificacoes" color="#FB8500" bg="#fff7ed" icon={<Bell size={36} />} title="Notificações" desc="Mostra não lidas primeiro; cai para total." badge={loadingMetrics ? undefined : metrics.notificacoes} />
-          <Tile href="/minhas-propostas" color="#2563eb" bg="#f3f7ff" icon={<ClipboardList size={36} />} title="Minhas Propostas" desc="Acompanhe propostas enviadas e recebidas." badge={loadingMetrics ? undefined : metrics.propostas} />
-          <Tile href="/sugestoes" color="#FB8500" bg="#fff7ed" icon={<Lightbulb size={36} />} title="Sugestões" desc="Envie ideias para melhorar a plataforma." badge={loadingMetrics ? undefined : metrics.sugestoes} />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+            gap: 28,
+          }}
+        >
+          <Tile
+            href="/dashboard/oportunidades"
+            color="#2563eb"
+            bg="#f3f7ff"
+            icon={<Target size={36} />}
+            title="Demandas"
+            desc="Novas demandas enviadas para você. Desbloqueie e atenda!"
+            badge={loadingMetrics ? undefined : metrics.oportunidades}
+          />
+          <Tile
+            href="/minhas-demandas"
+            color="#219ebc"
+            bg="#e0f7fa"
+            icon={<ClipboardList size={36} />}
+            title="Minhas Demandas"
+            desc="Gerencie suas Demandas publicadas."
+            badge={loadingMetrics ? undefined : metrics.demandas}
+          />
+          <Tile
+            href="/meus-produtos"
+            color="#FB8500"
+            bg="#fff7ed"
+            icon={<Layers size={36} />}
+            title="Meus Produtos/Máquinas"
+            desc="Gerencie seus produtos e máquinas."
+            badge={
+              loadingMetrics ? undefined : metrics.produtos + metrics.maquinas
+            }
+          />
+          <Tile
+            href="/meus-servicos"
+            color="#219ebc"
+            bg="#e0f7fa"
+            icon={<Briefcase size={36} />}
+            title="Meus Serviços"
+            desc="Gerencie serviços e soluções oferecidas."
+            badge={loadingMetrics ? undefined : metrics.servicos}
+          />
+          <Tile
+            href="/meus-leads"
+            color="#FB8500"
+            bg="#fff7ed"
+            icon={<Inbox size={36} />}
+            title="Contatos Interessados"
+            desc="Veja clientes interessados nas suas ofertas."
+            badge={loadingMetrics ? undefined : metrics.leads}
+          />
+          <Tile
+            href="/mensagens"
+            color="#2563eb"
+            bg="#f3f7ff"
+            icon={<MessageCircle size={36} />}
+            title="Mensagens"
+            desc="Converse com clientes e negocie direto."
+            badge={loadingMetrics ? undefined : metrics.mensagens}
+          />
+          <Tile
+            href="/notificacoes"
+            color="#FB8500"
+            bg="#fff7ed"
+            icon={<Bell size={36} />}
+            title="Notificações"
+            desc="Mostra não lidas primeiro; cai para total."
+            badge={loadingMetrics ? undefined : metrics.notificacoes}
+          />
+          <Tile
+            href="/minhas-propostas"
+            color="#2563eb"
+            bg="#f3f7ff"
+            icon={<ClipboardList size={36} />}
+            title="Minhas Propostas"
+            desc="Acompanhe propostas enviadas e recebidas."
+            badge={loadingMetrics ? undefined : metrics.propostas}
+          />
+          <Tile
+            href="/sugestoes"
+            color="#FB8500"
+            bg="#fff7ed"
+            icon={<Lightbulb size={36} />}
+            title="Sugestões"
+            desc="Envie ideias para melhorar a plataforma."
+            badge={loadingMetrics ? undefined : metrics.sugestoes}
+          />
 
           {/* informativos */}
-          <Tile href="/perfil" color="#2563eb" bg="#f3f7ff" icon={<Users size={36} />} title="Meu Perfil" desc="Gerencie seus dados pessoais e de empresa." />
-          <Tile href="/ajuda" color="#059669" bg="#ecfdf5" icon={<LifeBuoy size={36} />} title="Central de Ajuda" desc="FAQ, suporte e abertura de tickets." />
-          <Tile href="/financeiro" color="#6d28d9" bg="#f9fafb" icon={<Wallet2 size={36} />} title="Financeiro" desc="Pagamentos e notas (em breve)." />
+          <Tile
+            href="/perfil"
+            color="#2563eb"
+            bg="#f3f7ff"
+            icon={<Users size={36} />}
+            title="Meu Perfil"
+            desc="Gerencie seus dados pessoais e de empresa."
+          />
+          <Tile
+            href="/ajuda"
+            color="#059669"
+            bg="#ecfdf5"
+            icon={<LifeBuoy size={36} />}
+            title="Central de Ajuda"
+            desc="FAQ, suporte e abertura de tickets."
+          />
+          <Tile
+            href="/financeiro"
+            color="#6d28d9"
+            bg="#f9fafb"
+            icon={<Wallet2 size={36} />}
+            title="Financeiro"
+            desc="Pagamentos e notas (em breve)."
+          />
 
           {/* Sair */}
           <button
@@ -470,9 +747,18 @@ export default function PainelUnificado() {
             aria-label="Sair da conta"
             title="Encerrar sessão"
           >
-            <LogOut size={36} className="mb-2 group-hover:scale-110 transition-transform duration-200" />
-            <span style={{ color: "#E85D04", fontWeight: 800, fontSize: 19 }}>{loadingLogout ? "Saindo..." : "Sair"}</span>
-            <span style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}>Encerrar sessão na plataforma.</span>
+            <LogOut
+              size={36}
+              className="mb-2 group-hover:scale-110 transition-transform duration-200"
+            />
+            <span style={{ color: "#E85D04", fontWeight: 800, fontSize: 19 }}>
+              {loadingLogout ? "Saindo..." : "Sair"}
+            </span>
+            <span
+              style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}
+            >
+              Encerrar sessão na plataforma.
+            </span>
           </button>
         </div>
       </section>
@@ -522,15 +808,32 @@ function MetricBadge({
         boxShadow: "0 2px 6px #0000000f",
       }}
     >
-      <span style={{ color, display: "flex", alignItems: "center" }}>{icon}</span>
+      <span style={{ color, display: "flex", alignItems: "center" }}>
+        {icon}
+      </span>
       <span>{value}</span>
-      <span style={{ marginLeft: 2, color: "#5a7b8b", fontWeight: 500, fontSize: ".91em" }}>{label}</span>
+      <span
+        style={{
+          marginLeft: 2,
+          color: "#5a7b8b",
+          fontWeight: 500,
+          fontSize: ".91em",
+        }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
 
 /** Popover de ajuda (hover + clique). */
-function InfoBubble({ text, color = "#023047" }: { text: string; color?: string }) {
+function InfoBubble({
+  text,
+  color = "#023047",
+}: {
+  text: string;
+  color?: string;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <div
@@ -573,9 +876,26 @@ function InfoBubble({ text, color = "#023047" }: { text: string; color?: string 
             color: "#334155",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-            <strong style={{ color: "#023047", fontSize: ".98rem" }}>O que é isto?</strong>
-            <button onClick={() => setOpen(false)} aria-label="Fechar" style={{ background: "transparent", border: 0, cursor: "pointer" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 4,
+            }}
+          >
+            <strong style={{ color: "#023047", fontSize: ".98rem" }}>
+              O que é isto?
+            </strong>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Fechar"
+              style={{
+                background: "transparent",
+                border: 0,
+                cursor: "pointer",
+              }}
+            >
               <X size={16} />
             </button>
           </div>
@@ -625,7 +945,15 @@ function Tile({
         }}
         className="hover:shadow-xl hover:scale-[1.035] transition group"
       >
-        <div style={{ color, marginBottom: 12, position: "relative", display: "flex", alignItems: "center" }}>
+        <div
+          style={{
+            color,
+            marginBottom: 12,
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
           {icon}
           {showBadge && (
             <span
@@ -648,10 +976,27 @@ function Tile({
           )}
         </div>
 
-        <span style={{ fontWeight: 800, color: "#023047", fontSize: 21, marginBottom: 3, textAlign: "center", letterSpacing: ".2px" }}>
+        <span
+          style={{
+            fontWeight: 800,
+            color: "#023047",
+            fontSize: 21,
+            marginBottom: 3,
+            textAlign: "center",
+            letterSpacing: ".2px",
+          }}
+        >
           {title}
         </span>
-        <span style={{ color: "#64748b", fontSize: "1.02rem", textAlign: "center", marginTop: 1, lineHeight: 1.35 }}>
+        <span
+          style={{
+            color: "#64748b",
+            fontSize: "1.02rem",
+            textAlign: "center",
+            marginTop: 1,
+            lineHeight: 1.35,
+          }}
+        >
           {desc}
         </span>
 

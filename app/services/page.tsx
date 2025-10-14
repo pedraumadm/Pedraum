@@ -28,7 +28,9 @@ export default function ServicesPage() {
     setLoading(true);
     const q = query(collection(db, "services"), orderBy("titulo", "asc"));
     const snapshot = await getDocs(q);
-    setServices(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Service)));
+    setServices(
+      snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as Service),
+    );
     setLoading(false);
   }
 
@@ -84,8 +86,8 @@ export default function ServicesPage() {
             outline: "none",
             transition: "background .14s, transform .13s",
           }}
-          onMouseOver={e => (e.currentTarget.style.background = "#e17000")}
-          onMouseOut={e => (e.currentTarget.style.background = "#FB8500")}
+          onMouseOver={(e) => (e.currentTarget.style.background = "#e17000")}
+          onMouseOut={(e) => (e.currentTarget.style.background = "#FB8500")}
         >
           <Plus size={22} /> Novo Serviço
         </Link>
@@ -93,23 +95,28 @@ export default function ServicesPage() {
 
       {/* Conteúdo */}
       {loading ? (
-        <div style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          minHeight: 260,
-          color: "#023047",
-          fontSize: "1.2rem",
-        }}>
-          <Loader2 className="animate-spin" style={{ marginRight: 9 }} /> Carregando...
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            minHeight: 260,
+            color: "#023047",
+            fontSize: "1.2rem",
+          }}
+        >
+          <Loader2 className="animate-spin" style={{ marginRight: 9 }} />{" "}
+          Carregando...
         </div>
       ) : services.length === 0 ? (
-        <div style={{
-          textAlign: "center",
-          color: "#8a8f99",
-          padding: "80px 0",
-          fontSize: "1.19rem",
-        }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "#8a8f99",
+            padding: "80px 0",
+            fontSize: "1.19rem",
+          }}
+        >
           Nenhum serviço cadastrado ainda.
         </div>
       ) : (
@@ -139,7 +146,14 @@ export default function ServicesPage() {
               }}
             >
               {/* Header do card */}
-              <div style={{ display: "flex", alignItems: "center", marginBottom: 14, gap: 15 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  marginBottom: 14,
+                  gap: 15,
+                }}
+              >
                 <div
                   style={{
                     width: 53,
@@ -189,30 +203,30 @@ export default function ServicesPage() {
                   color: "#3f4252",
                   marginBottom: 11,
                   minHeight: 32,
-                  opacity: .96,
+                  opacity: 0.96,
                   fontWeight: 500,
                 }}
               >
                 {service.descricao}
               </div>
               {/* Linha de infos */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 18,
-                marginBottom: 13,
-                flexWrap: "wrap",
-                fontSize: 15,
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 18,
+                  marginBottom: 13,
+                  flexWrap: "wrap",
+                  fontSize: 15,
+                }}
+              >
                 {service.prestador && (
                   <span style={{ color: "#219EBC", fontWeight: 600 }}>
                     {service.prestador}
                   </span>
                 )}
                 {service.estado && (
-                  <span style={{ color: "#888" }}>
-                    {service.estado}
-                  </span>
+                  <span style={{ color: "#888" }}>{service.estado}</span>
                 )}
                 {service.preco && (
                   <span style={{ color: "#FB8500", fontWeight: 700 }}>
@@ -238,8 +252,12 @@ export default function ServicesPage() {
                     outline: "none",
                     letterSpacing: ".01em",
                   }}
-                  onMouseOver={e => (e.currentTarget.style.background = "#176684")}
-                  onMouseOut={e => (e.currentTarget.style.background = "#219EBC")}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.background = "#176684")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.background = "#219EBC")
+                  }
                 >
                   Ver Detalhes
                 </Link>

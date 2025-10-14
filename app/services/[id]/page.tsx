@@ -31,13 +31,15 @@ import RequireAuth from "@/components/RequireAuth";
 import dynamic from "next/dynamic";
 
 // === PDF & Thumbs (somente no client)
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 const PDFThumb = dynamic(() => import("@/components/PDFThumb"), { ssr: false });
 
 /* ======================= Tipos ======================= */
 type ServiceDoc = {
   id: string;
-  userId?: string;          // compat
+  userId?: string; // compat
   vendedorId?: string;
   prestadorNome?: string;
   prestadorWhatsapp?: string;
@@ -95,7 +97,8 @@ function resumo(str: string = "", len = 160) {
   if (!str) return "";
   return str.length <= len ? str : str.slice(0, len - 3) + "...";
 }
-const notEmpty = (v: unknown): v is string => typeof v === "string" && !!v.trim();
+const notEmpty = (v: unknown): v is string =>
+  typeof v === "string" && !!v.trim();
 
 /* ======================= Modal de contato ======================= */
 function ModalContato({
@@ -131,7 +134,9 @@ function ModalContato({
     }
   }, [open, usuario]);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
   }
 
@@ -153,7 +158,13 @@ function ModalContato({
             className="sv-modal"
             onClick={(e) => e.stopPropagation()}
           >
-            <button className="sv-modal-close" aria-label="Fechar" onClick={onClose}>×</button>
+            <button
+              className="sv-modal-close"
+              aria-label="Fechar"
+              onClick={onClose}
+            >
+              ×
+            </button>
 
             <h2 className="sv-modal-title">Fale com o prestador</h2>
 
@@ -187,22 +198,68 @@ function ModalContato({
                   liberadoEm: "",
                   idTransacao: "",
                   isTest: false,
-                  imagens: Array.isArray(service.imagens) ? service.imagens : [],
+                  imagens: Array.isArray(service.imagens)
+                    ? service.imagens
+                    : [],
                 });
                 alert("Mensagem enviada com sucesso!");
                 onClose();
               }}
               className="sv-modal-form"
             >
-              <input name="nome" placeholder="Nome completo" value={form.nome} onChange={handleChange} required className="sv-input" />
-              <input name="telefone" placeholder="Telefone / WhatsApp" value={form.telefone} onChange={handleChange} required className="sv-input" />
-              <input name="email" type="email" placeholder="E-mail" value={form.email} onChange={handleChange} required className="sv-input" />
-              <input name="cidade" placeholder="Cidade" value={form.cidade} onChange={handleChange} className="sv-input" />
-              <input name="cnpj" placeholder="CNPJ (opcional)" value={form.cnpj} onChange={handleChange} className="sv-input" />
-              <textarea name="mensagem" placeholder="Mensagem/interesse (opcional)" value={form.mensagem} onChange={handleChange} className="sv-input" rows={3} />
-              <button type="submit" className="sv-btn-laranja">Enviar mensagem</button>
+              <input
+                name="nome"
+                placeholder="Nome completo"
+                value={form.nome}
+                onChange={handleChange}
+                required
+                className="sv-input"
+              />
+              <input
+                name="telefone"
+                placeholder="Telefone / WhatsApp"
+                value={form.telefone}
+                onChange={handleChange}
+                required
+                className="sv-input"
+              />
+              <input
+                name="email"
+                type="email"
+                placeholder="E-mail"
+                value={form.email}
+                onChange={handleChange}
+                required
+                className="sv-input"
+              />
+              <input
+                name="cidade"
+                placeholder="Cidade"
+                value={form.cidade}
+                onChange={handleChange}
+                className="sv-input"
+              />
+              <input
+                name="cnpj"
+                placeholder="CNPJ (opcional)"
+                value={form.cnpj}
+                onChange={handleChange}
+                className="sv-input"
+              />
+              <textarea
+                name="mensagem"
+                placeholder="Mensagem/interesse (opcional)"
+                value={form.mensagem}
+                onChange={handleChange}
+                className="sv-input"
+                rows={3}
+              />
+              <button type="submit" className="sv-btn-laranja">
+                Enviar mensagem
+              </button>
               <span className="sv-modal-note">
-                A Pedraum Brasil não participa das negociações nem garante pagamentos, entregas ou resultados.
+                A Pedraum Brasil não participa das negociações nem garante
+                pagamentos, entregas ou resultados.
               </span>
             </form>
           </motion.div>
@@ -290,7 +347,7 @@ export default function ServiceDetailPage() {
       const qy = query(
         collection(db, "services"),
         where("categoria", "==", service.categoria),
-        limit(20)
+        limit(20),
       );
       const snap = await getDocs(qy);
       const list: ServiceDoc[] = [];
@@ -299,14 +356,18 @@ export default function ServiceDetailPage() {
       });
       const ativos = list
         .filter((x) => !isExpired(x.createdAt, x.expiraEm))
-        .sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+        .sort(
+          (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
+        );
       setRelacionados(ativos.slice(0, 12));
     })();
   }, [service?.id, service?.categoria]);
 
   // ===== PDF config (lazy & responsivo) =====
   const pdfUrl: string | undefined = (service as any)?.pdfUrl || undefined; // mude o nome do campo se precisar
-  const pdfSrc = pdfUrl ? `/api/pdf-proxy?file=${encodeURIComponent(pdfUrl)}` : undefined;
+  const pdfSrc = pdfUrl
+    ? `/api/pdf-proxy?file=${encodeURIComponent(pdfUrl)}`
+    : undefined;
 
   useEffect(() => {
     if (!pdfSrc) return;
@@ -320,7 +381,7 @@ export default function ServiceDetailPage() {
           io.disconnect();
         }
       },
-      { rootMargin: "200px" }
+      { rootMargin: "200px" },
     );
     io.observe(el);
 
@@ -347,18 +408,19 @@ export default function ServiceDetailPage() {
     );
   }
 
-  const imagens: string[] = Array.isArray(service.imagens) ? service.imagens.filter(notEmpty) : [];
+  const imagens: string[] = Array.isArray(service.imagens)
+    ? service.imagens.filter(notEmpty)
+    : [];
   const imgPrincipal = imagens[imgIndex] || "/images/no-image.png";
   const expirado = isExpired(service.createdAt, service.expiraEm);
   const precoFmt = currency(service.preco);
   const podeMostrarPreco = Boolean(precoFmt);
 
-  const whatsLink =
-    service.prestadorWhatsapp
-      ? `https://wa.me/${service.prestadorWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
-          `Olá! Tenho interesse no serviço "${service?.titulo || ""}".`
-        )}`
-      : "";
+  const whatsLink = service.prestadorWhatsapp
+    ? `https://wa.me/${service.prestadorWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
+        `Olá! Tenho interesse no serviço "${service?.titulo || ""}".`,
+      )}`
+    : "";
 
   const conteudo = (
     <section className="sv-wrap">
@@ -371,8 +433,13 @@ export default function ServiceDetailPage() {
           className="sv-share"
           onClick={() => {
             try {
-              const url = typeof window !== "undefined" ? window.location.href : "";
-              const data = { title: service.titulo || "Serviço", text: "Veja este serviço no Pedraum", url };
+              const url =
+                typeof window !== "undefined" ? window.location.href : "";
+              const data = {
+                title: service.titulo || "Serviço",
+                text: "Veja este serviço no Pedraum",
+                url,
+              };
               // @ts-ignore
               if (navigator.share) navigator.share(data);
               else if (url) navigator.clipboard.writeText(url);
@@ -393,15 +460,24 @@ export default function ServiceDetailPage() {
             tabIndex={0}
             title={imagens.length ? "Clique para ampliar" : undefined}
             onClick={() => imagens.length && setLightboxOpen(true)}
-            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && imagens.length && setLightboxOpen(true)}
+            onKeyDown={(e) =>
+              (e.key === "Enter" || e.key === " ") &&
+              imagens.length &&
+              setLightboxOpen(true)
+            }
           >
             <img
               src={imgPrincipal}
               alt={service.titulo || "Serviço"}
               className="sv-img"
-              onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")}
+              onError={(e) =>
+                ((e.currentTarget as HTMLImageElement).src =
+                  "/images/no-image.png")
+              }
             />
-            {imagens.length > 0 && <span className="sv-zoom-hint">Clique para ampliar</span>}
+            {imagens.length > 0 && (
+              <span className="sv-zoom-hint">Clique para ampliar</span>
+            )}
           </div>
 
           {imagens.length > 1 && (
@@ -413,7 +489,10 @@ export default function ServiceDetailPage() {
                   alt={`Imagem ${idx + 1}`}
                   className={`sv-thumb ${idx === imgIndex ? "sv-thumb--active" : ""}`}
                   onClick={() => setImgIndex(idx)}
-                  onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")}
+                  onError={(e) =>
+                    ((e.currentTarget as HTMLImageElement).src =
+                      "/images/no-image.png")
+                  }
                 />
               ))}
             </div>
@@ -427,11 +506,17 @@ export default function ServiceDetailPage() {
               tabIndex={0}
               title="Abrir anexo (PDF)"
               onClick={() => setPdfOpen(true)}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPdfOpen(true)}
+              onKeyDown={(e) =>
+                (e.key === "Enter" || e.key === " ") && setPdfOpen(true)
+              }
             >
               <div className="sv-pdf-thumb-cover" ref={pdfThumbCoverRef}>
                 <span className="sv-pdf-badge">PDF</span>
-                {pdfThumbReady ? <PDFThumb src={pdfSrc} width={pdfThumbWidth} /> : <div className="sv-pdf-skel" />}
+                {pdfThumbReady ? (
+                  <PDFThumb src={pdfSrc} width={pdfThumbWidth} />
+                ) : (
+                  <div className="sv-pdf-skel" />
+                )}
               </div>
               <div className="sv-pdf-thumb-meta">
                 <div className="titulo">Documento em PDF deste serviço</div>
@@ -458,7 +543,12 @@ export default function ServiceDetailPage() {
             </button>
 
             {whatsLink && !expirado && (
-              <a href={whatsLink} target="_blank" rel="noopener noreferrer" className="sv-btn-azul">
+              <a
+                href={whatsLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="sv-btn-azul"
+              >
                 WhatsApp do prestador
               </a>
             )}
@@ -474,22 +564,44 @@ export default function ServiceDetailPage() {
             </h1>
 
             <div className="sv-badges">
-              {isNovo(service.createdAt) && !expirado && <span className="sv-badge sv-badge--novo">NOVO</span>}
-              {expirado && <span className="sv-badge sv-badge--exp">EXPIRADO</span>}
+              {isNovo(service.createdAt) && !expirado && (
+                <span className="sv-badge sv-badge--novo">NOVO</span>
+              )}
+              {expirado && (
+                <span className="sv-badge sv-badge--exp">EXPIRADO</span>
+              )}
             </div>
           </div>
 
           <div className="sv-meta-list">
-            {service.categoria && <span><Layers size={18} /> {service.categoria}</span>}
-            {service.disponibilidade && <span><Calendar size={18} /> {service.disponibilidade}</span>}
-            {service.estado && <span><MapPin size={18} /> {service.estado}</span>}
-            {service.abrangencia && <span><Tag size={18} /> {service.abrangencia}</span>}
+            {service.categoria && (
+              <span>
+                <Layers size={18} /> {service.categoria}
+              </span>
+            )}
+            {service.disponibilidade && (
+              <span>
+                <Calendar size={18} /> {service.disponibilidade}
+              </span>
+            )}
+            {service.estado && (
+              <span>
+                <MapPin size={18} /> {service.estado}
+              </span>
+            )}
+            {service.abrangencia && (
+              <span>
+                <Tag size={18} /> {service.abrangencia}
+              </span>
+            )}
           </div>
 
           {service.descricao && (
             <div className="sv-desc-card">
               <div className="sv-desc-badge">Resumo</div>
-              <div className="sv-desc-body">{resumo(service.descricao, 260)}</div>
+              <div className="sv-desc-body">
+                {resumo(service.descricao, 260)}
+              </div>
             </div>
           )}
         </div>
@@ -509,10 +621,26 @@ export default function ServiceDetailPage() {
           <div className="sv-rel-header">
             <h3>Serviços relacionados</h3>
             <div className="sv-rel-nav">
-              <button aria-label="Voltar" onClick={() => carrosselRef.current?.scrollBy({ left: -320, behavior: "smooth" })}>
+              <button
+                aria-label="Voltar"
+                onClick={() =>
+                  carrosselRef.current?.scrollBy({
+                    left: -320,
+                    behavior: "smooth",
+                  })
+                }
+              >
                 <ChevronLeft />
               </button>
-              <button aria-label="Avançar" onClick={() => carrosselRef.current?.scrollBy({ left: 320, behavior: "smooth" })}>
+              <button
+                aria-label="Avançar"
+                onClick={() =>
+                  carrosselRef.current?.scrollBy({
+                    left: 320,
+                    behavior: "smooth",
+                  })
+                }
+              >
                 <ChevronRight />
               </button>
             </div>
@@ -520,13 +648,30 @@ export default function ServiceDetailPage() {
           <div className="sv-rel" ref={carrosselRef}>
             {relacionados.map((r) => {
               const precoR = currency(r.preco);
-              const img = (Array.isArray(r.imagens) && r.imagens[0]) || "/images/no-image.png";
+              const img =
+                (Array.isArray(r.imagens) && r.imagens[0]) ||
+                "/images/no-image.png";
               return (
-                <Link key={r.id} href={`/services/${r.id}`} className="sv-rel-card">
-                  <div className="sv-rel-img"><img src={img} alt={r.titulo || "Serviço"} onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")} /></div>
+                <Link
+                  key={r.id}
+                  href={`/services/${r.id}`}
+                  className="sv-rel-card"
+                >
+                  <div className="sv-rel-img">
+                    <img
+                      src={img}
+                      alt={r.titulo || "Serviço"}
+                      onError={(e) =>
+                        ((e.currentTarget as HTMLImageElement).src =
+                          "/images/no-image.png")
+                      }
+                    />
+                  </div>
                   <div className="sv-rel-body">
                     <div className="sv-rel-title">{r.titulo || "Serviço"}</div>
-                    {r.categoria && <div className="sv-rel-cat">{r.categoria}</div>}
+                    {r.categoria && (
+                      <div className="sv-rel-cat">{r.categoria}</div>
+                    )}
                     {precoR && <div className="sv-rel-preco">{precoR}</div>}
                   </div>
                 </Link>
@@ -556,21 +701,32 @@ export default function ServiceDetailPage() {
               alt={service.titulo || "Serviço"}
               className="sv-lb-img"
               onClick={(e) => e.stopPropagation()}
-              onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")}
+              onError={(e) =>
+                ((e.currentTarget as HTMLImageElement).src =
+                  "/images/no-image.png")
+              }
             />
 
             {imagens.length > 1 && (
               <>
                 <button
                   aria-label="Anterior"
-                  onClick={(e) => { e.stopPropagation(); setImgIndex((i) => (i - 1 + imagens.length) % imagens.length); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImgIndex(
+                      (i) => (i - 1 + imagens.length) % imagens.length,
+                    );
+                  }}
                   className="sv-lb-nav sv-lb-left"
                 >
                   ‹
                 </button>
                 <button
                   aria-label="Próxima"
-                  onClick={(e) => { e.stopPropagation(); setImgIndex((i) => (i + 1) % imagens.length); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImgIndex((i) => (i + 1) % imagens.length);
+                  }}
                   className="sv-lb-nav sv-lb-right"
                 >
                   ›
@@ -578,7 +734,16 @@ export default function ServiceDetailPage() {
               </>
             )}
 
-            <button aria-label="Fechar" onClick={(e) => { e.stopPropagation(); setLightboxOpen(false); }} className="sv-lb-close">×</button>
+            <button
+              aria-label="Fechar"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxOpen(false);
+              }}
+              className="sv-lb-close"
+            >
+              ×
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -601,7 +766,13 @@ export default function ServiceDetailPage() {
               className="sv-pdf-modal"
               onClick={(e) => e.stopPropagation()}
             >
-              <button aria-label="Fechar" onClick={() => setPdfOpen(false)} className="sv-pdf-close">×</button>
+              <button
+                aria-label="Fechar"
+                onClick={() => setPdfOpen(false)}
+                className="sv-pdf-close"
+              >
+                ×
+              </button>
               <div className="sv-pdf-container">
                 <DrivePDFViewer fileUrl={pdfSrc} height={undefined as any} />
               </div>

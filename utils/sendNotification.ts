@@ -12,7 +12,12 @@ export type NotificationPayload = {
   url?: string;
 };
 
-export async function sendNotification({ usuarioId, titulo, descricao, url }: NotificationPayload) {
+export async function sendNotification({
+  usuarioId,
+  titulo,
+  descricao,
+  url,
+}: NotificationPayload) {
   await addDoc(collection(db, "notificacoes"), {
     usuarioId,
     titulo,

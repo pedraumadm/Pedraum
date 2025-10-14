@@ -4,7 +4,13 @@
 
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
@@ -14,7 +20,10 @@ interface UserContextType {
   loading: boolean;
 }
 
-const UserContext = createContext<UserContextType>({ user: null, loading: true });
+const UserContext = createContext<UserContextType>({
+  user: null,
+  loading: true,
+});
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -36,7 +45,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  return <UserContext.Provider value={{ user, loading }}>{children}</UserContext.Provider>;
+  return (
+    <UserContext.Provider value={{ user, loading }}>
+      {children}
+    </UserContext.Provider>
+  );
 }
 
 export function useUserContext() {

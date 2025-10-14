@@ -13,7 +13,7 @@ export function norm(s?: string) {
 /** Une categorias principais (legado) + pares e retorna sem duplicatas */
 export function buildCategoriesAll(
   pairs: CategoriaPair[] = [],
-  legacy: string[] = []
+  legacy: string[] = [],
 ): string[] {
   const set = new Set<string>();
   (legacy || []).forEach((c) => c && set.add(c));
@@ -33,7 +33,10 @@ export function buildPairsSearch(pairs: CategoriaPair[] = []): string[] {
 }
 
 /** Lista de UFs em UPPERCASE; inclui "BRASIL" quando atendeBrasil=true */
-export function buildUfsSearch(atendeBrasil?: boolean, ufs: string[] = []): string[] {
+export function buildUfsSearch(
+  atendeBrasil?: boolean,
+  ufs: string[] = [],
+): string[] {
   const arr = (ufs || []).map((u) => (u || "").toString().trim().toUpperCase());
   if (atendeBrasil && !arr.includes("BRASIL")) arr.push("BRASIL");
   return Array.from(new Set(arr));

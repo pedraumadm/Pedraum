@@ -1,6 +1,12 @@
 // lib/registerView.ts
 import { auth, db } from "@/firebaseConfig";
-import { doc, setDoc, updateDoc, serverTimestamp, increment } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+  increment,
+} from "firebase/firestore";
 
 /**
  * Gera um ID de dispositivo persistente usando localStorage.
@@ -40,11 +46,15 @@ export async function registerView(demandaId: string) {
     const demandaRef = doc(db, "demandas", demandaId);
 
     // cria subdoc de view (falha se já existir → não incrementa de novo)
-    await setDoc(viewRef, {
-      uid: user?.uid ?? null,
-      deviceId,
-      createdAt: serverTimestamp(),
-    }, { merge: false });
+    await setDoc(
+      viewRef,
+      {
+        uid: user?.uid ?? null,
+        deviceId,
+        createdAt: serverTimestamp(),
+      },
+      { merge: false },
+    );
 
     // incrementa contador total
     await updateDoc(demandaRef, {

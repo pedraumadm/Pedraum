@@ -11,7 +11,12 @@ interface MessageCardProps {
   onClick?: () => void;
 }
 
-export default function MessageCard({ id, nome, ultimaMensagem, onClick }: MessageCardProps) {
+export default function MessageCard({
+  id,
+  nome,
+  ultimaMensagem,
+  onClick,
+}: MessageCardProps) {
   return (
     <div
       onClick={onClick}

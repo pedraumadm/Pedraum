@@ -53,32 +53,84 @@ function CriarDemandaAdmin() {
         </div>
         <form onSubmit={handleCriar} className="space-y-5">
           <div>
-            <label className="block font-semibold text-[#023047] mb-1">Título</label>
-            <input type="text" required className="input" value={titulo} onChange={e => setTitulo(e.target.value)} />
+            <label className="block font-semibold text-[#023047] mb-1">
+              Título
+            </label>
+            <input
+              type="text"
+              required
+              className="input"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+            />
           </div>
           <div>
-            <label className="block font-semibold text-[#023047] mb-1">Categoria</label>
-            <input type="text" required className="input" value={categoria} onChange={e => setCategoria(e.target.value)} />
+            <label className="block font-semibold text-[#023047] mb-1">
+              Categoria
+            </label>
+            <input
+              type="text"
+              required
+              className="input"
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+            />
           </div>
           <div>
-            <label className="block font-semibold text-[#023047] mb-1">Descrição</label>
-            <textarea required className="input min-h-[80px]" value={descricao} onChange={e => setDescricao(e.target.value)} />
+            <label className="block font-semibold text-[#023047] mb-1">
+              Descrição
+            </label>
+            <textarea
+              required
+              className="input min-h-[80px]"
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+            />
           </div>
           <div>
-            <label className="block font-semibold text-[#023047] mb-1">ID do Criador (userId)</label>
-            <input type="text" className="input" value={userId} onChange={e => setUserId(e.target.value)} placeholder="Opcional, vincula demanda a um usuário" />
+            <label className="block font-semibold text-[#023047] mb-1">
+              ID do Criador (userId)
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="Opcional, vincula demanda a um usuário"
+            />
           </div>
           <div>
-            <label className="block font-semibold text-[#023047] mb-1">Nome do Criador</label>
-            <input type="text" className="input" value={nomeUsuario} onChange={e => setNomeUsuario(e.target.value)} placeholder="Opcional" />
+            <label className="block font-semibold text-[#023047] mb-1">
+              Nome do Criador
+            </label>
+            <input
+              type="text"
+              className="input"
+              value={nomeUsuario}
+              onChange={(e) => setNomeUsuario(e.target.value)}
+              placeholder="Opcional"
+            />
           </div>
-          {erro && <div className="text-red-600 bg-red-50 rounded p-2 text-sm">{erro}</div>}
+          {erro && (
+            <div className="text-red-600 bg-red-50 rounded p-2 text-sm">
+              {erro}
+            </div>
+          )}
           <div className="flex gap-2 mt-6">
-            <button type="submit" disabled={loading} className="bg-[#FB8500] text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-[#ff9800]">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-[#FB8500] text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-[#ff9800]"
+            >
               {loading ? <Loader2 className="animate-spin" size={20} /> : null}
               {loading ? "Salvando..." : "Salvar"}
             </button>
-            <Link href="/admin/demandas" className="ml-2 bg-gray-200 text-gray-600 px-8 py-3 rounded-full font-bold hover:bg-gray-300">Cancelar</Link>
+            <Link
+              href="/admin/demandas"
+              className="ml-2 bg-gray-200 text-gray-600 px-8 py-3 rounded-full font-bold hover:bg-gray-300"
+            >
+              Cancelar
+            </Link>
           </div>
         </form>
       </div>

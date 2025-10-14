@@ -29,21 +29,36 @@ export default function RelatoriosPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-6xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#023047] mb-8">Relatórios da Plataforma</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-8">
+          Relatórios da Plataforma
+        </h1>
 
         {loading ? (
           <p className="text-gray-500">Carregando dados...</p>
         ) : (
           <div className="space-y-8">
-            <RelatorioCard titulo="Total de usuários cadastrados" valor={usuarios.length} />
-            <RelatorioCard titulo="Total de máquinas postadas" valor={maquinas.length} />
-            <RelatorioCard titulo="Total de demandas recebidas" valor={demandas.length} />
+            <RelatorioCard
+              titulo="Total de usuários cadastrados"
+              valor={usuarios.length}
+            />
+            <RelatorioCard
+              titulo="Total de máquinas postadas"
+              valor={maquinas.length}
+            />
+            <RelatorioCard
+              titulo="Total de demandas recebidas"
+              valor={demandas.length}
+            />
 
             <div className="mt-10">
-              <h2 className="text-xl font-semibold text-[#023047] mb-4">Usuários (amostra)</h2>
+              <h2 className="text-xl font-semibold text-[#023047] mb-4">
+                Usuários (amostra)
+              </h2>
               <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
                 {usuarios.slice(0, 5).map((u, i) => (
-                  <li key={i}>{u.nome || "Usuário sem nome"} — {u.email || "sem email"}</li>
+                  <li key={i}>
+                    {u.nome || "Usuário sem nome"} — {u.email || "sem email"}
+                  </li>
                 ))}
               </ul>
             </div>

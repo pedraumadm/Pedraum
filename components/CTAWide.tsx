@@ -9,7 +9,12 @@ type Props = {
   primaryHref: string;
 };
 
-export default function CTAWide({ title, subtitle, primaryText, primaryHref }: Props) {
+export default function CTAWide({
+  title,
+  subtitle,
+  primaryText,
+  primaryHref,
+}: Props) {
   return (
     <section className="container mx-auto px-4">
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#FB8500] to-[#f59e0b] text-white p-8 md:p-12">

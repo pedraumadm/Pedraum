@@ -121,7 +121,9 @@ export default function VitrineCompleta() {
     itens.forEach((x) => {
       if (x.estado === estado && x.cidade) cidSet.add(x.cidade);
     });
-    const cidades = Array.from(cidSet).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const cidades = Array.from(cidSet).sort((a, b) =>
+      a.localeCompare(b, "pt-BR"),
+    );
     setCidadesDisponiveis(cidades);
     // Se cidade atual não pertence mais ao estado selecionado, limpa
     if (cidade && !cidades.includes(cidade)) setCidade("");
@@ -143,8 +145,10 @@ export default function VitrineCompleta() {
       if (cidade && p.cidade !== cidade) return false;
 
       // Preço
-      if (precoMin && !(p.preco && Number(p.preco) >= Number(precoMin))) return false;
-      if (precoMax && !(p.preco && Number(p.preco) <= Number(precoMax))) return false;
+      if (precoMin && !(p.preco && Number(p.preco) >= Number(precoMin)))
+        return false;
+      if (precoMax && !(p.preco && Number(p.preco) <= Number(precoMax)))
+        return false;
 
       // Busca textual (nome/título/categoria/descrição)
       if (texto) {
@@ -169,7 +173,9 @@ export default function VitrineCompleta() {
   const itensOrdenados = [...ativos, ...expirados];
 
   return (
-    <section style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}>
+    <section
+      style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}
+    >
       <h1
         style={{
           fontSize: "2.35rem",
@@ -241,7 +247,11 @@ export default function VitrineCompleta() {
           marginBottom: 28,
         }}
       >
-        <select className="filtro" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+        <select
+          className="filtro"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+        >
           <option value="">Todos</option>
           <option value="machines">Máquinas</option>
           <option value="produtos">Produtos</option>
@@ -256,7 +266,11 @@ export default function VitrineCompleta() {
           style={{ minWidth: 155 }}
         />
 
-        <select className="filtro" value={categoria} onChange={(e) => setCategoria(e.target.value)}>
+        <select
+          className="filtro"
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+        >
           <option value="">Categoria</option>
           {categoriasPDF.map((cat) => (
             <option key={cat} value={cat}>
@@ -265,7 +279,11 @@ export default function VitrineCompleta() {
           ))}
         </select>
 
-        <select className="filtro" value={estado} onChange={(e) => setEstado(e.target.value)}>
+        <select
+          className="filtro"
+          value={estado}
+          onChange={(e) => setEstado(e.target.value)}
+        >
           <option value="">Estado</option>
           {estadosDisponiveis.map((uf) => (
             <option key={uf} value={uf}>
@@ -279,7 +297,10 @@ export default function VitrineCompleta() {
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
           disabled={!estado}
-          style={{ opacity: estado ? 1 : 0.6, cursor: estado ? "pointer" : "not-allowed" }}
+          style={{
+            opacity: estado ? 1 : 0.6,
+            cursor: estado ? "pointer" : "not-allowed",
+          }}
         >
           <option value="">{estado ? "Cidade" : "Selecione um estado"}</option>
           {cidadesDisponiveis.map((cid) => (
@@ -324,7 +345,13 @@ export default function VitrineCompleta() {
 
       {/* SKELETON / EMPTY / GRID */}
       {carregando ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "34px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+            gap: "34px",
+          }}
+        >
           {[...Array(8)].map((_, idx) => (
             <div
               key={idx}
@@ -351,26 +378,49 @@ export default function VitrineCompleta() {
             boxShadow: "0 4px 18px #0001",
           }}
         >
-          <Zap size={32} style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }} />
+          <Zap
+            size={32}
+            style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }}
+          />
           Nenhum item encontrado.
           <br />
-          <span style={{ fontWeight: 400, fontSize: 16 }}>Tente alterar os filtros ou pesquisar outro termo.</span>
+          <span style={{ fontWeight: 400, fontSize: 16 }}>
+            Tente alterar os filtros ou pesquisar outro termo.
+          </span>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: "34px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+            gap: "34px",
+          }}
+        >
           {itensOrdenados.map((item) => {
             const expirado = isExpired(item);
-            const tipoLabel = item.tipo === "machines" ? "Máquina" : item.tipo === "produtos" ? "Produto" : "Serviço";
+            const tipoLabel =
+              item.tipo === "machines"
+                ? "Máquina"
+                : item.tipo === "produtos"
+                  ? "Produto"
+                  : "Serviço";
             const corBadge = badgeTipoCor[item.tipo] || badgeTipoCor.default;
 
             // preço (só exibe se > 0; se serviço e vazio => "Sob consulta")
             const temPreco = item.preco && Number(item.preco) > 0;
-            const textoPreco =
-              temPreco ? `R$ ${Number(item.preco).toLocaleString("pt-BR")}` : item.tipo === "services" ? "Sob consulta" : "";
+            const textoPreco = temPreco
+              ? `R$ ${Number(item.preco).toLocaleString("pt-BR")}`
+              : item.tipo === "services"
+                ? "Sob consulta"
+                : "";
 
             // Botão por tipo/expiração
             const isServico = item.tipo === "services";
-            const botaoBg = expirado ? "#d1d5db" : isServico ? "#219ebc" : "#fb8500";
+            const botaoBg = expirado
+              ? "#d1d5db"
+              : isServico
+                ? "#219ebc"
+                : "#fb8500";
             const botaoLabel = expirado ? "Expirado" : "Ver Detalhes";
             const botaoHref = expirado ? undefined : `/${item.tipo}/${item.id}`;
 
@@ -448,20 +498,39 @@ export default function VitrineCompleta() {
                   }}
                 >
                   {item.tipo === "services" ? (
-                    <Hammer size={68} style={{ color: "#fb8500", opacity: 0.19 }} />
+                    <Hammer
+                      size={68}
+                      style={{ color: "#fb8500", opacity: 0.19 }}
+                    />
                   ) : (
                     <img
                       src={item.imagens?.[0] || "/images/no-image.png"}
                       alt={item.nome || item.titulo}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      onError={(e) => (e.currentTarget.src = "/images/no-image.png")}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                      }}
+                      onError={(e) =>
+                        (e.currentTarget.src = "/images/no-image.png")
+                      }
                     />
                   )}
                 </div>
 
                 {/* INFOS */}
-                <div style={{ padding: "20px 24px 8px 24px", flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <div
+                  style={{
+                    padding: "20px 24px 8px 24px",
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 5,
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 9 }}
+                  >
                     <div
                       style={{
                         background: corBadge,
@@ -475,20 +544,56 @@ export default function VitrineCompleta() {
                     >
                       {tipoLabel}
                     </div>
-                    <div style={{ color: "#219ebc", fontWeight: 700, fontSize: 15 }}>{item.categoria}</div>
+                    <div
+                      style={{
+                        color: "#219ebc",
+                        fontWeight: 700,
+                        fontSize: 15,
+                      }}
+                    >
+                      {item.categoria}
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: "1.12rem", fontWeight: 800, color: "#023047", marginBottom: 2, marginTop: 4 }}>
+                  <div
+                    style={{
+                      fontSize: "1.12rem",
+                      fontWeight: 800,
+                      color: "#023047",
+                      marginBottom: 2,
+                      marginTop: 4,
+                    }}
+                  >
                     {item.nome || item.titulo}
                   </div>
 
-                  <div style={{ color: "#64748b", fontWeight: 500, fontSize: 15 }}>{resumo(item.descricao)}</div>
+                  <div
+                    style={{ color: "#64748b", fontWeight: 500, fontSize: 15 }}
+                  >
+                    {resumo(item.descricao)}
+                  </div>
 
                   {textoPreco ? (
-                    <div style={{ color: "#FB8500", fontWeight: 800, fontSize: 19, marginTop: 2 }}>{textoPreco}</div>
+                    <div
+                      style={{
+                        color: "#FB8500",
+                        fontWeight: 800,
+                        fontSize: 19,
+                        marginTop: 2,
+                      }}
+                    >
+                      {textoPreco}
+                    </div>
                   ) : null}
 
-                  <div style={{ color: "#8c9199", fontWeight: 600, fontSize: 15, marginTop: 2 }}>
+                  <div
+                    style={{
+                      color: "#8c9199",
+                      fontWeight: 600,
+                      fontSize: 15,
+                      marginTop: 2,
+                    }}
+                  >
                     {item.cidade || "-"}, {item.estado || "-"}
                   </div>
 

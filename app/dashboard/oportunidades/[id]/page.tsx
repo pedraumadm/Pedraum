@@ -41,12 +41,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 
 // === PDF & Thumbs (somente no cliente)
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 const PDFThumb = dynamic(() => import("@/components/PDFThumb"), { ssr: false });
 
 /* ======================= Types ======================= */
-type Pricing = { amount?: number; currency?: string; exclusive?: boolean; cap?: number };
-type AssignmentStatus = "sent" | "viewed" | "unlocked" | "won" | "lost" | "refunded";
+type Pricing = {
+  amount?: number;
+  currency?: string;
+  exclusive?: boolean;
+  cap?: number;
+};
+type AssignmentStatus =
+  | "sent"
+  | "viewed"
+  | "unlocked"
+  | "won"
+  | "lost"
+  | "refunded";
 type Assignment = {
   id: string;
   demandId: string;
@@ -126,7 +139,9 @@ type DemandaMini = {
 /* ======================= Const ======================= */
 const DEFAULT_PRICE_CENTS = 1990;
 const WPP_PEDRAUM = process.env.NEXT_PUBLIC_PEDRAUM_WPP || "5531990903613";
-const WPP_SPONSOR_MSG = encodeURIComponent("Quero me tornar patrocinador. Como funciona, e quais as vantagens?");
+const WPP_SPONSOR_MSG = encodeURIComponent(
+  "Quero me tornar patrocinador. Como funciona, e quais as vantagens?",
+);
 const WPP_SPONSOR_URL = `https://wa.me/${WPP_PEDRAUM}?text=${WPP_SPONSOR_MSG}`;
 
 /* ======================= Utils ======================= */
@@ -160,11 +175,19 @@ function msToDHMS(ms: number) {
   const s = sec % 60;
   return { d, h, m, s };
 }
-function resolveStatus(d: DemandFire): { key: DemandFire["status"] | "aberta"; label: string; color: string } {
+function resolveStatus(d: DemandFire): {
+  key: DemandFire["status"] | "aberta";
+  label: string;
+  color: string;
+} {
   if (d.status) {
     switch (d.status) {
       case "andamento":
-        return { key: "andamento", label: "Em andamento", color: "var(--st-blue)" };
+        return {
+          key: "andamento",
+          label: "Em andamento",
+          color: "var(--st-blue)",
+        };
       case "fechada":
         return { key: "fechada", label: "Fechada", color: "var(--st-gray)" };
       case "expirada":
@@ -192,7 +215,8 @@ function isPerfilPatrocinador(perfil?: Perfil | null): boolean {
   }
   return true;
 }
-const notEmptyString = (v: unknown): v is string => typeof v === "string" && v.trim().length > 0;
+const notEmptyString = (v: unknown): v is string =>
+  typeof v === "string" && v.trim().length > 0;
 
 /* ======================= Página ======================= */
 export default function OportunidadeDetalhePage() {
@@ -203,7 +227,9 @@ export default function OportunidadeDetalhePage() {
   const [uid, setUid] = useState<string | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
 
-  const [demanda, setDemanda] = useState<(DemandFire & { id: string }) | null>(null);
+  const [demanda, setDemanda] = useState<(DemandFire & { id: string }) | null>(
+    null,
+  );
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [relacionadas, setRelacionadas] = useState<DemandaMini[]>([]);
   const [loading, setLoading] = useState(true);
@@ -224,7 +250,9 @@ export default function OportunidadeDetalhePage() {
       if (u?.uid) {
         try {
           const s = await getDoc(doc(db, "usuarios", u.uid));
-          setPerfil(s.exists() ? ({ id: u.uid, ...(s.data() as any) }) : { id: u.uid });
+          setPerfil(
+            s.exists() ? { id: u.uid, ...(s.data() as any) } : { id: u.uid },
+          );
         } catch {
           setPerfil({ id: u.uid });
         }
@@ -245,7 +273,9 @@ export default function OportunidadeDetalhePage() {
       const cats = pairs.map((p) => p?.categoria ?? "").filter(notEmptyString);
       return Array.from(new Set<string>(cats)).slice(0, 10);
     }
-    const legacy = Array.isArray(perfil.categoriasAtuacao) ? (perfil.categoriasAtuacao as unknown[]) : [];
+    const legacy = Array.isArray(perfil.categoriasAtuacao)
+      ? (perfil.categoriasAtuacao as unknown[])
+      : [];
     const legacyCats = legacy.filter(notEmptyString);
     return Array.from(new Set<string>(legacyCats)).slice(0, 10);
   }, [perfil]);
@@ -254,7 +284,9 @@ export default function OportunidadeDetalhePage() {
     if (!d || !myCats || !myCats.length) return false;
     const cat = (d.categoria || "").trim();
     if (cat && myCats.includes(cat)) return true;
-    const arr = Array.isArray((d as any).categorias) ? ((d as any).categorias as unknown[]) : [];
+    const arr = Array.isArray((d as any).categorias)
+      ? ((d as any).categorias as unknown[])
+      : [];
     return arr.filter(notEmptyString).some((c) => myCats.includes(c));
   }
 
@@ -275,7 +307,10 @@ export default function OportunidadeDetalhePage() {
         setAssignment(a);
         if (a.status === "sent") {
           try {
-            await updateDoc(aRef, { status: "viewed", updatedAt: serverTimestamp() });
+            await updateDoc(aRef, {
+              status: "viewed",
+              updatedAt: serverTimestamp(),
+            });
           } catch {}
         }
       } else {
@@ -318,7 +353,11 @@ export default function OportunidadeDetalhePage() {
   useEffect(() => {
     const s1 = searchParams.get("status");
     const s2 = searchParams.get("collection_status");
-    if ((s1 === "approved" || s2 === "approved" || s1 === "success") && uid && id) {
+    if (
+      (s1 === "approved" || s2 === "approved" || s1 === "success") &&
+      uid &&
+      id
+    ) {
       (async () => {
         try {
           await fetch("/api/mp/unlock", {
@@ -332,7 +371,11 @@ export default function OportunidadeDetalhePage() {
   }, [searchParams, uid, id]);
 
   // Meta
-  const adminPriceCents = Number(demanda?.priceCents ?? demanda?.pricingDefault?.amount ?? DEFAULT_PRICE_CENTS);
+  const adminPriceCents = Number(
+    demanda?.priceCents ??
+      demanda?.pricingDefault?.amount ??
+      DEFAULT_PRICE_CENTS,
+  );
   const priceCents = adminPriceCents;
   const title = demanda?.titulo || "Oportunidade";
   const description = demanda?.descricao || "";
@@ -368,7 +411,12 @@ export default function OportunidadeDetalhePage() {
       demandId: String(id),
       supplierId: uid,
       status: "sent",
-      pricing: { amount: adminPriceCents, currency: "BRL", exclusive: false, cap: 3 },
+      pricing: {
+        amount: adminPriceCents,
+        currency: "BRL",
+        exclusive: false,
+        cap: 3,
+      },
       createdAt: null,
       updatedAt: null,
     };
@@ -377,9 +425,14 @@ export default function OportunidadeDetalhePage() {
   // Regras de acesso
   const isOwner = !!(demanda?.userId && uid && demanda.userId === uid);
   const patrocinioAtivo = isPerfilPatrocinador(perfil);
-  const contatoLiberadoPorPatrocinio = patrocinioAtivo && demandaCategoryMatch(demanda, userCats);
-  const liberadoPorArray =
-    !!(demanda?.liberadoPara && uid && Array.isArray(demanda.liberadoPara) && demanda.liberadoPara.includes(uid));
+  const contatoLiberadoPorPatrocinio =
+    patrocinioAtivo && demandaCategoryMatch(demanda, userCats);
+  const liberadoPorArray = !!(
+    demanda?.liberadoPara &&
+    uid &&
+    Array.isArray(demanda.liberadoPara) &&
+    demanda.liberadoPara.includes(uid)
+  );
   const isUnlockedByAssignment = effectiveAssignment?.status === "unlocked";
 
   const [liberadoPorSubdoc, setLiberadoPorSubdoc] = useState<boolean>(false);
@@ -399,11 +452,17 @@ export default function OportunidadeDetalhePage() {
   }, [uid, demanda?.id]);
 
   const unlocked =
-    isOwner || liberadoPorArray || isUnlockedByAssignment || liberadoPorSubdoc || contatoLiberadoPorPatrocinio;
+    isOwner ||
+    liberadoPorArray ||
+    isUnlockedByAssignment ||
+    liberadoPorSubdoc ||
+    contatoLiberadoPorPatrocinio;
 
   // Imagens
   const imagens: string[] = useMemo(() => {
-    const base = Array.isArray(demanda?.imagens) ? (demanda!.imagens as unknown[]) : [];
+    const base = Array.isArray(demanda?.imagens)
+      ? (demanda!.imagens as unknown[])
+      : [];
     const arr = base.filter(notEmptyString);
     if (!arr.length && demanda?.imagem) arr.push(String(demanda.imagem));
     return arr;
@@ -422,12 +481,14 @@ export default function OportunidadeDetalhePage() {
 
   // Status + Countdown
   const statusInfo = resolveStatus(demanda || ({} as DemandFire));
-  const expDate: Date | null = toDate(demanda?.expiraEm) || parsePrazoStr(prazoStr);
+  const expDate: Date | null =
+    toDate(demanda?.expiraEm) || parsePrazoStr(prazoStr);
   const timeLeft = useMemo(() => {
     if (!expDate) return null;
     return msToDHMS(expDate.getTime() - now);
   }, [expDate, now]);
-  const expShown = !!timeLeft && timeLeft.d + timeLeft.h + timeLeft.m + timeLeft.s > 0;
+  const expShown =
+    !!timeLeft && timeLeft.d + timeLeft.h + timeLeft.m + timeLeft.s > 0;
 
   // Relacionadas
   useEffect(() => {
@@ -441,10 +502,19 @@ export default function OportunidadeDetalhePage() {
         const col = collection(db, "demandas");
         let snaps;
         try {
-          const q1 = fsQuery(col, where("categoria", "==", demanda.categoria), orderBy("createdAt", "desc"), limit(10));
+          const q1 = fsQuery(
+            col,
+            where("categoria", "==", demanda.categoria),
+            orderBy("createdAt", "desc"),
+            limit(10),
+          );
           snaps = await getDocs(q1);
         } catch {
-          const q2 = fsQuery(col, where("categoria", "==", demanda.categoria), limit(20));
+          const q2 = fsQuery(
+            col,
+            where("categoria", "==", demanda.categoria),
+            limit(20),
+          );
           snaps = await getDocs(q2);
         }
 
@@ -453,9 +523,11 @@ export default function OportunidadeDetalhePage() {
           if (s.id === demanda.id) return;
           const d = s.data() as DemandFire;
 
-          const raw = d.priceCents ?? d.pricingDefault?.amount ?? DEFAULT_PRICE_CENTS;
+          const raw =
+            d.priceCents ?? d.pricingDefault?.amount ?? DEFAULT_PRICE_CENTS;
           const cents = Number(raw);
-          const normalized = !Number.isFinite(cents) || cents <= 0 ? DEFAULT_PRICE_CENTS : cents;
+          const normalized =
+            !Number.isFinite(cents) || cents <= 0 ? DEFAULT_PRICE_CENTS : cents;
 
           rows.push({
             id: s.id,
@@ -468,7 +540,9 @@ export default function OportunidadeDetalhePage() {
           });
         });
 
-        rows.sort((a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
+        rows.sort(
+          (a, b) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0),
+        );
         setRelacionadas(rows.slice(0, 10));
       } catch {
         setRelacionadas([]);
@@ -482,7 +556,12 @@ export default function OportunidadeDetalhePage() {
     const aRef = doc(db, "demandAssignments", `${id}_${uid}`);
     const aSnap = await getDoc(aRef);
 
-    const pricing = { amount: adminPriceCents, currency: "BRL", exclusive: false, cap: 3 };
+    const pricing = {
+      amount: adminPriceCents,
+      currency: "BRL",
+      exclusive: false,
+      cap: 3,
+    };
 
     if (!aSnap.exists()) {
       await setDoc(aRef, {
@@ -548,7 +627,9 @@ export default function OportunidadeDetalhePage() {
 
   // ====== PDF (igual à de demandas) ======
   const pdfUrl: string | undefined = (demanda as any)?.pdfUrl || undefined; // ajuste o campo se necessário
-  const pdfSrc = pdfUrl ? `/api/pdf-proxy?file=${encodeURIComponent(pdfUrl)}` : undefined;
+  const pdfSrc = pdfUrl
+    ? `/api/pdf-proxy?file=${encodeURIComponent(pdfUrl)}`
+    : undefined;
 
   const [pdfOpen, setPdfOpen] = useState(false);
   const pdfThumbCoverRef = useRef<HTMLDivElement | null>(null);
@@ -567,7 +648,7 @@ export default function OportunidadeDetalhePage() {
           io.disconnect();
         }
       },
-      { rootMargin: "200px" }
+      { rootMargin: "200px" },
     );
     io.observe(el);
 
@@ -636,7 +717,10 @@ export default function OportunidadeDetalhePage() {
       <div className="op-headbar">
         <h1 className="op-title">{title}</h1>
         <div className="op-headbar-right">
-          <span className="op-badge" style={{ borderColor: statusInfo.color, color: statusInfo.color }}>
+          <span
+            className="op-badge"
+            style={{ borderColor: statusInfo.color, color: statusInfo.color }}
+          >
             <ShieldCheck size={14} /> {statusInfo.label}
           </span>
           <span className="op-views">
@@ -664,7 +748,9 @@ export default function OportunidadeDetalhePage() {
                 tabIndex={0}
                 title="Clique para ampliar"
                 onClick={() => setLightboxOpen(true)}
-                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setLightboxOpen(true)}
+                onKeyDown={(e) =>
+                  (e.key === "Enter" || e.key === " ") && setLightboxOpen(true)
+                }
               >
                 <img
                   src={imgPrincipal}
@@ -672,7 +758,8 @@ export default function OportunidadeDetalhePage() {
                   className="op-img"
                   onLoad={() => setImgOk(true)}
                   onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src = "/images/no-image.png";
+                    (e.currentTarget as HTMLImageElement).src =
+                      "/images/no-image.png";
                     setImgOk(false);
                   }}
                 />
@@ -692,7 +779,10 @@ export default function OportunidadeDetalhePage() {
                         setImgIdx(idx);
                         setLightboxOpen(true);
                       }}
-                      onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")}
+                      onError={(e) =>
+                        ((e.currentTarget as HTMLImageElement).src =
+                          "/images/no-image.png")
+                      }
                     />
                   ))}
                 </div>
@@ -727,14 +817,22 @@ export default function OportunidadeDetalhePage() {
               tabIndex={0}
               title="Abrir anexo (PDF)"
               onClick={() => setPdfOpen(true)}
-              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && setPdfOpen(true)}
+              onKeyDown={(e) =>
+                (e.key === "Enter" || e.key === " ") && setPdfOpen(true)
+              }
             >
               <div className="op-pdf-thumb-cover" ref={pdfThumbCoverRef}>
                 <span className="pdf-badge">PDF</span>
-                {pdfThumbReady ? <PDFThumb src={pdfSrc} width={pdfThumbWidth} /> : <div className="pdf-thumb-skeleton" />}
+                {pdfThumbReady ? (
+                  <PDFThumb src={pdfSrc} width={pdfThumbWidth} />
+                ) : (
+                  <div className="pdf-thumb-skeleton" />
+                )}
               </div>
               <div className="op-pdf-thumb-meta">
-                <div className="titulo">Documento em PDF desta oportunidade</div>
+                <div className="titulo">
+                  Documento em PDF desta oportunidade
+                </div>
                 <div className="cta">Clique para abrir</div>
               </div>
             </div>
@@ -746,7 +844,8 @@ export default function OportunidadeDetalhePage() {
               <>
                 <div className="op-cta-highlight">
                   <h3 className="op-cta-title">
-                    <Zap size={18} /> Desbloqueie o contato e fale direto com o cliente
+                    <Zap size={18} /> Desbloqueie o contato e fale direto com o
+                    cliente
                   </h3>
 
                   <ul className="op-benefits">
@@ -768,7 +867,8 @@ export default function OportunidadeDetalhePage() {
                   </button>
 
                   <div className="op-cta-note">
-                    Após o pagamento aprovado, o contato é liberado automaticamente nesta página.
+                    Após o pagamento aprovado, o contato é liberado
+                    automaticamente nesta página.
                   </div>
                 </div>
               </>
@@ -785,14 +885,22 @@ export default function OportunidadeDetalhePage() {
                   </div>
                   <div>
                     <div className="op-contact-label">E-mail</div>
-                    <div className="op-contact-value">{contatoEmail || "—"}</div>
+                    <div className="op-contact-value">
+                      {contatoEmail || "—"}
+                    </div>
                   </div>
                   <div>
                     <div className="op-contact-label">WhatsApp / Telefone</div>
                     <div className="op-contact-wpp">
-                      <span className="op-contact-value">{contatoWpp || "—"}</span>
+                      <span className="op-contact-value">
+                        {contatoWpp || "—"}
+                      </span>
                       {contatoWpp && (
-                        <button onClick={() => copy(String(contatoWpp))} className="op-copy" title="Copiar">
+                        <button
+                          onClick={() => copy(String(contatoWpp))}
+                          className="op-copy"
+                          title="Copiar"
+                        >
                           <Copy size={14} />
                         </button>
                       )}
@@ -804,7 +912,7 @@ export default function OportunidadeDetalhePage() {
                   <a
                     target="_blank"
                     href={`https://wa.me/${wppDigits}?text=${encodeURIComponent(
-                      `Olá! Vi sua oportunidade "${title}" no Pedraum e posso te atender.`
+                      `Olá! Vi sua oportunidade "${title}" no Pedraum e posso te atender.`,
                     )}`}
                     className="op-btn-azul"
                   >
@@ -849,9 +957,15 @@ export default function OportunidadeDetalhePage() {
           {!patrocinioAtivo && (
             <div className="op-upsell">
               <div className="op-upsell-left">
-                <strong>Seja Patrocinador</strong> e veja contatos sem pagar por oportunidade nas suas categorias.
+                <strong>Seja Patrocinador</strong> e veja contatos sem pagar por
+                oportunidade nas suas categorias.
               </div>
-              <a href={WPP_SPONSOR_URL} target="_blank" rel="noopener noreferrer" className="op-upsell-btn">
+              <a
+                href={WPP_SPONSOR_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="op-upsell-btn"
+              >
                 Conhecer planos <ChevronRight size={16} />
               </a>
             </div>
@@ -865,8 +979,15 @@ export default function OportunidadeDetalhePage() {
           <h3>Você também pode querer atender</h3>
           <div className="op-carousel">
             {relacionadas.map((d) => (
-              <Link key={d.id} href={`/oportunidades/${d.id}`} className="op-card-mini">
-                <div className="op-card-mini-title" title={d.titulo || "Oportunidade"}>
+              <Link
+                key={d.id}
+                href={`/oportunidades/${d.id}`}
+                className="op-card-mini"
+              >
+                <div
+                  className="op-card-mini-title"
+                  title={d.titulo || "Oportunidade"}
+                >
                   {d.titulo || "Oportunidade"}
                 </div>
                 <div className="op-card-mini-meta">
@@ -899,7 +1020,10 @@ export default function OportunidadeDetalhePage() {
               alt={title}
               className="lb-img"
               onClick={(e) => e.stopPropagation()}
-              onError={(e) => ((e.currentTarget as HTMLImageElement).src = "/images/no-image.png")}
+              onError={(e) =>
+                ((e.currentTarget as HTMLImageElement).src =
+                  "/images/no-image.png")
+              }
             />
 
             {imagens.length > 1 && (
@@ -959,7 +1083,11 @@ export default function OportunidadeDetalhePage() {
               className="pdf-modal"
               onClick={(e) => e.stopPropagation()}
             >
-              <button aria-label="Fechar" onClick={() => setPdfOpen(false)} className="pdf-close">
+              <button
+                aria-label="Fechar"
+                onClick={() => setPdfOpen(false)}
+                className="pdf-close"
+              >
                 ×
               </button>
               <div className="pdf-container">

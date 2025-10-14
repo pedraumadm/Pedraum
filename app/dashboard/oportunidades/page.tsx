@@ -93,7 +93,7 @@ export default function OportunidadesPage() {
       collection(db, "demandAssignments"),
       where("supplierId", "==", uid),
       where("status", "in", ["sent", "viewed", "unlocked"]), // NÃO inclui "canceled"
-      fbLimit(300)
+      fbLimit(300),
     );
 
     const unsub = onSnapshot(
@@ -123,10 +123,10 @@ export default function OportunidadesPage() {
       (err) => {
         console.error("assignments stream error:", err);
         setErrMsg(
-          "Não foi possível carregar as oportunidades. Verifique as regras/índices do Firestore."
+          "Não foi possível carregar as oportunidades. Verifique as regras/índices do Firestore.",
         );
         setLoading(false);
-      }
+      },
     );
 
     return () => unsub();
@@ -138,24 +138,24 @@ export default function OportunidadesPage() {
       allAssignments
         .filter((a) => a.status === "sent" || a.status === "viewed")
         .sort(sortByCreatedAtDesc),
-    [allAssignments]
+    [allAssignments],
   );
   const atendimento = useMemo(
     () =>
       allAssignments
         .filter((a) => a.status === "unlocked")
         .sort(sortByCreatedAtDesc),
-    [allAssignments]
+    [allAssignments],
   );
 
   /* --------------------------- Filtros --------------------------- */
   const novasFiltradas = useMemo(
     () => filtra(novas, busca, fCategoria, fUF, fCidade),
-    [novas, busca, fCategoria, fUF, fCidade]
+    [novas, busca, fCategoria, fUF, fCidade],
   );
   const atendimentoFiltradas = useMemo(
     () => filtra(atendimento, busca, fCategoria, fUF, fCidade),
-    [atendimento, busca, fCategoria, fUF, fCidade]
+    [atendimento, busca, fCategoria, fUF, fCidade],
   );
 
   /* --------------------------- Ação: pagar/desbloquear --------------------------- */
@@ -213,7 +213,13 @@ export default function OportunidadesPage() {
   /* ---------------------------- UI ---------------------------- */
 
   return (
-    <main style={{ minHeight: "100vh", background: "#f6f9fa", padding: "28px 10px" }}>
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f6f9fa",
+        padding: "28px 10px",
+      }}
+    >
       <section
         style={{
           maxWidth: 1180,
@@ -224,7 +230,14 @@ export default function OportunidadesPage() {
           padding: "22px 22px 28px 22px",
         }}
       >
-        <header style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <header
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 16,
+          }}
+        >
           <Target size={24} color="#2563eb" />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#023047" }}>
             Demandas Enviadas Para Você
@@ -250,9 +263,17 @@ export default function OportunidadesPage() {
               style={inputStyle}
             />
           </div>
-          <select value={fCategoria} onChange={(e) => setFCategoria(e.target.value)} style={inputStyle}>
+          <select
+            value={fCategoria}
+            onChange={(e) => setFCategoria(e.target.value)}
+            style={inputStyle}
+          >
             <option value="">Categoria</option>
-            {unique(novas.concat(atendimento).map((a) => normalizeDemand(a.demand).category))
+            {unique(
+              novas
+                .concat(atendimento)
+                .map((a) => normalizeDemand(a.demand).category),
+            )
               .filter(Boolean)
               .map((c) => (
                 <option key={c} value={c as string}>
@@ -260,9 +281,17 @@ export default function OportunidadesPage() {
                 </option>
               ))}
           </select>
-          <select value={fUF} onChange={(e) => setFUF(e.target.value)} style={inputStyle}>
+          <select
+            value={fUF}
+            onChange={(e) => setFUF(e.target.value)}
+            style={inputStyle}
+          >
             <option value="">UF</option>
-            {unique(novas.concat(atendimento).map((a) => normalizeDemand(a.demand).uf))
+            {unique(
+              novas
+                .concat(atendimento)
+                .map((a) => normalizeDemand(a.demand).uf),
+            )
               .filter(Boolean)
               .map((u) => (
                 <option key={u} value={u as string}>
@@ -270,9 +299,17 @@ export default function OportunidadesPage() {
                 </option>
               ))}
           </select>
-          <select value={fCidade} onChange={(e) => setFCidade(e.target.value)} style={inputStyle}>
+          <select
+            value={fCidade}
+            onChange={(e) => setFCidade(e.target.value)}
+            style={inputStyle}
+          >
             <option value="">Cidade</option>
-            {unique(novas.concat(atendimento).map((a) => normalizeDemand(a.demand).city))
+            {unique(
+              novas
+                .concat(atendimento)
+                .map((a) => normalizeDemand(a.demand).city),
+            )
               .filter(Boolean)
               .map((c) => (
                 <option key={c} value={c as string}>
@@ -299,7 +336,11 @@ export default function OportunidadesPage() {
         )}
 
         {/* Novas */}
-        <SectionTitle icon={<Eye size={18} />} title="Novas Demandas" hint="Envios recentes para você" />
+        <SectionTitle
+          icon={<Eye size={18} />}
+          title="Novas Demandas"
+          hint="Envios recentes para você"
+        />
         {loading ? (
           <LoadingRow />
         ) : novasFiltradas.length === 0 ? (
@@ -318,7 +359,11 @@ export default function OportunidadesPage() {
         )}
 
         {/* Em atendimento */}
-        <SectionTitle icon={<LockOpen size={18} />} title="Em atendimento" hint="Contatos já liberados" />
+        <SectionTitle
+          icon={<LockOpen size={18} />}
+          title="Em atendimento"
+          hint="Contatos já liberados"
+        />
         {loading ? (
           <LoadingRow />
         ) : atendimentoFiltradas.length === 0 ? (
@@ -341,7 +386,13 @@ function unique<T>(arr: T[]) {
   return Array.from(new Set(arr));
 }
 
-function filtra(list: Assignment[], busca: string, cat: string, uf: string, cidade: string) {
+function filtra(
+  list: Assignment[],
+  busca: string,
+  cat: string,
+  uf: string,
+  cidade: string,
+) {
   return list.filter((it) => {
     const n = normalizeDemand(it.demand || {});
     const sBusca = (busca || "").toLowerCase().trim();
@@ -392,8 +443,17 @@ function OportunidadeCard({
         gap: 10,
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>{norm.title}</div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <div style={{ fontWeight: 800, fontSize: 16, color: "#0f172a" }}>
+          {norm.title}
+        </div>
         {unlocked && (
           <span
             style={{
@@ -414,7 +474,15 @@ function OportunidadeCard({
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 13 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          color: "#475569",
+          fontSize: 13,
+        }}
+      >
         <MapPin size={16} />
         <span>
           {norm.city || "—"}/{norm.uf || "—"}
@@ -445,20 +513,20 @@ function OportunidadeCard({
             }}
           >
             {desbloqueando ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
                 <Loader2 size={16} className="animate-spin" /> Processando…
               </span>
             ) : (
-              <span>
-                Desbloquear contato 
-              </span>
+              <span>Desbloquear contato</span>
             )}
           </button>
         ) : norm?.contact?.whatsapp ? (
           <a
             target="_blank"
             href={`https://wa.me/${String(norm.contact.whatsapp).replace(/\D/g, "")}?text=${encodeURIComponent(
-              `Olá! Vi sua demanda "${norm.title}" no Pedraum e posso te atender.`
+              `Olá! Vi sua demanda "${norm.title}" no Pedraum e posso te atender.`,
             )}`}
             style={btnWhats}
           >
@@ -470,10 +538,32 @@ function OportunidadeCard({
   );
 }
 
-function SectionTitle({ icon, title, hint }: { icon: React.ReactNode; title: string; hint?: string }) {
+function SectionTitle({
+  icon,
+  title,
+  hint,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint?: string;
+}) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, margin: "12px 2px 10px 2px" }}>
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#0f172a" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: 10,
+        margin: "12px 2px 10px 2px",
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          color: "#0f172a",
+        }}
+      >
         {icon}
         <h2 style={{ fontSize: 16, fontWeight: 900 }}>{title}</h2>
       </div>

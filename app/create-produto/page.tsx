@@ -4,13 +4,22 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import AuthGateRedirect from "@/components/AuthGateRedirect";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
-import { collection, addDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 import ImageUploader from "@/components/ImageUploader";
 import dynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 
 import {
   Loader2,
@@ -40,8 +49,33 @@ const condicoes = [
 ];
 
 const estados = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
-  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ];
 
 /* ===================== Page Wrapper ===================== */
@@ -70,9 +104,9 @@ type Subcat = { nome: string; slug?: string; itens?: Item[] };
 type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
 
 type TaxIndexRow = {
-  label: string;     // "Britador de Mandíbulas"
-  path: string[];    // ["Britagem","Britadores","Britador de Mandíbulas"] (1..3 níveis)
-  haystack: string;  // texto normalizado para busca
+  label: string; // "Britador de Mandíbulas"
+  path: string[]; // ["Britagem","Britadores","Britador de Mandíbulas"] (1..3 níveis)
+  haystack: string; // texto normalizado para busca
 };
 
 // achata a taxonomia em linhas pesquisáveis
@@ -89,15 +123,27 @@ function buildTaxIndex(categorias: Cat[]): TaxIndexRow[] {
           for (const it of itens) {
             const itemName = it?.nome || "";
             const hay = normalize([catName, subName, itemName].join(" "));
-            rows.push({ label: itemName || subName || catName, path: [catName, subName, itemName], haystack: hay });
+            rows.push({
+              label: itemName || subName || catName,
+              path: [catName, subName, itemName],
+              haystack: hay,
+            });
           }
         } else {
           const hay = normalize([catName, subName].join(" "));
-          rows.push({ label: subName || catName, path: [catName, subName], haystack: hay });
+          rows.push({
+            label: subName || catName,
+            path: [catName, subName],
+            haystack: hay,
+          });
         }
       }
     } else {
-      rows.push({ label: catName, path: [catName], haystack: normalize(catName) });
+      rows.push({
+        label: catName,
+        path: [catName],
+        haystack: normalize(catName),
+      });
     }
   }
   return rows;
@@ -107,7 +153,7 @@ function buildTaxIndex(categorias: Cat[]): TaxIndexRow[] {
 function searchTaxIndex(index: TaxIndexRow[], q: string): TaxIndexRow[] {
   const nq = normalize(q);
   if (!nq) return [];
-  const scored = index.map(r => {
+  const scored = index.map((r) => {
     const labelN = normalize(r.label);
     let score = 0;
     if (labelN === nq) score += 100;
@@ -117,10 +163,10 @@ function searchTaxIndex(index: TaxIndexRow[], q: string): TaxIndexRow[] {
     return { row: r, score };
   });
   return scored
-    .filter(s => s.score > 0)
-    .sort((a,b) => b.score - a.score)
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
     .slice(0, 8)
-    .map(s => s.row);
+    .map((s) => s.row);
 }
 
 /* ===================== Form Component ===================== */
@@ -128,7 +174,10 @@ function CreateProdutoForm() {
   const router = useRouter();
 
   // 🔗 Taxonomia unificada (Firestore > fallback local)
-  const { categorias, loading: taxLoading } = useTaxonomia() as { categorias: Cat[]; loading: boolean };
+  const { categorias, loading: taxLoading } = useTaxonomia() as {
+    categorias: Cat[];
+    loading: boolean;
+  };
 
   // imagens e PDF
   const [imagens, setImagens] = useState<string[]>([]);
@@ -139,8 +188,8 @@ function CreateProdutoForm() {
     nome: "",
     categoria: "",
     subcategoria: "",
-    itemFinal: "",            // ⭐ novo: 3º nível
-    outraCategoriaTexto: "",  // ⭐ texto livre p/ "Outros"
+    itemFinal: "", // ⭐ novo: 3º nível
+    outraCategoriaTexto: "", // ⭐ texto livre p/ "Outros"
     preco: "",
     estado: "",
     cidade: "",
@@ -164,19 +213,19 @@ function CreateProdutoForm() {
   // ======= opções por nível =======
   const categoriaSelecionada = useMemo(
     () => categorias.find((c) => c.nome === form.categoria),
-    [categorias, form.categoria]
+    [categorias, form.categoria],
   );
   const subcategoriasDisponiveis: Subcat[] = useMemo(
     () => categoriaSelecionada?.subcategorias ?? [],
-    [categoriaSelecionada]
+    [categoriaSelecionada],
   );
   const subcategoriaSelecionada = useMemo(
     () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
-    [subcategoriasDisponiveis, form.subcategoria]
+    [subcategoriasDisponiveis, form.subcategoria],
   );
   const itensDisponiveis: Item[] = useMemo(
     () => subcategoriaSelecionada?.itens ?? [],
-    [subcategoriaSelecionada]
+    [subcategoriaSelecionada],
   );
 
   const catEhOutros = form.categoria === "Outros";
@@ -204,7 +253,7 @@ function CreateProdutoForm() {
 
   function selectTaxonomyPath(path: string[]) {
     const [c1, c2, c3] = path;
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       categoria: c1 || "",
       subcategoria: c2 || "",
@@ -219,10 +268,10 @@ function CreateProdutoForm() {
     if (!showResults || results.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlight(h => Math.min(h + 1, results.length - 1));
+      setHighlight((h) => Math.min(h + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlight(h => Math.max(h - 1, 0));
+      setHighlight((h) => Math.max(h - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
       const chosen = results[highlight];
@@ -233,12 +282,18 @@ function CreateProdutoForm() {
   }
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) {
     const { name, value, type, checked } = e.target as any;
 
     if (name === "hasWarranty") {
-      setForm((f) => ({ ...f, hasWarranty: checked, warrantyMonths: checked ? f.warrantyMonths : "" }));
+      setForm((f) => ({
+        ...f,
+        hasWarranty: checked,
+        warrantyMonths: checked ? f.warrantyMonths : "",
+      }));
       return;
     }
 
@@ -247,15 +302,21 @@ function CreateProdutoForm() {
       const autoHas = v.includes("com garantia")
         ? true
         : v.includes("sem garantia")
-        ? false
-        : form.hasWarranty;
+          ? false
+          : form.hasWarranty;
       setForm((f) => ({ ...f, condicao: v, hasWarranty: autoHas }));
       return;
     }
 
     // resets em cascata
     if (name === "categoria") {
-      setForm((f) => ({ ...f, categoria: value, subcategoria: "", itemFinal: "", outraCategoriaTexto: "" }));
+      setForm((f) => ({
+        ...f,
+        categoria: value,
+        subcategoria: "",
+        itemFinal: "",
+        outraCategoriaTexto: "",
+      }));
       return;
     }
     if (name === "subcategoria") {
@@ -283,12 +344,14 @@ function CreateProdutoForm() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const nomes = data
+          .map((m) => m.nome)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
         setCidades(nomes);
       } catch {
         if (!abort) setCidades([]);
@@ -317,8 +380,14 @@ function CreateProdutoForm() {
     }
 
     // validações
-    const baseOk =
-      !!(form.nome && form.estado && form.cidade && form.descricao && form.ano && form.condicao);
+    const baseOk = !!(
+      form.nome &&
+      form.estado &&
+      form.cidade &&
+      form.descricao &&
+      form.ano &&
+      form.condicao
+    );
 
     let taxOk = false;
     if (catEhOutros) {
@@ -355,9 +424,10 @@ function CreateProdutoForm() {
       const expiresAt = new Date(now);
       expiresAt.setDate(now.getDate() + 45); // 45 dias
 
-      const finalItem = (catEhOutros || subcatEhOutros)
-        ? form.outraCategoriaTexto.trim()
-        : form.itemFinal;
+      const finalItem =
+        catEhOutros || subcatEhOutros
+          ? form.outraCategoriaTexto.trim()
+          : form.itemFinal;
 
       const categoriaPath = catEhOutros
         ? ["Outros", finalItem]
@@ -371,7 +441,9 @@ function CreateProdutoForm() {
 
         // taxonomia 3 níveis + path
         categoria: form.categoria || "Outros",
-        subcategoria: subcatEhOutros ? "Outros" : (form.subcategoria || (catEhOutros ? "—" : "")),
+        subcategoria: subcatEhOutros
+          ? "Outros"
+          : form.subcategoria || (catEhOutros ? "—" : ""),
         itemFinal: finalItem,
         categoriaPath,
 
@@ -499,7 +571,9 @@ function CreateProdutoForm() {
           >
             <div className="flex items-center gap-2 mb-3">
               <Upload className="w-4 h-4 text-slate-700" />
-              <h3 className="text-slate-800 font-black tracking-tight">Arquivos do anúncio</h3>
+              <h3 className="text-slate-800 font-black tracking-tight">
+                Arquivos do anúncio
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -514,14 +588,21 @@ function CreateProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
-                  <strong className="text-[#0f172a]">Imagens do Produto *</strong>
+                  <strong className="text-[#0f172a]">
+                    Imagens do Produto *
+                  </strong>
                 </div>
                 <div className="px-4 pb-4">
                   <div className="rounded-lg border border-dashed p-3">
-                    <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                    <ImageUploader
+                      imagens={imagens}
+                      setImagens={setImagens}
+                      max={5}
+                    />
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
-                    Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e com boa iluminação.
+                    Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e com
+                    boa iluminação.
                   </p>
                 </div>
               </div>
@@ -537,7 +618,9 @@ function CreateProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
-                  <strong className="text-[#0f172a]">Ficha técnica (PDF) — opcional</strong>
+                  <strong className="text-[#0f172a]">
+                    Ficha técnica (PDF) — opcional
+                  </strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   <div className="rounded-lg border border-dashed p-3">
@@ -545,7 +628,10 @@ function CreateProdutoForm() {
                   </div>
 
                   {pdfUrl ? (
-                    <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                    <div
+                      className="rounded-lg border overflow-hidden"
+                      style={{ height: 300 }}
+                    >
                       <DrivePDFViewer
                         fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
                         height={300}
@@ -575,95 +661,101 @@ function CreateProdutoForm() {
               />
             </FormField>
 
-          {/* ===== Busca rápida por item/caminho (fica acima dos selects) ===== */}
-          <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
-          >
-            <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do item (atalho)
-            </h3>
+            {/* ===== Busca rápida por item/caminho (fica acima dos selects) ===== */}
+            <div
+              className="rounded-2xl border p-4"
+              style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+            >
+              <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
+                <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do
+                item (atalho)
+              </h3>
 
-            <div className="relative">
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => searchTerm && setShowResults(true)}
-                onKeyDown={onSearchKeyDown}
-                onBlur={() => setTimeout(() => setShowResults(false), 120)}
-                placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
-                style={inputStyle}
-                aria-autocomplete="list"
-                aria-expanded={showResults}
-              />
+              <div className="relative">
+                <input
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onFocus={() => searchTerm && setShowResults(true)}
+                  onKeyDown={onSearchKeyDown}
+                  onBlur={() => setTimeout(() => setShowResults(false), 120)}
+                  placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+                  style={inputStyle}
+                  aria-autocomplete="list"
+                  aria-expanded={showResults}
+                />
 
-              {showResults && results.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: "calc(100% + 8px)",
-                    background: "#ffffff",
-                    border: "1px solid #e6ebf2",
-                    borderRadius: 12,
-                    boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
-                    zIndex: 9999,
-                    maxHeight: 320,
-                    overflowY: "auto",
-                  }}
-                  onMouseLeave={() => setHighlight(0)}
-                >
-                  <ul style={{ listStyle: "none", margin: 0, padding: 6 }}>
-                    {results.map((r, i) => {
-                      const [c1, c2, c3] = r.path;
-                      const active = i === highlight;
-                      return (
-                        <li
-                          key={r.label + i}
-                          onMouseEnter={() => setHighlight(i)}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => selectTaxonomyPath(r.path)}
-                          style={{
-                            cursor: "pointer",
-                            borderRadius: 10,
-                            padding: "8px 10px",
-                            background: active ? "rgba(251,133,0,0.08)" : "transparent",
-                          }}
-                        >
-                          <div className="text-sm font-semibold text-slate-800">{r.label}</div>
-                          <div className="text-xs text-slate-500">
-                            {[c1, c2, c3].filter(Boolean).join(" › ")}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              )}
+                {showResults && results.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: "calc(100% + 8px)",
+                      background: "#ffffff",
+                      border: "1px solid #e6ebf2",
+                      borderRadius: 12,
+                      boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+                      zIndex: 9999,
+                      maxHeight: 320,
+                      overflowY: "auto",
+                    }}
+                    onMouseLeave={() => setHighlight(0)}
+                  >
+                    <ul style={{ listStyle: "none", margin: 0, padding: 6 }}>
+                      {results.map((r, i) => {
+                        const [c1, c2, c3] = r.path;
+                        const active = i === highlight;
+                        return (
+                          <li
+                            key={r.label + i}
+                            onMouseEnter={() => setHighlight(i)}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => selectTaxonomyPath(r.path)}
+                            style={{
+                              cursor: "pointer",
+                              borderRadius: 10,
+                              padding: "8px 10px",
+                              background: active
+                                ? "rgba(251,133,0,0.08)"
+                                : "transparent",
+                            }}
+                          >
+                            <div className="text-sm font-semibold text-slate-800">
+                              {r.label}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              {[c1, c2, c3].filter(Boolean).join(" › ")}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
 
-              {showResults && results.length === 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    top: "calc(100% + 8px)",
-                    background: "#ffffff",
-                    border: "1px solid #e6ebf2",
-                    borderRadius: 12,
-                    boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
-                    zIndex: 9999,
-                    padding: "10px 12px",
-                    fontSize: 12,
-                    color: "#64748b",
-                  }}
-                >
-                  Nada encontrado. Tente “mandibulas”, “mandíbula”, “mandibula”…
-                </div>
-              )}
+                {showResults && results.length === 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: "calc(100% + 8px)",
+                      background: "#ffffff",
+                      border: "1px solid #e6ebf2",
+                      borderRadius: 12,
+                      boxShadow: "0 12px 28px rgba(2,48,71,0.12)",
+                      zIndex: 9999,
+                      padding: "10px 12px",
+                      fontSize: 12,
+                      color: "#64748b",
+                    }}
+                  >
+                    Nada encontrado. Tente “mandibulas”, “mandíbula”,
+                    “mandibula”…
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
 
             {/* Categoria */}
             <FormField label="Categoria *" icon={<List size={15} />}>
@@ -674,7 +766,9 @@ function CreateProdutoForm() {
                 style={inputStyle}
                 required
               >
-                <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+                <option value="">
+                  {taxLoading ? "Carregando..." : "Selecione"}
+                </option>
                 {categorias.map((cat) => (
                   <option key={cat.slug ?? cat.nome} value={cat.nome}>
                     {cat.nome}
@@ -704,7 +798,9 @@ function CreateProdutoForm() {
                   disabled={!form.categoria}
                 >
                   <option value="">
-                    {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
+                    {form.categoria
+                      ? "Selecione"
+                      : "Selecione a categoria primeiro"}
                   </option>
                   {subcategoriasDisponiveis.map((sub) => (
                     <option key={sub.slug ?? sub.nome} value={sub.nome}>
@@ -717,7 +813,7 @@ function CreateProdutoForm() {
 
             {/* Item final */}
             <FormField label="Item final *" icon={<Layers size={15} />}>
-              {(catEhOutros || subcatEhOutros) ? (
+              {catEhOutros || subcatEhOutros ? (
                 <input
                   name="outraCategoriaTexto"
                   value={form.outraCategoriaTexto}
@@ -739,8 +835,8 @@ function CreateProdutoForm() {
                     {!form.subcategoria
                       ? "Selecione a subcategoria primeiro"
                       : itensDisponiveis.length
-                      ? "Selecione"
-                      : "Sem itens disponíveis"}
+                        ? "Selecione"
+                        : "Sem itens disponíveis"}
                   </option>
                   {itensDisponiveis.map((it) => (
                     <option key={it.slug ?? it.nome} value={it.nome}>
@@ -830,8 +926,8 @@ function CreateProdutoForm() {
                 {carregandoCidades
                   ? "Carregando..."
                   : form.estado
-                  ? "Selecione a cidade"
-                  : "Selecione primeiro o estado"}
+                    ? "Selecione a cidade"
+                    : "Selecione primeiro o estado"}
               </option>
               {cidades.map((c) => (
                 <option key={c} value={c}>
@@ -875,7 +971,9 @@ function CreateProdutoForm() {
               </label>
 
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-700">Tempo de garantia</span>
+                <span className="text-sm text-slate-700">
+                  Tempo de garantia
+                </span>
                 <input
                   type="number"
                   name="warrantyMonths"
@@ -890,7 +988,8 @@ function CreateProdutoForm() {
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Dica: se escolher “com garantia” na condição, a opção acima é marcada automaticamente.
+              Dica: se escolher “com garantia” na condição, a opção acima é
+              marcada automaticamente.
             </p>
           </div>
 
@@ -949,7 +1048,11 @@ function CreateProdutoForm() {
                 gap: 10,
               }}
             >
-              {submitting ? <Loader2 className="animate-spin w-6 h-6" /> : <Save className="w-5 h-5" />}
+              {submitting ? (
+                <Loader2 className="animate-spin w-6 h-6" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
               {submitting ? "Salvando..." : "Cadastrar Produto"}
             </button>
           </div>

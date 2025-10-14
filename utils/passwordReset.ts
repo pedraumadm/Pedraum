@@ -5,7 +5,9 @@ import { auth } from "@/firebaseConfig";
 export async function handlePasswordReset(email: string) {
   try {
     await sendPasswordResetEmail(auth, email);
-    alert("Enviamos um e-mail para redefinição de senha! Confira sua caixa de entrada (ou spam).");
+    alert(
+      "Enviamos um e-mail para redefinição de senha! Confira sua caixa de entrada (ou spam).",
+    );
   } catch (err: any) {
     if (err.code === "auth/user-not-found") {
       alert("Nenhum usuário encontrado com esse e-mail.");

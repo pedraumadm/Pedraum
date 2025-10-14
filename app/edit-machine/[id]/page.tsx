@@ -45,7 +45,13 @@ export default function EditMachinePage() {
     if (snap.exists()) {
       const data = snap.data() as Machine;
       setMachine({ ...data, id });
-      setImagens(Array.isArray(data.imagens) ? data.imagens : data.imagens ? [data.imagens] : []);
+      setImagens(
+        Array.isArray(data.imagens)
+          ? data.imagens
+          : data.imagens
+            ? [data.imagens]
+            : [],
+      );
     } else {
       setMachine(null);
     }
@@ -58,13 +64,23 @@ export default function EditMachinePage() {
     if (!machine) return;
     const { nome, preco, descricao, categoria, estado, situacao } = machine;
     await updateDoc(doc(db, "machines", id), {
-      nome, preco, descricao, categoria, estado, situacao, imagens
+      nome,
+      preco,
+      descricao,
+      categoria,
+      estado,
+      situacao,
+      imagens,
     });
     setSaving(false);
     router.push("/machines");
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  function handleChange(
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
+  ) {
     if (!machine) return;
     setMachine({ ...machine, [e.target.name]: e.target.value });
   }
@@ -90,18 +106,37 @@ export default function EditMachinePage() {
     }, 1000);
   }
 
-  if (loading) return <div className="flex justify-center items-center min-h-[300px] text-blue-700 animate-pulse"><Loader2 className="animate-spin mr-2" />Carregando...</div>;
-  if (!machine) return <div className="text-center text-red-600 py-12">Máquina não encontrada.</div>;
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-[300px] text-blue-700 animate-pulse">
+        <Loader2 className="animate-spin mr-2" />
+        Carregando...
+      </div>
+    );
+  if (!machine)
+    return (
+      <div className="text-center text-red-600 py-12">
+        Máquina não encontrada.
+      </div>
+    );
 
   return (
     <div className="max-w-2xl mx-auto py-7 px-2 sm:px-4">
       <div className="mb-6 flex items-center gap-3 sm:gap-4">
-        <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-gray-100 text-blue-700">
+        <button
+          onClick={() => router.back()}
+          className="p-2 rounded-full hover:bg-gray-100 text-blue-700"
+        >
           <ArrowLeft size={22} />
         </button>
-        <h1 className="text-2xl md:text-3xl font-extrabold text-blue-900">Editar Máquina</h1>
+        <h1 className="text-2xl md:text-3xl font-extrabold text-blue-900">
+          Editar Máquina
+        </h1>
       </div>
-      <form onSubmit={handleSave} className="bg-white rounded-2xl shadow-md px-3 sm:px-6 py-5 sm:py-7 space-y-4">
+      <form
+        onSubmit={handleSave}
+        className="bg-white rounded-2xl shadow-md px-3 sm:px-6 py-5 sm:py-7 space-y-4"
+      >
         {/* Nome */}
         <div>
           <label className="block font-bold text-blue-800 mb-1">Nome</label>
@@ -128,7 +163,9 @@ export default function EditMachinePage() {
         </div>
         {/* Descrição */}
         <div>
-          <label className="block font-bold text-blue-800 mb-1">Descrição</label>
+          <label className="block font-bold text-blue-800 mb-1">
+            Descrição
+          </label>
           <textarea
             name="descricao"
             value={machine.descricao ?? ""}
@@ -139,7 +176,9 @@ export default function EditMachinePage() {
         {/* Categoria, Estado, Situação */}
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-4">
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Categoria</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Categoria
+            </label>
             <input
               name="categoria"
               value={machine.categoria ?? ""}
@@ -148,7 +187,9 @@ export default function EditMachinePage() {
             />
           </div>
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Estado (UF)</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Estado (UF)
+            </label>
             <input
               name="estado"
               value={machine.estado ?? ""}
@@ -157,7 +198,9 @@ export default function EditMachinePage() {
             />
           </div>
           <div className="flex-1">
-            <label className="block font-bold text-blue-800 mb-1">Situação</label>
+            <label className="block font-bold text-blue-800 mb-1">
+              Situação
+            </label>
             <select
               name="situacao"
               value={machine.situacao ?? ""}
@@ -177,25 +220,57 @@ export default function EditMachinePage() {
           <div className="flex gap-2 flex-nowrap overflow-x-auto pb-2 max-w-full">
             {imagens.map((img, idx) => (
               <div key={idx} className="relative group flex-shrink-0">
-                <img src={img} alt={`img${idx}`} className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-gray-200" />
-                <button type="button" className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow hover:bg-red-600"
+                <img
+                  src={img}
+                  alt={`img${idx}`}
+                  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-gray-200"
+                />
+                <button
+                  type="button"
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow hover:bg-red-600"
                   onClick={() => handleImageRemove(idx)}
-                >×</button>
+                >
+                  ×
+                </button>
               </div>
             ))}
             {/* Botão de adicionar imagem */}
             <label className="w-20 h-20 sm:w-24 sm:h-24 border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center text-blue-400 hover:border-blue-500 hover:text-blue-600 transition-colors cursor-pointer flex-shrink-0 relative">
-              <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleImageUpload} disabled={uploading} />
-              {uploading ? <Loader2 className="animate-spin" size={26} /> : <UploadCloud size={28} />}
+              <input
+                type="file"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                accept="image/*"
+                onChange={handleImageUpload}
+                disabled={uploading}
+              />
+              {uploading ? (
+                <Loader2 className="animate-spin" size={26} />
+              ) : (
+                <UploadCloud size={28} />
+              )}
               <span className="text-xs font-semibold">Adicionar</span>
             </label>
           </div>
-          <span className="text-xs text-gray-400">(Máximo: 5 imagens. Arraste para o lado para ver todas no mobile)</span>
+          <span className="text-xs text-gray-400">
+            (Máximo: 5 imagens. Arraste para o lado para ver todas no mobile)
+          </span>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-2 pt-2">
-          <button type="button" onClick={() => router.push("/machines")} className="px-4 py-2 rounded-xl bg-gray-200 text-blue-800 font-bold hover:bg-gray-300 transition-all w-full sm:w-auto">Cancelar</button>
-          <button type="submit" disabled={saving} className="px-5 py-2 rounded-xl bg-orange-500 text-white font-extrabold hover:bg-orange-600 transition-all shadow disabled:opacity-70 disabled:cursor-not-allowed w-full sm:w-auto">
-            {saving ? <Loader2 className="animate-spin inline-block mr-2" /> : null}
+          <button
+            type="button"
+            onClick={() => router.push("/machines")}
+            className="px-4 py-2 rounded-xl bg-gray-200 text-blue-800 font-bold hover:bg-gray-300 transition-all w-full sm:w-auto"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="px-5 py-2 rounded-xl bg-orange-500 text-white font-extrabold hover:bg-orange-600 transition-all shadow disabled:opacity-70 disabled:cursor-not-allowed w-full sm:w-auto"
+          >
+            {saving ? (
+              <Loader2 className="animate-spin inline-block mr-2" />
+            ) : null}
             Salvar Alterações
           </button>
         </div>

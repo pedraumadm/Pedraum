@@ -62,10 +62,7 @@ export default function MinhasDemandasPage() {
   async function fetchDemandas(uid: string) {
     setLoading(true);
     try {
-      const q = query(
-        collection(db, "demandas"),
-        where("userId", "==", uid)
-      );
+      const q = query(collection(db, "demandas"), where("userId", "==", uid));
       const snap = await getDocs(q);
       let list: Demanda[] = [];
       snap.forEach((docu) => {
@@ -98,8 +95,17 @@ export default function MinhasDemandasPage() {
   }
 
   return (
-    <section style={{ maxWidth: 1200, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 32 }}>
+    <section
+      style={{ maxWidth: 1200, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 20,
+          marginBottom: 32,
+        }}
+      >
         <h1
           style={{
             fontSize: "2.1rem",
@@ -115,7 +121,8 @@ export default function MinhasDemandasPage() {
             gap: 12,
           }}
         >
-          <ClipboardList size={31} style={{ color: "#219ebc" }} /> Minhas Necessidades
+          <ClipboardList size={31} style={{ color: "#219ebc" }} /> Minhas
+          Necessidades
         </h1>
         <Link
           href="/create-demanda"
@@ -139,13 +146,23 @@ export default function MinhasDemandasPage() {
       </div>
 
       {notLogged ? (
-        <div style={{
-          display: "flex", flexDirection: "column", alignItems: "center", padding: "64px 0"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "64px 0",
+          }}
+        >
           <Lightbulb style={{ marginBottom: 8, color: "#FB8500" }} size={44} />
-          <p style={{
-            color: "#FB8500", fontWeight: 700, fontSize: 22, marginBottom: 20
-          }}>
+          <p
+            style={{
+              color: "#FB8500",
+              fontWeight: 700,
+              fontSize: 22,
+              marginBottom: 20,
+            }}
+          >
             Faça login para ver suas Demandas.
           </p>
           <Link
@@ -158,31 +175,48 @@ export default function MinhasDemandasPage() {
               fontWeight: 800,
               fontSize: 19,
               boxShadow: "0 2px 14px #0001",
-              transition: "background .2s"
+              transition: "background .2s",
             }}
           >
             Fazer login
           </Link>
         </div>
       ) : loading ? (
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "center", padding: "64px 0"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "64px 0",
+          }}
+        >
           <Loader className="animate-spin mr-2" size={28} color="#219EBC" />
-          <span style={{ fontSize: 21, fontWeight: 700, color: "#219EBC" }}>Carregando necessidades...</span>
+          <span style={{ fontSize: 21, fontWeight: 700, color: "#219EBC" }}>
+            Carregando necessidades...
+          </span>
         </div>
       ) : demandas.length === 0 ? (
-        <div style={{
-          display: "flex", flexDirection: "column", alignItems: "center", padding: "60px 0"
-        }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "60px 0",
+          }}
+        >
           <img
             src="https://cdn-icons-png.flaticon.com/512/4076/4076549.png"
             alt="Sem demandas"
-            style={{ width: 74, opacity: .7, marginBottom: 15 }}
+            style={{ width: 74, opacity: 0.7, marginBottom: 15 }}
           />
-          <p style={{
-            color: "#5B6476", fontSize: 20, fontWeight: 700, marginBottom: 4
-          }}>
+          <p
+            style={{
+              color: "#5B6476",
+              fontSize: 20,
+              fontWeight: 700,
+              marginBottom: 4,
+            }}
+          >
             Você ainda não cadastrou nenhuma necessidade.
           </p>
           <Link
@@ -196,18 +230,20 @@ export default function MinhasDemandasPage() {
               fontWeight: 800,
               fontSize: 17,
               boxShadow: "0 2px 10px #0001",
-              transition: "background .2s"
+              transition: "background .2s",
             }}
           >
             Nova Demanda
           </Link>
         </div>
       ) : (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(370px, 1fr))",
-          gap: 30,
-        }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(370px, 1fr))",
+            gap: 30,
+          }}
+        >
           {demandas.map((demanda) => (
             <div
               key={demanda.id}
@@ -225,40 +261,81 @@ export default function MinhasDemandasPage() {
                 position: "relative",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <div style={{ fontSize: "1.14rem", fontWeight: 700, color: "#023047", display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{
-                    background: "#F1F5F9",
-                    borderRadius: 7,
-                    color: "#FB8500",
-                    fontWeight: 800,
-                    padding: "3px 15px",
-                    fontSize: 16,
-                    marginRight: 8,
-                    border: "1px solid #ffe5bb"
-                  }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 6,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.14rem",
+                    fontWeight: 700,
+                    color: "#023047",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
+                  <span
+                    style={{
+                      background: "#F1F5F9",
+                      borderRadius: 7,
+                      color: "#FB8500",
+                      fontWeight: 800,
+                      padding: "3px 15px",
+                      fontSize: 16,
+                      marginRight: 8,
+                      border: "1px solid #ffe5bb",
+                    }}
+                  >
                     {demanda.categoria || "Categoria"}
                   </span>
-                  <span style={{ fontWeight: 800, color: "#219ebc", fontSize: 17, marginLeft: 2 }}>
+                  <span
+                    style={{
+                      fontWeight: 800,
+                      color: "#219ebc",
+                      fontSize: 17,
+                      marginLeft: 2,
+                    }}
+                  >
                     {demanda.titulo}
                   </span>
                 </div>
-                <span style={{
-                  fontWeight: 800,
-                  fontSize: "0.97rem",
-                  borderRadius: 10,
-                  padding: "7px 15px",
-                  background: "#F2F6F9",
-                  color: "#219ebc",
-                  border: "1.5px solid #d2e7ef"
-                }}>
+                <span
+                  style={{
+                    fontWeight: 800,
+                    fontSize: "0.97rem",
+                    borderRadius: 10,
+                    padding: "7px 15px",
+                    background: "#F2F6F9",
+                    color: "#219ebc",
+                    border: "1.5px solid #d2e7ef",
+                  }}
+                >
                   {demanda.status || "Aberta"}
                 </span>
               </div>
-              <div style={{ color: "#667085", fontSize: "1rem", marginBottom: 7, minHeight: 30 }}>
+              <div
+                style={{
+                  color: "#667085",
+                  fontSize: "1rem",
+                  marginBottom: 7,
+                  minHeight: 30,
+                }}
+              >
                 {demanda.descricao}
               </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  marginTop: 10,
+                }}
+              >
                 <Link
                   href={`/edit-demanda/${demanda.id}`}
                   style={{
@@ -271,7 +348,7 @@ export default function MinhasDemandasPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 7,
-                    border: "1.4px solid #2563eb25"
+                    border: "1.4px solid #2563eb25",
                   }}
                 >
                   <Edit size={17} /> Editar
@@ -291,7 +368,7 @@ export default function MinhasDemandasPage() {
                     gap: 7,
                     border: "1.4px solid #e6394624",
                     cursor: deleting === demanda.id ? "not-allowed" : "pointer",
-                    opacity: deleting === demanda.id ? .5 : 1
+                    opacity: deleting === demanda.id ? 0.5 : 1,
                   }}
                 >
                   <Trash2 size={17} />
@@ -309,12 +386,11 @@ export default function MinhasDemandasPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 7,
-                    border: "1.4px solid #FB850022"
+                    border: "1.4px solid #FB850022",
                   }}
                 >
                   <Eye size={17} /> Ver
                 </Link>
-                
               </div>
             </div>
           ))}

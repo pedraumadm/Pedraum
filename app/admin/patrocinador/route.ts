@@ -9,7 +9,10 @@ export async function POST(req: NextRequest) {
     // Inicializa Admin somente quando a rota é invocada
     const { auth: serverAuth, db } = getAdmin();
 
-    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+    const authHeader =
+      req.headers.get("authorization") ||
+      req.headers.get("Authorization") ||
+      "";
     const token = authHeader.replace(/^Bearer\s+/i, "");
     if (!token) {
       return NextResponse.json({ error: "no token" }, { status: 401 });
@@ -33,10 +36,12 @@ export async function POST(req: NextRequest) {
     await userRef.set(
       {
         isPatrocinador: ativo,
-        patrocinadorDesde: ativo ? now : meSnap.data()?.patrocinadorDesde || null,
+        patrocinadorDesde: ativo
+          ? now
+          : meSnap.data()?.patrocinadorDesde || null,
         patrocinadorAte: ativo ? null : now,
       },
-      { merge: true }
+      { merge: true },
     );
 
     await db.collection("patrocinadores").add({

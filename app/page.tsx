@@ -45,12 +45,12 @@ export default function HomePage() {
         const machinesQuery = query(
           collection(db, "machines"),
           orderBy("createdAt", "desc"),
-          limit(8)
+          limit(8),
         );
         const demandasQuery = query(
           collection(db, "demandas"),
           orderBy("createdAt", "desc"),
-          limit(6)
+          limit(6),
         );
         const [machinesSnapshot, demandasSnapshot] = await Promise.all([
           getDocs(machinesQuery),
@@ -58,10 +58,16 @@ export default function HomePage() {
         ]);
 
         setMachines(
-          machinesSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Machine[]
+          machinesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Machine[],
         );
         setDemandas(
-          demandasSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Demanda[]
+          demandasSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Demanda[],
         );
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -73,41 +79,39 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#e8f0ff] via-[#fdf7ee] to-[#e8eaff] font-inter">
       {/* HERO com banners + CTA principal */}
-     
+
       <Hero />
 
       {/* Seção de benefícios (mantendo a sua) */}
       <div className="mt-20">
         <FeaturesSection />
       </div>
-{/* Como funciona (3 passos) */}
+      {/* Como funciona (3 passos) */}
       <div className="mt-24">
         <HowItWorks />
       </div>
-      
+
       {/* Vitrine de demandas (prova de movimento) */}
       <div className="mt-24">
         <DemandasShowcase />
       </div>
 
-{/* Seção de fornecedores e serviços (clareza) */}
-            <div className="mt-24">
-              <SuppliersServices />
-            </div>
+      {/* Seção de fornecedores e serviços (clareza) */}
+      <div className="mt-24">
+        <SuppliersServices />
+      </div>
 
       {/* Vitrine de máquinas (manter no fim) */}
       <div className="mt-24">
         <MachinesShowcase />
       </div>
 
-      
-{/* Depoimentos */}
+      {/* Depoimentos */}
       <div className="mt-24 mb-24">
         <TestimonialsSection />
       </div>
 
-      
-       {/* Transição estética + Newsletter */}
+      {/* Transição estética + Newsletter */}
       <div className="mt-24">
         <SectionTransition />
       </div>

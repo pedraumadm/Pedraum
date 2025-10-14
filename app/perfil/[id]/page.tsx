@@ -38,42 +38,73 @@ export default function PerfilPublicoPage() {
   }, [id]);
 
   return (
-    <section style={{ maxWidth: 620, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}>
-      <Link href="/" style={{
-        display: "flex", alignItems: "center", marginBottom: 24, color: "#2563eb", fontWeight: 700, fontSize: 16
-      }}>
+    <section
+      style={{ maxWidth: 620, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
+    >
+      <Link
+        href="/"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 24,
+          color: "#2563eb",
+          fontWeight: 700,
+          fontSize: 16,
+        }}
+      >
         <ChevronLeft size={19} /> Voltar para o início
       </Link>
-      <h1 style={{
-        fontSize: "2.2rem",
-        fontWeight: 900,
-        color: "#023047",
-        letterSpacing: "-1.1px",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        marginBottom: 38,
-      }}>
-        <span style={{
-          display: "inline-block",
-          padding: "7px 30px",
-          background: "#f3f6fa",
+      <h1
+        style={{
+          fontSize: "2.2rem",
+          fontWeight: 900,
           color: "#023047",
-          borderRadius: "12px",
-          boxShadow: "0 2px 12px #0001",
-          fontWeight: 800,
-          fontSize: "2rem"
-        }}>
+          letterSpacing: "-1.1px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 38,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            padding: "7px 30px",
+            background: "#f3f6fa",
+            color: "#023047",
+            borderRadius: "12px",
+            boxShadow: "0 2px 12px #0001",
+            fontWeight: 800,
+            fontSize: "2rem",
+          }}
+        >
           Perfil Público
         </span>
       </h1>
       {loading ? (
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px 0" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "64px 0",
+          }}
+        >
           <Loader className="animate-spin mr-2" size={26} color="#219EBC" />
-          <span style={{ fontSize: 20, fontWeight: 700, color: "#219EBC" }}>Carregando...</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: "#219EBC" }}>
+            Carregando...
+          </span>
         </div>
       ) : !perfil ? (
-        <div style={{ textAlign: "center", color: "#e85d04", fontWeight: 700, fontSize: 22, marginTop: 40 }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "#e85d04",
+            fontWeight: 700,
+            fontSize: 22,
+            marginTop: 40,
+          }}
+        >
           Perfil não encontrado.
         </div>
       ) : (
@@ -89,17 +120,26 @@ export default function PerfilPublicoPage() {
                 draggable={false}
               />
             ) : (
-              <User size={72} className="text-[#FB8500] bg-[#f3f6fa] rounded-full p-4" />
+              <User
+                size={72}
+                className="text-[#FB8500] bg-[#f3f6fa] rounded-full p-4"
+              />
             )}
           </div>
           {/* Nome/tipo */}
           <div className="font-bold text-2xl text-[#023047]">{perfil.nome}</div>
-          {perfil.tipo && <div className="text-[#2563eb] font-semibold text-base">{perfil.tipo}</div>}
+          {perfil.tipo && (
+            <div className="text-[#2563eb] font-semibold text-base">
+              {perfil.tipo}
+            </div>
+          )}
 
           {/* Localização */}
           {(perfil.cidade || perfil.estado) && (
             <div className="text-[#767676] font-medium text-base">
-              {(perfil.cidade || "") + (perfil.cidade && perfil.estado ? ", " : "") + (perfil.estado || "")}
+              {(perfil.cidade || "") +
+                (perfil.cidade && perfil.estado ? ", " : "") +
+                (perfil.estado || "")}
             </div>
           )}
 
@@ -114,9 +154,15 @@ export default function PerfilPublicoPage() {
           {perfil.telefone && (
             <div className="w-full flex flex-col items-center gap-1 mt-4">
               <span className="text-[#023047] font-bold">Contato:</span>
-              <a href={`tel:${perfil.telefone}`} style={{
-                color: "#FB8500", fontWeight: 700, fontSize: "1.15rem", textDecoration: "none"
-              }}>
+              <a
+                href={`tel:${perfil.telefone}`}
+                style={{
+                  color: "#FB8500",
+                  fontWeight: 700,
+                  fontSize: "1.15rem",
+                  textDecoration: "none",
+                }}
+              >
                 {perfil.telefone}
               </a>
             </div>

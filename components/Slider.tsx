@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 const banners = [
   "/banners/banner1.jpg",
   "/banners/banner2.jpg",
-  "/banners/banner3.jpg"
+  "/banners/banner3.jpg",
 ];
 
 export default function Slider() {

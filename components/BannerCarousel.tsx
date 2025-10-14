@@ -27,7 +27,10 @@ export default function BannerCarousel() {
   return (
     <section className="w-full bg-white py-12">
       <div className="max-w-4xl mx-auto px-4">
-        <div ref={sliderRef} className="keen-slider rounded-2xl shadow-lg overflow-hidden">
+        <div
+          ref={sliderRef}
+          className="keen-slider rounded-2xl shadow-lg overflow-hidden"
+        >
           {banners.map((banner, idx) => (
             <Link
               href={banner.href}

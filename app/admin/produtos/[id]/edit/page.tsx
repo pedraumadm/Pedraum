@@ -6,12 +6,22 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { db } from "@/firebaseConfig";
-import { doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 import ImageUploader from "@/components/ImageUploader";
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 
 import {
   Loader2,
@@ -32,8 +42,33 @@ import {
 
 /* ======= Constantes ======= */
 const estados = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
-  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ];
 
 const condicoes = [
@@ -145,17 +180,23 @@ function AdminEditProdutoPage() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" }
+          { cache: "no-store" },
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const nomes = data
+          .map((m) => m.nome)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
         // garante cidade atual se IBGE não retornar (raro)
-        if (form.cidade && !nomes.includes(form.cidade)) nomes.unshift(form.cidade);
+        if (form.cidade && !nomes.includes(form.cidade))
+          nomes.unshift(form.cidade);
         setCidades(nomes);
       } catch {
-        if (!abort) setCidades((prev) => (prev.length ? prev : form.cidade ? [form.cidade] : []));
+        if (!abort)
+          setCidades((prev) =>
+            prev.length ? prev : form.cidade ? [form.cidade] : [],
+          );
       } finally {
         if (!abort) setCarregandoCidades(false);
       }
@@ -170,7 +211,9 @@ function AdminEditProdutoPage() {
 
   /* ======= Helpers ======= */
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >,
   ) {
     const { name, value } = e.target as any;
     setForm((f) => ({
@@ -181,12 +224,11 @@ function AdminEditProdutoPage() {
     }));
   }
 
-  const subcategoriasDisponiveis =
-    useMemo(
-      () =>
-        categorias.find((c) => c.nome === form.categoria)?.subcategorias || [],
-      [categorias, form.categoria]
-    );
+  const subcategoriasDisponiveis = useMemo(
+    () =>
+      categorias.find((c) => c.nome === form.categoria)?.subcategorias || [],
+    [categorias, form.categoria],
+  );
 
   /* ======= Persistência ======= */
   async function handleSave(e: React.FormEvent) {
@@ -195,7 +237,13 @@ function AdminEditProdutoPage() {
     setMsg("");
 
     // validações rápidas
-    if (!form.nome || !form.categoria || !form.subcategoria || !form.cidade || !form.estado) {
+    if (
+      !form.nome ||
+      !form.categoria ||
+      !form.subcategoria ||
+      !form.cidade ||
+      !form.estado
+    ) {
       setMsg("Preencha os campos obrigatórios.");
       setSaving(false);
       return;
@@ -239,7 +287,14 @@ function AdminEditProdutoPage() {
   /* ======= UI ======= */
   if (loading)
     return (
-      <div style={{ padding: 48, textAlign: "center", color: "#219EBC", fontWeight: 800 }}>
+      <div
+        style={{
+          padding: 48,
+          textAlign: "center",
+          color: "#219EBC",
+          fontWeight: 800,
+        }}
+      >
         <LoaderIcon size={30} className="animate-spin" /> Carregando...
       </div>
     );
@@ -300,9 +355,15 @@ function AdminEditProdutoPage() {
         <div style={{ fontWeight: 800, color: "#219EBC", marginBottom: 6 }}>
           Proprietário do Produto
         </div>
-        <div><b>Nome:</b> {user?.nome || "—"}</div>
-        <div><b>E-mail:</b> {user?.email || "—"}</div>
-        <div><b>UserID:</b> {produto.userId || "—"}</div>
+        <div>
+          <b>Nome:</b> {user?.nome || "—"}
+        </div>
+        <div>
+          <b>E-mail:</b> {user?.email || "—"}
+        </div>
+        <div>
+          <b>UserID:</b> {produto.userId || "—"}
+        </div>
       </div>
 
       {/* Datas */}
@@ -325,8 +386,12 @@ function AdminEditProdutoPage() {
       {msg && (
         <div
           style={{
-            background: msg.toLowerCase().includes("sucesso") ? "#f7fafc" : "#fff7f7",
-            color: msg.toLowerCase().includes("sucesso") ? "#16a34a" : "#b91c1c",
+            background: msg.toLowerCase().includes("sucesso")
+              ? "#f7fafc"
+              : "#fff7f7",
+            color: msg.toLowerCase().includes("sucesso")
+              ? "#16a34a"
+              : "#b91c1c",
             border: `1.5px solid ${msg.toLowerCase().includes("sucesso") ? "#c3f3d5" : "#ffdada"}`,
             padding: "12px 0",
             borderRadius: 11,
@@ -351,7 +416,9 @@ function AdminEditProdutoPage() {
       >
         <div className="flex items-center gap-2 mb-3">
           <Upload className="w-4 h-4 text-slate-700" />
-          <h3 className="text-slate-800 font-black tracking-tight">Arquivos do anúncio</h3>
+          <h3 className="text-slate-800 font-black tracking-tight">
+            Arquivos do anúncio
+          </h3>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -370,7 +437,11 @@ function AdminEditProdutoPage() {
             </div>
             <div className="px-4 pb-4">
               <div className="rounded-lg border border-dashed p-3">
-                <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                <ImageUploader
+                  imagens={imagens}
+                  setImagens={setImagens}
+                  max={5}
+                />
               </div>
               <p className="text-xs text-slate-500 mt-2">
                 Envie até 5 imagens (JPG/PNG).
@@ -389,15 +460,23 @@ function AdminEditProdutoPage() {
           >
             <div className="px-4 pt-4 pb-2 flex items-center gap-2">
               <FileText className="w-4 h-4 text-orange-600" />
-              <strong className="text-[#0f172a]">Ficha técnica (PDF) — opcional</strong>
+              <strong className="text-[#0f172a]">
+                Ficha técnica (PDF) — opcional
+              </strong>
             </div>
             <div className="px-4 pb-4 space-y-3">
               <div className="rounded-lg border border-dashed p-3">
-                <PDFUploader initialUrl={pdfUrl ?? undefined} onUploaded={setPdfUrl} />
+                <PDFUploader
+                  initialUrl={pdfUrl ?? undefined}
+                  onUploaded={setPdfUrl}
+                />
               </div>
 
               {pdfUrl ? (
-                <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                <div
+                  className="rounded-lg border overflow-hidden"
+                  style={{ height: 300 }}
+                >
                   <DrivePDFViewer
                     fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
                     height={300}
@@ -414,7 +493,10 @@ function AdminEditProdutoPage() {
       </div>
 
       {/* ======= Form ======= */}
-      <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <form
+        onSubmit={handleSave}
+        style={{ display: "flex", flexDirection: "column", gap: 14 }}
+      >
         {/* Nome */}
         <FormField label="Nome *" icon={<Tag size={15} />}>
           <input
@@ -475,7 +557,9 @@ function AdminEditProdutoPage() {
               style={inputStyle}
               required
             >
-              <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+              <option value="">
+                {taxLoading ? "Carregando..." : "Selecione"}
+              </option>
               {categorias.map((cat) => (
                 <option key={cat.slug ?? cat.nome} value={cat.nome}>
                   {cat.nome}
@@ -495,7 +579,9 @@ function AdminEditProdutoPage() {
               disabled={!form.categoria}
             >
               <option value="">
-                {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
+                {form.categoria
+                  ? "Selecione"
+                  : "Selecione a categoria primeiro"}
               </option>
               {subcategoriasDisponiveis.map((sub: any) => (
                 <option key={sub.slug ?? sub.nome} value={sub.nome}>
@@ -555,8 +641,8 @@ function AdminEditProdutoPage() {
               {carregandoCidades
                 ? "Carregando..."
                 : form.estado
-                ? "Selecione a cidade"
-                : "Selecione primeiro o estado"}
+                  ? "Selecione a cidade"
+                  : "Selecione primeiro o estado"}
             </option>
             {cidades.map((c) => (
               <option key={c} value={c}>
@@ -565,8 +651,6 @@ function AdminEditProdutoPage() {
             ))}
           </select>
         </FormField>
-
-        
 
         {/* Botões */}
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
@@ -588,7 +672,11 @@ function AdminEditProdutoPage() {
               boxShadow: "0 8px 40px rgba(251,133,0,0.25)",
             }}
           >
-            {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save size={18} />}
+            {saving ? (
+              <Loader2 className="animate-spin w-5 h-5" />
+            ) : (
+              <Save size={18} />
+            )}
             {saving ? "Salvando..." : "Salvar Alterações"}
           </button>
 

@@ -1,4 +1,3 @@
-
 // =============================
 // components/Select.tsx
 // =============================
@@ -13,7 +12,13 @@ interface SelectProps {
   required?: boolean;
 }
 
-export default function Select({ options, value, onChange, className = "", required = false }: SelectProps) {
+export default function Select({
+  options,
+  value,
+  onChange,
+  className = "",
+  required = false,
+}: SelectProps) {
   return (
     <select
       value={value}

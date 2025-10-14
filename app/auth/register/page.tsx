@@ -145,24 +145,28 @@ export default function RegisterPage() {
 
     if (!formValido) {
       setErro(
-        "Verifique os dados: nome (mín. 3), e-mail válido, senha (mín. 6) e WhatsApp no padrão +55 (DDD) número."
+        "Verifique os dados: nome (mín. 3), e-mail válido, senha (mín. 6) e WhatsApp no padrão +55 (DDD) número.",
       );
       return;
     }
 
     setLoading(true);
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+      const cred = await createUserWithEmailAndPassword(
+        auth,
+        email.trim(),
+        senha,
+      );
       const uid = cred.user.uid;
 
       const digits = whatsappDigits55; // ex: 55 31 9XXXXXXX
-      const e164 = toE164(digits);     // ex: +55319XXXXXXX
+      const e164 = toE164(digits); // ex: +55319XXXXXXX
 
       await setDoc(doc(db, "usuarios", uid), {
         nome: nome.trim(),
         email: email.trim().toLowerCase(),
-        whatsapp: digits,       // só dígitos, começando por 55
-        whatsappE164: e164,     // +55DDDN...
+        whatsapp: digits, // só dígitos, começando por 55
+        whatsappE164: e164, // +55DDDN...
         tipo: "usuario",
         criadoEm: serverTimestamp(),
         atualizadoEm: serverTimestamp(),
@@ -255,7 +259,7 @@ export default function RegisterPage() {
             trailing={
               <button
                 type="button"
-                onClick={() => setShowPass(s => !s)}
+                onClick={() => setShowPass((s) => !s)}
                 className="p-1 -mr-1"
                 aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}
               >
@@ -303,7 +307,10 @@ export default function RegisterPage() {
             type="submit"
             disabled={loading || !formValido}
             className="w-full bg-gradient-to-r from-[#FB8500] to-[#FFB703] hover:from-[#FB8500] hover:to-[#ff9800] text-white py-4 rounded-xl font-bold text-xl flex items-center justify-center transition disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
-            style={{ letterSpacing: ".01em", boxShadow: "0 6px 18px #ffb70355" }}
+            style={{
+              letterSpacing: ".01em",
+              boxShadow: "0 6px 18px #ffb70355",
+            }}
           >
             {loading ? (
               <Loader2 className="animate-spin mr-2" size={26} />
@@ -393,12 +400,18 @@ function InputGroup({
           className="bg-transparent outline-none flex-1 text-[#023047] text-lg font-semibold"
           placeholder={placeholder}
           value={value}
-          onChange={e => {
+          onChange={(e) => {
             const v = e.target.value;
             // Protege o prefixo quando definido
             if (leadingGuard && !v.startsWith(leadingGuard)) {
               // se usuário apagou o começo, re-insere
-              onChange((leadingGuard + " " + v.replace(/^\+*/, "").trimStart()).trimEnd());
+              onChange(
+                (
+                  leadingGuard +
+                  " " +
+                  v.replace(/^\+*/, "").trimStart()
+                ).trimEnd(),
+              );
             } else {
               onChange(v);
             }
@@ -410,7 +423,10 @@ function InputGroup({
             const guardLen = leadingGuard.length;
             // posição do cursor
             const start = el.selectionStart ?? 0;
-            if ((e.key === "Backspace" && start <= guardLen + 1) || (e.key === "Delete" && start < guardLen)) {
+            if (
+              (e.key === "Backspace" && start <= guardLen + 1) ||
+              (e.key === "Delete" && start < guardLen)
+            ) {
               e.preventDefault();
               // pula cursor para depois do prefixo
               setTimeout(() => {
@@ -433,9 +449,7 @@ function InputGroup({
         />
         {trailing}
       </div>
-      {hint && (
-        <div className="text-xs text-[#dd6b20] mt-1 ml-1">{hint}</div>
-      )}
+      {hint && <div className="text-xs text-[#dd6b20] mt-1 ml-1">{hint}</div>}
     </div>
   );
 }

@@ -27,7 +27,9 @@ export default function CadastrarAvaliacaoPage() {
   return (
     <LayoutWithSidebar>
       <div className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-[#023047] mb-6">Cadastrar Avaliação</h1>
+        <h1 className="text-3xl font-bold text-[#023047] mb-6">
+          Cadastrar Avaliação
+        </h1>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <input
             type="text"
@@ -47,7 +49,9 @@ export default function CadastrarAvaliacaoPage() {
           >
             <option value="">Nota (1 a 5 estrelas)</option>
             {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>{n} estrela{n > 1 && "s"}</option>
+              <option key={n} value={n}>
+                {n} estrela{n > 1 && "s"}
+              </option>
             ))}
           </select>
           <button
@@ -57,7 +61,9 @@ export default function CadastrarAvaliacaoPage() {
             Cadastrar
           </button>
           {success && (
-            <p className="text-green-600 text-sm">Avaliação cadastrada com sucesso!</p>
+            <p className="text-green-600 text-sm">
+              Avaliação cadastrada com sucesso!
+            </p>
           )}
         </form>
       </div>

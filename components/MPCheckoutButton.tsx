@@ -31,7 +31,14 @@ export default function MPCheckoutButton({
       const res = await fetch("/api/mercadopago/create-preference", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, refId, title, unitPriceCents, quantity, userId }),
+        body: JSON.stringify({
+          kind,
+          refId,
+          title,
+          unitPriceCents,
+          quantity,
+          userId,
+        }),
       });
       if (!res.ok) {
         const msg = await res.json().catch(() => ({}));

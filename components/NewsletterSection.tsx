@@ -52,31 +52,39 @@ export default function NewsletterSection() {
         }}
       >
         {/* TEXTO */}
-        <div style={{
-          flex: 1,
-          minWidth: 210,
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-        }}>
-          <h2 style={{
-            color: "#fb8500",
-            fontSize: 24,
-            fontWeight: 800,
-            margin: 0,
-            letterSpacing: "-0.7px",
-            fontFamily: "'Poppins','Inter',sans-serif"
-          }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 210,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+          }}
+        >
+          <h2
+            style={{
+              color: "#fb8500",
+              fontSize: 24,
+              fontWeight: 800,
+              margin: 0,
+              letterSpacing: "-0.7px",
+              fontFamily: "'Poppins','Inter',sans-serif",
+            }}
+          >
             Fique por dentro das novidades!
           </h2>
-          <p style={{
-            color: "#555",
-            fontSize: 16,
-            margin: 0,
-            fontWeight: 500,
-            maxWidth: 370,
-          }}>
-            Inscreva-se gratuitamente para receber ofertas exclusivas, dicas e atualizações sobre o setor de mineração. Sem spam, só o melhor do mercado!
+          <p
+            style={{
+              color: "#555",
+              fontSize: 16,
+              margin: 0,
+              fontWeight: 500,
+              maxWidth: 370,
+            }}
+          >
+            Inscreva-se gratuitamente para receber ofertas exclusivas, dicas e
+            atualizações sobre o setor de mineração. Sem spam, só o melhor do
+            mercado!
           </p>
         </div>
         {/* FORMULÁRIO */}
@@ -94,26 +102,35 @@ export default function NewsletterSection() {
             flexWrap: "nowrap",
           }}
         >
-          <label htmlFor="newsletter-email" style={{ display: "none" }}>Seu e-mail</label>
-          <div style={{
-            position: "relative",
-            flex: 1,
-            maxWidth: 330,
-            minWidth: 0,
-          }}>
-            <Mail size={20} style={{
-              position: "absolute",
-              left: 13, top: "50%",
-              transform: "translateY(-50%)",
-              color: "#fb8500", opacity: 0.77
-            }} />
+          <label htmlFor="newsletter-email" style={{ display: "none" }}>
+            Seu e-mail
+          </label>
+          <div
+            style={{
+              position: "relative",
+              flex: 1,
+              maxWidth: 330,
+              minWidth: 0,
+            }}
+          >
+            <Mail
+              size={20}
+              style={{
+                position: "absolute",
+                left: 13,
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "#fb8500",
+                opacity: 0.77,
+              }}
+            />
             <input
               id="newsletter-email"
               type="email"
               required
               placeholder="Digite seu melhor e-mail"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={(e) => setEmail(e.target.value)}
               style={{
                 width: "100%",
                 maxWidth: 330,
@@ -148,22 +165,24 @@ export default function NewsletterSection() {
               flexShrink: 0,
               whiteSpace: "nowrap",
             }}
-            onMouseOver={e => (e.currentTarget.style.background = "#e17000")}
-            onMouseOut={e => (e.currentTarget.style.background = "#fb8500")}
+            onMouseOver={(e) => (e.currentTarget.style.background = "#e17000")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "#fb8500")}
           >
             Assinar
           </button>
         </form>
       </div>
       {/* Mensagem de sucesso/erro */}
-      <div style={{
-        minHeight: 28,
-        textAlign: "center",
-        marginTop: 10,
-        fontWeight: 600,
-        color: ok ? "#38B000" : "#fb8500",
-        fontSize: 15.5
-      }}>
+      <div
+        style={{
+          minHeight: 28,
+          textAlign: "center",
+          marginTop: 10,
+          fontWeight: 600,
+          color: ok ? "#38B000" : "#fb8500",
+          fontSize: 15.5,
+        }}
+      >
         {ok && "Obrigado! Agora você faz parte do PedraUm Premium."}
         {error && error}
       </div>
@@ -180,7 +199,8 @@ export default function NewsletterSection() {
             gap: 28px !important;
             text-align: center !important;
           }
-          .newsletter-grid h2, .newsletter-grid p {
+          .newsletter-grid h2,
+          .newsletter-grid p {
             text-align: center !important;
           }
           form {

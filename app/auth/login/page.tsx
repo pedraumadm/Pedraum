@@ -6,7 +6,15 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Eye, EyeOff, Mail, Lock, Loader2, LogIn, AlertTriangle } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Mail,
+  Lock,
+  Loader2,
+  LogIn,
+  AlertTriangle,
+} from "lucide-react";
 
 type UsuarioDB = {
   tipo?: "usuario" | "admin" | "patrocinador";
@@ -88,7 +96,8 @@ export default function LoginPage() {
             Entrar na Plataforma
           </h1>
           <p className="text-gray-600 text-base font-medium text-center">
-            Acesse sua conta do <span className="font-bold text-[#FB8500]">Pedraum Brasil</span>
+            Acesse sua conta do{" "}
+            <span className="font-bold text-[#FB8500]">Pedraum Brasil</span>
           </p>
         </div>
 
@@ -103,7 +112,9 @@ export default function LoginPage() {
         {/* FORMULÁRIO */}
         <form onSubmit={handleLogin} className="w-full space-y-6">
           <div>
-            <label className="block mb-1 font-bold text-[#023047] text-[15px]">E-mail</label>
+            <label className="block mb-1 font-bold text-[#023047] text-[15px]">
+              E-mail
+            </label>
             <div className="flex items-center gap-2 border border-[#e8e8ec] rounded-xl px-3 py-2 bg-[#f7fafc] shadow-inner focus-within:border-[#FB8500] transition">
               <Mail size={20} className="text-[#FB8500]" />
               <input
@@ -118,7 +129,9 @@ export default function LoginPage() {
             </div>
           </div>
           <div>
-            <label className="block mb-1 font-bold text-[#023047] text-[15px]">Senha</label>
+            <label className="block mb-1 font-bold text-[#023047] text-[15px]">
+              Senha
+            </label>
             <div className="flex items-center gap-2 border border-[#e8e8ec] rounded-xl px-3 py-2 bg-[#f7fafc] shadow-inner focus-within:border-[#FB8500] transition">
               <Lock size={20} className="text-[#FB8500]" />
               <input
@@ -147,7 +160,10 @@ export default function LoginPage() {
               </div>
             )}
             <div className="flex justify-end mt-2 text-xs">
-              <Link href="/auth/reset" className="text-[#FB8500] hover:underline transition font-medium">
+              <Link
+                href="/auth/reset"
+                className="text-[#FB8500] hover:underline transition font-medium"
+              >
                 Esqueceu a senha?
               </Link>
             </div>
@@ -158,7 +174,11 @@ export default function LoginPage() {
             className="w-full bg-[#FB8500] hover:bg-[#e06c00] text-white py-3 rounded-xl font-bold text-lg flex items-center justify-center transition disabled:opacity-60 disabled:cursor-not-allowed shadow-lg"
             style={{ letterSpacing: ".01em" }}
           >
-            {loading ? <Loader2 className="animate-spin mr-2" size={22} /> : <LogIn className="mr-2" size={22} />}
+            {loading ? (
+              <Loader2 className="animate-spin mr-2" size={22} />
+            ) : (
+              <LogIn className="mr-2" size={22} />
+            )}
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
@@ -167,15 +187,22 @@ export default function LoginPage() {
         <div className="mt-7 text-center text-sm w-full">
           <div className="mb-2">
             <span className="text-gray-600">Ainda não tem uma conta?</span>
-            <Link href="/auth/register" className="ml-2 text-[#023047] font-bold hover:underline transition">
+            <Link
+              href="/auth/register"
+              className="ml-2 text-[#023047] font-bold hover:underline transition"
+            >
               Cadastre-se
             </Link>
           </div>
           <div className="text-gray-400 text-xs mt-3">
             Ao entrar, você concorda com nossa{" "}
-            <Link href="/politica" className="text-[#219EBC] hover:underline transition">
+            <Link
+              href="/politica"
+              className="text-[#219EBC] hover:underline transition"
+            >
               Política de Privacidade
-            </Link>.
+            </Link>
+            .
           </div>
         </div>
       </div>

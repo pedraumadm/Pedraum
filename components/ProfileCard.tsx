@@ -11,7 +11,12 @@ interface ProfileCardProps {
   tipo?: string;
 }
 
-export default function ProfileCard({ nome, email, imagem, tipo }: ProfileCardProps) {
+export default function ProfileCard({
+  nome,
+  email,
+  imagem,
+  tipo,
+}: ProfileCardProps) {
   return (
     <div className="bg-white rounded-2xl shadow border border-gray-200 p-6 flex items-center gap-4">
       <img
