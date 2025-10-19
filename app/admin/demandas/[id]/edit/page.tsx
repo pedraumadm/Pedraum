@@ -48,6 +48,7 @@ import {
   Layers,
   FileText,
   Image as ImageIcon,
+  Search, // <-- Ícone correto
 } from "lucide-react";
 import ImageUploader from "@/components/ImageUploader";
 import nextDynamic from "next/dynamic";
@@ -364,9 +365,10 @@ export default function EditDemandaPage() {
     [assignments],
   );
 
-  /** ------- Filtros (somente Categoria e UF) ------- */
+  /** ------- Filtros (Categoria, UF e Busca local) ------- */
   const [fCat, setFCat] = useState("");
   const [fUF, setFUF] = useState("");
+  const [qUser, setQUser] = useState("");
 
   // ======= Taxonomia (3 níveis) – para o FORM (demanda) =======
   const subsForm: Subcat[] = useMemo(
@@ -501,77 +503,113 @@ export default function EditDemandaPage() {
     } as Usuario;
   }
 
-  /** ================== Busca de usuários: SOMENTE Categoria + UF ================== */
- /** ================== Busca de usuários: Versão robusta (categoria + UF) ================== */
-async function smartFetchUsuarios(reset = true) {
-  setLoadingUsuarios(true);
-  try {
-    const PAGE = 400; // busca ampla para filtrar localmente
-    const all: Usuario[] = [];
+  /** ================== Busca de usuários (robusta + coleções múltiplas) ================== */
+  async function smartFetchUsuarios(reset = true) {
+    setLoadingUsuarios(true);
+    try {
+      const PAGE = 500; // busca ampla para filtrar localmente
+      const collectionsToRead = ["usuarios", "users", "user"]; // cobre variações
+      const mapById = new Map<string, Usuario>();
+      const mapByEmail = new Map<string, Usuario>();
 
-    // Busca todos os usuários
-    const snap = await getDocs(
-      query(collection(db, "usuarios"), orderBy("nome"), limit(PAGE))
-    );
-    snap.forEach((d) => all.push(docToUsuario(d)));
-
-    const ufN = (fUF || "").trim().toUpperCase();
-    const catN = norm(fCat);
-
-    const filtrados = all.filter((u) => {
-      let matchCat = true;
-      let matchUF = true;
-
-      // --------- Categoria ---------
-      if (catN) {
-        const possibleCats: string[] = [];
-
-        if (Array.isArray(u.categorias)) possibleCats.push(...u.categorias);
-        if (Array.isArray((u as any).categoriesAll))
-          possibleCats.push(...(u as any).categoriesAll);
-        if (Array.isArray((u as any).categoriasAtuacaoPairs))
-          possibleCats.push(
-            ...(u as any).categoriasAtuacaoPairs.map((p: any) => p?.categoria)
+      // Carrega de várias coleções (nomeações diferentes)
+      for (const colName of collectionsToRead) {
+        try {
+          const snap = await getDocs(
+            query(collection(db, colName), orderBy("nome"), limit(PAGE))
           );
-        if (Array.isArray((u as any).atuacaoBasica))
-          possibleCats.push(
-            ...(u as any).atuacaoBasica.map((a: any) => a?.categoria)
-          );
-
-        matchCat = possibleCats.some(
-          (c) => c && norm(c).includes(catN) // aceita parcial
-        );
+          snap.forEach((d) => {
+            const u = docToUsuario(d);
+            // dedup por id
+            if (!u.id) return;
+            if (!mapById.has(u.id)) mapById.set(u.id, u);
+            // dedup adicional por e-mail
+            const mail = (u.email || "").trim().toLowerCase();
+            if (mail && !mapByEmail.has(mail)) mapByEmail.set(mail, u);
+          });
+        } catch (err) {
+          // Algumas coleções podem não existir/sem índice — seguimos
+          // console.warn(`Coleção "${colName}" não encontrada/sem índice`, err);
+        }
       }
 
-     // --------- UF (robusto) ---------
-if (ufN) {
-  const ufWanted = toUF(ufN) || ufN.toUpperCase(); // aceita “MT” ou “Mato Grosso”
-  if (ufWanted === "BRASIL") {
-    matchUF = true;
-  } else if (u.atendeBrasil === true) {
-    matchUF = true;
-  } else {
-    const setUFs = getUFSetFromUser(u); // olha em todos os lugares possíveis
-    matchUF = setUFs.has(ufWanted) || setUFs.has("BRASIL");
+      const all = Array.from(mapById.values());
+
+      const ufN = (fUF || "").trim().toUpperCase();
+      const catN = norm(fCat);
+
+      const filtrados = all.filter((u) => {
+        let matchCat = true;
+        let matchUF = true;
+
+        // --------- Categoria ---------
+        if (catN) {
+          const possibleCats: string[] = [];
+
+          if (Array.isArray(u.categorias)) possibleCats.push(...u.categorias);
+          if (Array.isArray((u as any).categoriesAll))
+            possibleCats.push(...(u as any).categoriesAll);
+          if (Array.isArray((u as any).categoriasAtuacaoPairs))
+            possibleCats.push(
+              ...(u as any).categoriasAtuacaoPairs.map((p: any) => p?.categoria)
+            );
+          if (Array.isArray((u as any).atuacaoBasica))
+            possibleCats.push(
+              ...(u as any).atuacaoBasica.map((a: any) => a?.categoria)
+            );
+
+          matchCat = possibleCats.some(
+            (c) => c && norm(c).includes(catN) // aceita parcial
+          );
+        }
+
+        // --------- UF (robusto) ---------
+        if (ufN) {
+          const ufWanted = toUF(ufN) || ufN.toUpperCase(); // aceita “MT” ou “Mato Grosso”
+          if (ufWanted === "BRASIL") {
+            matchUF = true;
+          } else if (u.atendeBrasil === true) {
+            matchUF = true;
+          } else {
+            const setUFs = getUFSetFromUser(u); // olha em todos os lugares possíveis
+            matchUF = setUFs.has(ufWanted) || setUFs.has("BRASIL");
+          }
+        }
+
+        return matchCat && matchUF;
+      });
+
+      // Ordena alfabeticamente para visualização estável
+      filtrados.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
+
+      setUsuarios(filtrados);
+      setPaging({ ended: true });
+    } catch (e) {
+      console.error("Erro ao buscar usuários:", e);
+    } finally {
+      setLoadingUsuarios(false);
+    }
   }
-}
 
-
-      return matchCat && matchUF;
+  // Busca local dentro do resultado carregado (nome, e-mail, whatsapp, cidade, id)
+  const usuariosVisiveis = useMemo(() => {
+    const t = norm(qUser);
+    if (!t) return usuarios;
+    return usuarios.filter((u) => {
+      const nome = norm(u.nome || "");
+      const email = norm(u.email || "");
+      const whatsapp = norm(u.whatsappE164 || u.whatsapp || u.telefone || "");
+      const cidade = norm(u.cidade || "");
+      const id = (u.id || "").toLowerCase();
+      return (
+        nome.includes(t) ||
+        email.includes(t) ||
+        whatsapp.includes(t) ||
+        cidade.includes(t) ||
+        id.includes(t)
+      );
     });
-
-    // Ordena alfabeticamente para visualização estável
-    filtrados.sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
-
-    setUsuarios(filtrados);
-    setPaging({ ended: true });
-  } catch (e) {
-    console.error("Erro ao buscar usuários:", e);
-  } finally {
-    setLoadingUsuarios(false);
-  }
-}
-
+  }, [usuarios, qUser]);
 
   // load inicial
   useEffect(() => {
@@ -713,7 +751,7 @@ if (ufN) {
       Array.from(
         new Set([
           ...prev,
-          ...usuarios.filter((c) => !jaEnviados.has(c.id)).map((c) => c.id),
+          ...usuariosVisiveis.filter((c) => !jaEnviados.has(c.id)).map((c) => c.id),
         ]),
       ),
     );
@@ -1472,7 +1510,7 @@ if (ufN) {
             </div>
           </div>
 
-          {/* Filtros (somente Categoria + UF) */}
+          {/* Filtros + Busca local */}
           <div
             style={{
               ...twoCols,
@@ -1506,6 +1544,7 @@ if (ufN) {
                   ))}
                 </select>
               </div>
+
               <div>
                 <label style={miniLabel}>
                   <Filter size={13} /> UF
@@ -1523,11 +1562,29 @@ if (ufN) {
                   ))}
                 </select>
               </div>
+
+              {/* NOVO: Busca local */}
+              <div>
+                <label style={miniLabel}>
+                  <Search size={13} /> Buscar
+                </label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={qUser}
+                    onChange={(e) => setQUser(e.target.value)}
+                    placeholder="nome, e-mail, whatsapp, cidade ou id"
+                    style={{ ...input, width: 280 }}
+                  />
+                  {qUser && (
+                    <button type="button" onClick={() => setQUser("")} style={ghostBtn}>
+                      Limpar
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <button type="button" onClick={() => smartFetchUsuarios(true)} style={ghostBtn}>
                 <RefreshCw size={16} /> Atualizar
-              </button>
-              <button type="button" onClick={() => smartFetchUsuarios(false)} style={ghostBtn}>
-                <RefreshCw size={16} /> Carregar mais
               </button>
             </div>
           </div>
@@ -1553,7 +1610,7 @@ if (ufN) {
             </div>
 
             <div style={{ maxHeight: "56vh", overflow: "auto" }}>
-              {usuarios.map((u) => {
+              {usuariosVisiveis.map((u) => {
                 const nome = u.nome || u.email || `Usuário ${u.id}`;
                 const contato = u.whatsappE164 || u.whatsapp || u.telefone || "—";
                 const regioes = u.atendeBrasil
@@ -1610,7 +1667,7 @@ if (ufN) {
                 );
               })}
 
-              {!loadingUsuarios && usuarios.length === 0 && (
+              {!loadingUsuarios && usuariosVisiveis.length === 0 && (
                 <div
                   style={{
                     padding: "24px 12px",
@@ -1619,7 +1676,7 @@ if (ufN) {
                     fontSize: 14,
                   }}
                 >
-                  Nenhum usuário encontrado. Ajuste os filtros.
+                  Nenhum usuário encontrado. Ajuste os filtros/busca.
                 </div>
               )}
 
