@@ -935,22 +935,22 @@ export default function EditDemandaPage() {
       el.id = styleId;
       document.head.appendChild(el);
     }
-    el.innerHTML = `
-      @media (min-width: 1100px) {
-        section > div[style*="grid-template-columns: 1fr"] { grid-template-columns: 1fr 1fr !important; }
-      }
-      @media (max-width: 860px) {
-        div[style*="display: flex"][style*="gap: 12px"][style*="align-items: center"][style*="border: 1px solid #e5e7eb"] {
-          flex-direction: column !important;
-          align-items: flex-start !important;
-        }
-        div[style*="display: flex"][style*="gap: 12px"][style*="padding: 10px 12px"][style*="border: 1px solid #eef2f7"] {
-          display: none !important;
-        }
-        input, select, textarea { max-width: 100% !important; }
-        .sticky { position: sticky; top: 0; }
-      }
-    `;
+   // substitua TODO o conteúdo de el.innerHTML por isto:
+el.innerHTML = `
+  /* sem quebra em 2 colunas no desktop */
+  @media (max-width: 860px) {
+    div[style*="display: flex"][style*="gap: 12px"][style*="align-items: center"][style*="border: 1px solid #e5e7eb"] {
+      flex-direction: column !important;
+      align-items: flex-start !important;
+    }
+    div[style*="display: flex"][style*="gap: 12px"][style*="padding: 10px 12px"][style*="border: 1px solid #eef2f7"] {
+      display: none !important;
+    }
+    input, select, textarea { max-width: 100% !important; }
+    .sticky { position: sticky; top: 0; }
+  }
+`;
+
     return () => {
       try {
         el && el.remove();
