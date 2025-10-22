@@ -1,18 +1,11 @@
 // app/perfil/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { db, auth } from "@/firebaseConfig";
-import {
-  doc,
-  updateDoc,
-  addDoc,
-  collection,
-  serverTimestamp,
-  onSnapshot,
-} from "firebase/firestore";
+import { doc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import ImageUploader from "@/components/ImageUploader";
 import {
   ChevronLeft,
@@ -30,19 +23,16 @@ import {
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 /** ==== PDF (SSR desativado para evitar erro no Next) ==== */
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
-  ssr: false,
-}) as any;
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
-  ssr: false,
-}) as any;
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false }) as any;
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false }) as any;
 
 /** =========================
  *  Constantes auxiliares
  *  ========================= */
 const SUPPORT_WHATSAPP = "5531990903613";
 const UFS = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA", "PB",
+  "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
 ] as const;
 const UFS_SET = new Set<string>(UFS);
 
@@ -104,12 +94,12 @@ export default function PerfilPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
+  // === Limite de categorias (padrão 3, override via Firestore: usuarios/{uid}.categoryLimit)
+  const [categoryLimit, setCategoryLimit] = useState<number>(3);
+
   // Taxonomia: vamos usar apenas a lista de categorias (nível 1)
   const { categorias, loading: taxLoading } = useTaxonomia();
-  const nomesCategoriasTodos = useMemo(
-    () => categorias.map((c) => c.nome),
-    [categorias],
-  );
+  const nomesCategoriasTodos = useMemo(() => categorias.map((c) => c.nome), [categorias]);
 
   // PDF
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -126,6 +116,10 @@ export default function PerfilPage() {
   const [vendaPecasObs, setVendaPecasObs] = useState("");
   const [servicosAtivo, setServicosAtivo] = useState(false);
   const [servicosObs, setServicosObs] = useState("");
+
+  // Progressive disclosure
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   // lock de categorias (mantido só para UI; sem travas funcionais)
   const [categoriasLocked, setCategoriasLocked] = useState<boolean>(false);
@@ -173,10 +167,7 @@ export default function PerfilPage() {
     mpStatus: "desconectado",
   });
 
-  const avatarLista = useMemo(
-    () => (form.avatar ? [form.avatar] : []),
-    [form.avatar],
-  );
+  const avatarLista = useMemo(() => (form.avatar ? [form.avatar] : []), [form.avatar]);
 
   /* ================= Auth + realtime ================= */
   useEffect(() => {
@@ -195,9 +186,10 @@ export default function PerfilPage() {
         const data: any = snap.data() || {};
         const locked = !!data.categoriasLocked;
 
-        const atuacaoBasica: AtuacaoBasicaPorCategoria[] = Array.isArray(
-          data.atuacaoBasica,
-        )
+        // === Limite de categorias vindo do Firestore (fallback 3)
+        setCategoryLimit(Number(data?.categoryLimit ?? 3));
+
+        const atuacaoBasica: AtuacaoBasicaPorCategoria[] = Array.isArray(data.atuacaoBasica)
           ? data.atuacaoBasica
           : [];
 
@@ -209,8 +201,8 @@ export default function PerfilPage() {
           telefone: data.whatsappE164
             ? maskBRFrom55(data.whatsappE164)
             : data.whatsapp
-              ? maskBRFrom55(data.whatsapp)
-              : data.telefone || "",
+            ? maskBRFrom55(data.whatsapp)
+            : data.telefone || "",
           cidade: data.cidade || "",
           estado: data.estado || "",
           cpf_cnpj: data.cpf_cnpj || "",
@@ -223,15 +215,11 @@ export default function PerfilPage() {
           atuacaoBasica,
 
           // legados apenas para manter consistência (não usados)
-          categoriasAtuacao: Array.isArray(data.categoriasAtuacao)
-            ? data.categoriasAtuacao
-            : [],
+          categoriasAtuacao: Array.isArray(data.categoriasAtuacao) ? data.categoriasAtuacao : [],
           categoriasAtuacaoPairs: Array.isArray(data.categoriasAtuacaoPairs)
             ? data.categoriasAtuacaoPairs
             : [],
-          categoriasAtuacaoTriplets: Array.isArray(
-            data.categoriasAtuacaoTriplets,
-          )
+          categoriasAtuacaoTriplets: Array.isArray(data.categoriasAtuacaoTriplets)
             ? data.categoriasAtuacaoTriplets
             : [],
 
@@ -279,10 +267,7 @@ export default function PerfilPage() {
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data
-          .map((m) => m.nome)
-          .sort((a, b) => a.localeCompare(b, "pt-BR"));
-
+        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
         setCidades(nomes);
       } catch {
         if (!abort) setCidades([]);
@@ -355,9 +340,7 @@ export default function PerfilPage() {
     const has = form.ufsAtendidas.includes(val);
     setForm((f) => ({
       ...f,
-      ufsAtendidas: has
-        ? f.ufsAtendidas.filter((u) => u !== val)
-        : [...f.ufsAtendidas, val],
+      ufsAtendidas: has ? f.ufsAtendidas.filter((u) => u !== val) : [...f.ufsAtendidas, val],
     }));
   }
 
@@ -382,6 +365,7 @@ export default function PerfilPage() {
     setServicosObs(cat.servicos?.obs || "");
   }
 
+  // === Gate de inclusão: permite atualizar uma existente mesmo no limite; bloqueia NOVA quando já atingiu
   function addOuAtualizaCategoria() {
     const categoria = selCategoria.trim();
     if (!categoria) {
@@ -412,21 +396,31 @@ export default function PerfilPage() {
 
     setForm((f) => {
       const existe = f.atuacaoBasica.find((a) => a.categoria === categoria);
+      const jaNoLimite = f.atuacaoBasica.length >= categoryLimit;
+
+      if (!existe && jaNoLimite) {
+        setMsg(`Você atingiu o limite de ${categoryLimit} categoria(s).`);
+        return f; // não altera
+      }
+
       if (!existe) {
+        setMsg("Categoria adicionada.");
+        setTimeout(() => setMsg(""), 2500);
+        resetEditorCategoria();
+        setEditorOpen(false); // fecha após adicionar
         return { ...f, atuacaoBasica: [...f.atuacaoBasica, novo] };
       }
-      // atualiza
+
+      // atualização de existente é sempre permitida
+      setMsg("Categoria atualizada.");
+      setTimeout(() => setMsg(""), 2500);
+      resetEditorCategoria();
+      setEditorOpen(false); // fecha após atualizar
       return {
         ...f,
-        atuacaoBasica: f.atuacaoBasica.map((a) =>
-          a.categoria === categoria ? novo : a,
-        ),
+        atuacaoBasica: f.atuacaoBasica.map((a) => (a.categoria === categoria ? novo : a)),
       };
     });
-
-    setMsg("Categoria adicionada/atualizada.");
-    resetEditorCategoria();
-    setTimeout(() => setMsg(""), 2500);
   }
 
   function removerCategoria(categoria: string) {
@@ -434,7 +428,10 @@ export default function PerfilPage() {
       ...f,
       atuacaoBasica: f.atuacaoBasica.filter((a) => a.categoria !== categoria),
     }));
-    if (selCategoria === categoria) resetEditorCategoria();
+    if (selCategoria === categoria) {
+      resetEditorCategoria();
+      setEditorOpen(false);
+    }
   }
 
   /* ================= Salvar ================= */
@@ -506,13 +503,7 @@ export default function PerfilPage() {
         atendeBrasil: form.atendeBrasil,
         ufsAtendidas: form.atendeBrasil
           ? ["BRASIL"]
-          : Array.from(
-              new Set(
-                (form.ufsAtendidas || []).map((u) =>
-                  String(u).trim().toUpperCase(),
-                ),
-              ),
-            ),
+          : Array.from(new Set((form.ufsAtendidas || []).map((u) => String(u).trim().toUpperCase()))),
 
         portfolioImagens: form.portfolioImagens,
         portfolioPdfUrl: pdfUrl || null,
@@ -556,6 +547,8 @@ export default function PerfilPage() {
   }
 
   const categoriasSelecionadas = form.atuacaoBasica.map((a) => a.categoria);
+  const atingiuLimite = form.atuacaoBasica.length >= categoryLimit;
+  const selecionadaJaExiste = !!form.atuacaoBasica.find((a) => a.categoria === selCategoria);
 
   return (
     <section style={{ maxWidth: 980, margin: "0 auto", padding: "40px 2vw 70px 2vw" }}>
@@ -596,6 +589,23 @@ export default function PerfilPage() {
           </button>
         </div>
       )}
+
+      {/* Contador de limite sempre visível */}
+      <div
+        style={{
+          marginBottom: 14,
+          fontSize: 13,
+          color: "#334155",
+          fontWeight: 800,
+        }}
+      >
+        Categorias: <b>{form.atuacaoBasica.length}/{categoryLimit}</b>
+        {atingiuLimite && (
+          <span style={{ color: "#b91c1c", marginLeft: 8 }}>
+            (Limite atingido — peça ao suporte/adm para aumentar)
+          </span>
+        )}
+      </div>
 
       <form onSubmit={salvar} className="grid gap-16">
         {/* Identidade */}
@@ -711,85 +721,172 @@ export default function PerfilPage() {
               <select
                 className="input"
                 value={selCategoria}
-                onChange={(e) => setSelCategoria(e.target.value)}
+                onChange={(e) => {
+                  setSelCategoria(e.target.value);
+                  if (e.target.value) {
+                    setEditorOpen(true);
+                    setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                  }
+                }}
                 disabled={taxLoading}
               >
                 <option value="">{taxLoading ? "Carregando categorias..." : "Selecionar categoria..."}</option>
                 {nomesCategoriasTodos.map((c) => (
-                  <option key={c} value={c}>{c}</option>
+                  <option
+                    key={c}
+                    value={c}
+                    disabled={atingiuLimite && !form.atuacaoBasica.find(a => a.categoria === c)}
+                  >
+                    {c}
+                  </option>
                 ))}
               </select>
 
-              <div className="rounded-2xl border p-4 mt-3" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
-                <div className="label" style={{ marginBottom: 8 }}>O que você faz nessa categoria?</div>
-
-                {/* Vendo produtos */}
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={vendaProdutosAtivo}
-                    onChange={(e) => setVendaProdutosAtivo(e.target.checked)}
-                  />
-                  <span>Vendo produtos para {selCategoria || "a categoria selecionada"}</span>
-                </label>
-                {vendaProdutosAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder="Descreva o que você vende (obrigatório)"
-                    value={vendaProdutosObs}
-                    onChange={(e) => setVendaProdutosObs(e.target.value)}
-                  />
-                )}
-
-                {/* Vendo peças */}
-                <div style={{ height: 10 }} />
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={vendaPecasAtivo}
-                    onChange={(e) => setVendaPecasAtivo(e.target.checked)}
-                  />
-                  <span>Vendo peças</span>
-                </label>
-                {vendaPecasAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder="Quais peças você vende? (obrigatório)"
-                    value={vendaPecasObs}
-                    onChange={(e) => setVendaPecasObs(e.target.value)}
-                  />
-                )}
-
-                {/* Presto serviços */}
-                <div style={{ height: 10 }} />
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={servicosAtivo}
-                    onChange={(e) => setServicosAtivo(e.target.checked)}
-                  />
-                  <span>Presto serviços</span>
-                </label>
-                {servicosAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder="Que serviços você presta? (obrigatório)"
-                    value={servicosObs}
-                    onChange={(e) => setServicosObs(e.target.value)}
-                  />
-                )}
-
-                <div className="flex gap-8 mt-3">
-                  <button type="button" className="btn-sec" onClick={addOuAtualizaCategoria}>
-                    <Plus size={14} /> Adicionar/Atualizar categoria
-                  </button>
-                  <button type="button" className="btn-sec" onClick={resetEditorCategoria}>
-                    Limpar editor
-                  </button>
+              {/* Aviso quando atingir limite e a seleção atual não existir */}
+              {atingiuLimite && selCategoria && !selecionadaJaExiste && (
+                <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 6, fontWeight: 800 }}>
+                  Você já tem {categoryLimit} categoria(s). Remova alguma ou peça aumento ao suporte/adm.
                 </div>
+              )}
+
+              {/* EDITOR – só aparece quando há categoria selecionada E o editor está aberto */}
+              <div ref={editorRef}>
+                {!selCategoria ? (
+                  <div className="rounded-xl border p-4 mt-3" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
+                    <div style={{ fontWeight: 800, color: "#334155" }}>
+                      Selecione uma categoria para configurar as opções.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border p-0 mt-3 overflow-hidden" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
+                    {/* Header compacto do editor */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        padding: "10px 12px",
+                        background: "#eef6ff",
+                        borderBottom: "1px solid #e6ebf2",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 900, color: "#023047" }}>Categoria:</span>
+                        <span className="pill" style={{ background: "#eaf2ff", borderColor: "#dbe7ff", color: "#0f1a2a" }}>
+                          {selCategoria}
+                        </span>
+                        {atingiuLimite && !selecionadaJaExiste && (
+                          <span className="pill" style={{ background: "#fff1f2", borderColor: "#ffe0e6", color: "#be123c" }}>
+                            Limite atingido
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        onClick={() => setEditorOpen((v) => !v)}
+                        title={editorOpen ? "Fechar editor" : "Abrir editor"}
+                      >
+                        {editorOpen ? "Fechar editor" : "Abrir editor"}
+                      </button>
+                    </div>
+
+                    {/* Corpo do editor */}
+                    {editorOpen && (
+                      <div className="p-4">
+                        <div className="label" style={{ marginBottom: 8 }}>
+                          O que você faz nessa categoria?
+                        </div>
+
+                        {/* Vendo produtos */}
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={vendaProdutosAtivo}
+                            onChange={(e) => setVendaProdutosAtivo(e.target.checked)}
+                          />
+                          <span>Vendo produtos para {selCategoria}</span>
+                        </label>
+                        {vendaProdutosAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder="Descreva o que você vende (obrigatório)"
+                            value={vendaProdutosObs}
+                            onChange={(e) => setVendaProdutosObs(e.target.value)}
+                          />
+                        )}
+
+                        {/* Vendo peças */}
+                        <div style={{ height: 10 }} />
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={vendaPecasAtivo}
+                            onChange={(e) => setVendaPecasAtivo(e.target.checked)}
+                          />
+                          <span>Vendo peças</span>
+                        </label>
+                        {vendaPecasAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder="Quais peças você vende? (obrigatório)"
+                            value={vendaPecasObs}
+                            onChange={(e) => setVendaPecasObs(e.target.value)}
+                          />
+                        )}
+
+                        {/* Presto serviços */}
+                        <div style={{ height: 10 }} />
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={servicosAtivo}
+                            onChange={(e) => setServicosAtivo(e.target.checked)}
+                          />
+                          <span>Presto serviços</span>
+                        </label>
+                        {servicosAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder="Que serviços você presta? (obrigatório)"
+                            value={servicosObs}
+                            onChange={(e) => setServicosObs(e.target.value)}
+                          />
+                        )}
+
+                        <div className="flex gap-8 mt-3">
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            onClick={addOuAtualizaCategoria}
+                            disabled={!selCategoria || (atingiuLimite && !selecionadaJaExiste)}
+                            title={
+                              atingiuLimite && !selecionadaJaExiste
+                                ? `Limite de ${categoryLimit} atingido`
+                                : "Adicionar/Atualizar"
+                            }
+                          >
+                            <Plus size={14} /> {selecionadaJaExiste ? "Atualizar categoria" : "Adicionar categoria"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            onClick={() => {
+                              resetEditorCategoria();
+                              setEditorOpen(false);
+                            }}
+                          >
+                            Limpar e fechar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -803,11 +900,6 @@ export default function PerfilPage() {
               ) : (
                 <div className="grid gap-3">
                   {form.atuacaoBasica.map((a) => {
-                    const resumo: string[] = [];
-                    if (a.vendaProdutos.ativo) resumo.push("Vende produtos");
-                    if (a.vendaPecas.ativo) resumo.push("Vende peças");
-                    if (a.servicos.ativo) resumo.push("Presta serviços");
-
                     return (
                       <div
                         key={a.categoria}
@@ -821,7 +913,14 @@ export default function PerfilPage() {
                               type="button"
                               className="btn-sec"
                               title="Editar"
-                              onClick={() => carregarEditorDeUmaCategoria(a)}
+                              onClick={() => {
+                                carregarEditorDeUmaCategoria(a);
+                                setEditorOpen(true);
+                                setTimeout(
+                                  () => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                                  0,
+                                );
+                              }}
                             >
                               <Edit3 size={14} /> Editar
                             </button>
@@ -838,7 +937,8 @@ export default function PerfilPage() {
 
                         <div className="chips" style={{ marginTop: 8 }}>
                           <span className="chip" style={{ opacity: a.vendaProdutos.ativo ? 1 : 0.5 }}>
-                            <Check size={14} /> Produtos {a.vendaProdutos.ativo ? "— " + a.vendaProdutos.obs : "(não aplica)"}
+                            <Check size={14} /> Produtos{" "}
+                            {a.vendaProdutos.ativo ? "— " + a.vendaProdutos.obs : "(não aplica)"}
                           </span>
                           <span className="chip" style={{ opacity: a.vendaPecas.ativo ? 1 : 0.5 }}>
                             <Check size={14} /> Peças {a.vendaPecas.ativo ? "— " + a.vendaPecas.obs : "(não aplica)"}
@@ -861,7 +961,8 @@ export default function PerfilPage() {
           </div>
 
           <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
-            <b>Dica:</b> você pode adicionar várias categorias. Se marcar uma opção, descreva o que faz.
+            <b>Dica:</b> você pode adicionar várias categorias (limite atual: {categoryLimit}). Se marcar uma opção,
+            descreva o que faz.
           </div>
         </div>
 
@@ -869,11 +970,7 @@ export default function PerfilPage() {
         <div className="card">
           <div className="card-title">Cobertura / UFs Atendidas</div>
           <label className="checkbox" style={{ marginBottom: 10 }}>
-            <input
-              type="checkbox"
-              checked={form.atendeBrasil}
-              onChange={() => toggleUfAtendida("BRASIL")}
-            />
+            <input type="checkbox" checked={form.atendeBrasil} onChange={() => toggleUfAtendida("BRASIL")} />
             <span>Atendo o Brasil inteiro</span>
           </label>
 

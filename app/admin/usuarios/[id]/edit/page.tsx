@@ -126,7 +126,7 @@ type PerfilForm = {
 
   prestaServicos: boolean;
   vendeProdutos: boolean;
-
+categoryLimit?: number;
   /** ===== NOVO: fonte da verdade simplificada ===== */
   atuacaoBasica: AtuacaoBasicaPorCategoria[];
 
@@ -352,7 +352,7 @@ export default function AdminEditarUsuarioPage() {
 
           mpConnected: !!data.mpConnected,
           mpStatus: data.mpStatus || "desconectado",
-
+ categoryLimit: Number(data?.categoryLimit ?? 3),
           // extras admin
           status: (data.status as any) || "ativo",
           verificado: !!data.verificado,
@@ -623,7 +623,7 @@ export default function AdminEditarUsuarioPage() {
         },
         observacoesInternas: form.observacoesInternas || "",
         requirePasswordChange: !!form.requirePasswordChange,
-
+ categoryLimit: Number(form.categoryLimit ?? 3),
         atualizadoEm: serverTimestamp(),
       });
 
@@ -1503,6 +1503,47 @@ export default function AdminEditarUsuarioPage() {
               </button>
             </div>
           </div>
+{/* ===== Limites de Perfil ===== */}
+<div className="panel-section">
+  <div className="section-title">Limites do Perfil</div>
+
+  <label className="label" htmlFor="limiteCategorias">
+    Limite de categorias
+  </label>
+  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+    <input
+      id="limiteCategorias"
+      type="number"
+      className="input"
+      min={0}
+      max={50}
+      value={Number(form.categoryLimit ?? 3)}
+      onChange={(e) => setField("categoryLimit", e.target.value ? Number(e.target.value) : 0)}
+      style={{ width: 120 }}
+    />
+    <button
+      type="button"
+      className="btn-sec"
+      onClick={() => setField("categoryLimit", 3)}
+      title="Voltar ao padrão"
+    >
+      Resetar p/ 3
+    </button>
+    <button
+      type="button"
+      className="btn-sec"
+      onClick={() => setField("categoryLimit", (form.atuacaoBasica?.length ?? 0))}
+      title="Define o limite igual ao total atual"
+    >
+      Ajustar p/ {form.atuacaoBasica?.length ?? 0}
+    </button>
+  </div>
+
+  <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
+    Usuário poderá selecionar até <b>{Number(form.categoryLimit ?? 3)}</b> categoria(s).
+    (No app do usuário, o padrão é 3 quando este campo não existe.)
+  </div>
+</div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* Coluna 1 — Conta */}
