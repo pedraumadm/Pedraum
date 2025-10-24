@@ -1,3 +1,4 @@
+// app/admin/usuarios/page.tsx
 "use client";
 
 import Link from "next/link";
@@ -14,6 +15,7 @@ import {
   startAfter,
   addDoc,
   serverTimestamp,
+  limit as fsLimit,
 } from "firebase/firestore";
 import type { DocumentData, QuerySnapshot } from "firebase/firestore";
 import {
@@ -40,6 +42,7 @@ import { withRoleProtection } from "@/utils/withRoleProtection";
 
 /* ========================= Constantes e helpers ========================= */
 const COLLECTION_CANDIDATES = ["usuarios", "users", "user"] as const;
+const FIRESTORE_PAGE = 1000;
 
 const onlyDigits = (v = "") => v.replace(/\D/g, "");
 const norm = (s = "") =>
@@ -59,7 +62,7 @@ function tsToDate(ts?: any): Date | null {
 }
 function formatDate(ts?: any) {
   const d = tsToDate(ts);
-  return d ? d.toLocaleDateString("pt-BR") : "";
+  return d ? d.toLocaleDateString("pt-BR") : "—";
 }
 function daysFromNow(d?: Date | null) {
   if (!d) return Infinity;
@@ -97,7 +100,6 @@ type UsuarioDoc = {
   planoExpiraEm?: any;
 
   categoriesAll?: string[];
-  pairsSearch?: string[];
   ufsSearch?: string[];
 
   whatsapp?: string;
@@ -129,6 +131,25 @@ function asStatus(
   if (n === "inativo") return "Inativo";
   return (u.status as any) || "Ativo";
 }
+function isFornecedor(u: UsuarioDoc) {
+  return !!u.verificado;
+}
+
+function isPatrocinador(u: UsuarioDoc) {
+  const papel = (u.role || u.tipo || "").toLowerCase();
+  const byRole = papel === "patrocinador";
+  const byFlag = (u as any).isPatrocinador === true; // se você usa esse flag
+  const byPlano = ["ativo", "inadimplente", "expirado"].includes(
+    (u.planoStatus || "").toLowerCase(),
+  );
+  // qualquer uma das condições já considera o usuário como patrocinador
+  return byRole || byFlag || byPlano;
+}
+
+/** Retorna o campo correto de criação (createdAt | criadoEm | criadoem | created_at) */
+function getCreatedAt(u: UsuarioDoc) {
+  return u.createdAt ?? (u as any).criadoEm ?? (u as any).criadoem ?? (u as any).created_at;
+}
 
 /* ========================= Página ========================= */
 function UsuariosAdminPage() {
@@ -136,29 +157,27 @@ function UsuariosAdminPage() {
   const [listaExibida, setListaExibida] = useState<UsuarioDoc[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // cache com TUDO carregado das 3 coleções
+  // cache com TUDO carregado das 3 coleções (dedupe por id)
   const allDocsRef = useRef<UsuarioDoc[]>([]);
   const [visibleMax, setVisibleMax] = useState(50); // paginação client
   const PAGE_CHUNK = 50;
 
   /* ---------- filtros ---------- */
   const [busca, setBusca] = useState("");
-  const [fRole, setFRole] = useState<"" | "admin" | "usuario" | "patrocinador">(
-    "",
-  );
+  const [fRole, setFRole] = useState<
+    "" | "admin" | "usuario" | "patrocinador" | "fornecedor"
+  >("");
   const [fStatus, setFStatus] = useState<
     "" | "Ativo" | "Bloqueado" | "Pendente" | "Inativo"
   >("");
-  const [fFornecedor, setFFornecedor] = useState<"" | "sim" | "nao">("");
   const [fUF, setFUF] = useState("");
   const [fCidade, setFCidade] = useState("");
   const [fCategoria, setFCategoria] = useState("");
-  const [fSubcat, setFSubcat] = useState("");
   const [fUFCobertura, setFUFCobertura] = useState("");
   const [fPatro, setFPatro] = useState<
     "" | "ativo" | "expira7" | "inadimplente" | "expirado"
   >("");
-  const [fPerfilIncompleto, setFPerfilIncompleto] = useState(false);
+  const [fSomenteMelhorados, setFSomenteMelhorados] = useState(false);
   const [fSemWhats, setFSemWhats] = useState(false);
   const [fTag, setFTag] = useState("");
 
@@ -167,34 +186,53 @@ function UsuariosAdminPage() {
 
   /* ---------- stats (client, confiáveis) ---------- */
   const stats = useMemo(() => {
-    const total = allDocsRef.current.length;
-    let admins = 0;
-    let patrocinadoresAtivos = 0;
-    let ativos = 0;
-    let comWhats = 0;
-    let perfisMelhorados = 0;
+  const now = Date.now();
+  const msDia = 24 * 60 * 60 * 1000;
 
-    for (const u of allDocsRef.current) {
-      if (asRole(u) === "admin") admins++;
-      if (asRole(u) === "patrocinador" && u.planoStatus === "ativo")
-        patrocinadoresAtivos++;
-      if (asStatus(u) === "Ativo") ativos++;
-      if (u.whatsapp) comWhats++;
-      if ((u.categoriesAll?.length || 0) > 0) perfisMelhorados++;
+  const total = allDocsRef.current.length;
+  let admins = 0;
+  let patrocinadores = 0; // total (derivado)
+  let ativos = 0;
+  let fornecedores = 0;   // verificado === true
+  let perfisMelhorados = 0;
+
+  let ult7 = 0;
+  let ult30 = 0;
+  let ult90 = 0;
+
+  for (const u of allDocsRef.current) {
+    if (asRole(u) === "admin") admins++;
+    if (isPatrocinador(u)) patrocinadores++;
+    if (asStatus(u) === "Ativo") ativos++;
+    if (isFornecedor(u)) fornecedores++;
+    if ((u.categoriesAll?.length || 0) > 0) perfisMelhorados++;
+
+    const cAt = tsToDate(getCreatedAt(u));
+    if (cAt) {
+      const diff = now - cAt.getTime();
+      if (diff <= 7 * msDia) ult7++;
+      if (diff <= 30 * msDia) ult30++;
+      if (diff <= 90 * msDia) ult90++;
     }
-    return {
-      total,
-      admins,
-      patrocinadoresAtivos,
-      ativos,
-      comWhats,
-      perfisMelhorados,
-    };
-  }, [listaExibida]); // recalcula quando recarrega
+  }
+
+  return {
+    total,
+    admins,
+    patrocinadores,
+    ativos,
+    fornecedores,
+    perfisMelhorados,
+    ult7,
+    ult30,
+    ult90,
+  };
+}, [listaExibida]);
+
 
   /* ==================== Carregamento TOTAL sem filtros ==================== */
   const fetchAllRaw = useCallback(async () => {
-    const out: UsuarioDoc[] = [];
+    const map = new Map<string, UsuarioDoc>();
 
     for (const cName of COLLECTION_CANDIDATES) {
       let cursor: any | null = null;
@@ -202,39 +240,43 @@ function UsuariosAdminPage() {
         try {
           const q = fsQuery(
             collection(db, cName),
-            orderBy("__name__"), // não requer índice composto
+            orderBy("__name__"),
             ...(cursor ? [startAfter(cursor)] : []),
+            fsLimit(FIRESTORE_PAGE),
           );
           const snap: QuerySnapshot<DocumentData> = await getDocs(q);
           if (snap.empty) break;
 
           for (const d of snap.docs) {
-            out.push({ id: d.id, ...(d.data() as any) });
+            const raw = { id: d.id, ...(d.data() as any) };
+            const u: UsuarioDoc = {
+              ...raw,
+              emailLower: raw.email ? String(raw.email).toLowerCase() : undefined,
+              nomeLower: raw.nome ? norm(String(raw.nome)) : undefined,
+              whatsappDigits: raw.whatsapp
+                ? onlyDigits(String(raw.whatsapp))
+                : undefined,
+            };
+            map.set(u.id, u);
           }
+
           cursor = snap.docs.at(-1);
-          // corta se por algum motivo estourar muito (failsafe)
-          if (out.length > 20000) break;
-        } catch (e) {
-          // coleção pode nem existir — segue
+          if (map.size > 50000) break;
+        } catch {
           break;
         }
       }
     }
 
-    // normaliza campos auxiliares úteis pra busca client-side
-    for (const u of out) {
-      if (u.email && !u.emailLower) u.emailLower = u.email.toLowerCase();
-      if (u.nome && !u.nomeLower) u.nomeLower = norm(u.nome);
-      if (u.whatsapp && !u.whatsappDigits) u.whatsappDigits = onlyDigits(u.whatsapp);
-    }
+    const out = Array.from(map.values());
+    // dentro de fetchAllRaw (depois de montar 'out')
+out.sort((a, b) => {
+  const da = tsToDate(getCreatedAt(a))?.getTime() ?? 0;
+  const db = tsToDate(getCreatedAt(b))?.getTime() ?? 0;
+  if (db !== da) return db - da;     // mais novo primeiro
+  return a.id.localeCompare(b.id);
+});
 
-    // ordena por createdAt desc (quando existir), senão por id
-    out.sort((a, b) => {
-      const da = tsToDate(a.createdAt)?.getTime() ?? 0;
-      const db = tsToDate(b.createdAt)?.getTime() ?? 0;
-      if (db !== da) return db - da;
-      return a.id.localeCompare(b.id);
-    });
 
     allDocsRef.current = out;
   }, []);
@@ -276,18 +318,33 @@ function UsuariosAdminPage() {
   }
 
   function matchesFilters(u: UsuarioDoc) {
-    if (fRole && !(u.role === fRole || u.tipo === fRole)) return false;
+    // Tipo/Papel unificado (inclui "fornecedor" e patrocinador derivado)
+if (fRole) {
+  if (fRole === "fornecedor") {
+    if (!isFornecedor(u)) return false;
+  } else if (fRole === "patrocinador") {
+    if (!isPatrocinador(u)) return false;
+  } else {
+    if (!(u.role === fRole || u.tipo === fRole)) return false;
+  }
+}
+// Período de cadastro
+if (fPeriodoCadastro) {
+  const dias = Number(fPeriodoCadastro);
+  const cAt = tsToDate(getCreatedAt(u));
+  if (!cAt) return false;
+  const diffDias = (Date.now() - cAt.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDias > dias) return false;
+}
+
+
     if (fStatus && asStatus(u) !== fStatus) return false;
-    if (fFornecedor && !!u.verificado !== (fFornecedor === "sim")) return false;
     if (fUF && u.estado !== fUF) return false;
     if (fCidade && u.cidade !== fCidade) return false;
 
     if (fCategoria && !(u.categoriesAll || []).includes(fCategoria))
       return false;
-    if (fSubcat && fCategoria) {
-      const key = `${norm(fCategoria)}::${norm(fSubcat)}`;
-      if (!(u.pairsSearch || []).includes(key)) return false;
-    }
+
     if (fUFCobertura && !(u.ufsSearch || []).includes(fUFCobertura))
       return false;
 
@@ -301,7 +358,7 @@ function UsuariosAdminPage() {
       if (!(ativo && daysFromNow(exp) <= 7)) return false;
     }
 
-    if (fPerfilIncompleto && u.perfilCompleto !== false) return false;
+    if (fSomenteMelhorados && !(u.categoriesAll?.length)) return false;
     if (fSemWhats && !!u.whatsapp) return false;
     if (fTag && !(u.tags || []).includes(fTag)) return false;
 
@@ -314,28 +371,27 @@ function UsuariosAdminPage() {
     let list = term ? base.filter((u) => matchesSearch(u, term)) : base.slice();
     list = list.filter(matchesFilters);
 
-    // ordena de novo pós filtro pra previsibilidade
-    list.sort((a, b) => {
-      const da = tsToDate(a.createdAt)?.getTime() ?? 0;
-      const db = tsToDate(b.createdAt)?.getTime() ?? 0;
-      if (db !== da) return db - da;
-      return a.id.localeCompare(b.id);
-    });
+    // dentro de aplicarFiltrosEExibir
+list.sort((a, b) => {
+  const da = tsToDate(getCreatedAt(a))?.getTime() ?? 0;
+  const db = tsToDate(getCreatedAt(b))?.getTime() ?? 0;
+  if (db !== da) return db - da;
+  return a.id.localeCompare(b.id);
+});
 
-    setVisibleMax(PAGE_CHUNK); // reseta paginação
+
+    setVisibleMax(PAGE_CHUNK);
     setListaExibida(list);
   }, [
     busca,
     fRole,
     fStatus,
-    fFornecedor,
     fUF,
     fCidade,
     fCategoria,
-    fSubcat,
     fUFCobertura,
     fPatro,
-    fPerfilIncompleto,
+    fSomenteMelhorados,
     fSemWhats,
     fTag,
   ]);
@@ -349,15 +405,60 @@ function UsuariosAdminPage() {
     setLoading(false);
   }, [fetchAllRaw, aplicarFiltrosEExibir]);
 
+  // primeira carga
   useEffect(() => {
-    // primeira carga
     recarregar();
   }, [recarregar]);
 
+  // re-aplica filtros quando mudam
   useEffect(() => {
-    // quando mudar qualquer filtro/busca
     if (!loading) aplicarFiltrosEExibir();
   }, [loading, aplicarFiltrosEExibir]);
+
+  // Auto-refresh ao voltar o foco (resolve edição de papel/patro, etc.)
+  useEffect(() => {
+    const onFocus = () => recarregar();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") recarregar();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [recarregar]);
+
+  // BroadcastChannel para refletir mudanças salvas na página de edição
+  useEffect(() => {
+    // Dica: na página /admin/usuarios/[id]/edit, após salvar role/verificado, faça:
+    // bc.postMessage({ type: "user-updated", id, patch: { role, tipo, verificado, planoStatus, ... } })
+    let bc: BroadcastChannel | null = null;
+    try {
+      bc = new BroadcastChannel("admin-users");
+      bc.onmessage = (ev) => {
+        const msg = ev.data || {};
+        if (msg?.type === "user-updated") {
+          // aplica patch rápido se o usuário já está no cache; senão recarrega geral
+          const idx = allDocsRef.current.findIndex((u) => u.id === msg.id);
+          if (idx >= 0) {
+            allDocsRef.current[idx] = {
+              ...allDocsRef.current[idx],
+              ...(msg.patch || {}),
+            };
+            aplicarFiltrosEExibir();
+          } else {
+            recarregar();
+          }
+        }
+      };
+    } catch {}
+    return () => {
+      try {
+        bc?.close();
+      } catch {}
+    };
+  }, [aplicarFiltrosEExibir, recarregar]);
 
   /* ==================== Opções dinâmicas (derivadas) ==================== */
   const estadosDisponiveis = useMemo(() => {
@@ -383,29 +484,6 @@ function UsuariosAdminPage() {
     );
     return Array.from(s).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [listaExibida]);
-
-  const subcatsDisponiveis = useMemo(() => {
-    if (!fCategoria) return [];
-    const s = new Set<string>();
-    const catKey = norm(fCategoria) + "::";
-    allDocsRef.current.forEach((u) =>
-      (u.pairsSearch || []).forEach((key) => {
-        if (key.startsWith(catKey)) {
-          const sub = key.slice(catKey.length);
-          if (sub) s.add(sub.replaceAll("-", " ").replace(/\s+/g, " ").trim());
-        }
-      }),
-    );
-    const arr = Array.from(s);
-    return arr
-      .map((sc) =>
-        sc
-          .split(" ")
-          .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-          .join(" "),
-      )
-      .sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [listaExibida, fCategoria]);
 
   const ufsCoberturaDisponiveis = useMemo(() => {
     const s = new Set<string>();
@@ -439,7 +517,7 @@ function UsuariosAdminPage() {
       "planoStatus",
     ];
     const lines = [cols.join(",")];
-    const data = listaExibida.slice(0, visibleMax); // exporta o que está na página (padrão)
+    const data = listaExibida.slice(0, visibleMax);
     data.forEach((u) => {
       const row = [
         u.id,
@@ -452,7 +530,8 @@ function UsuariosAdminPage() {
         u.cidade || "",
         (u.categoriesAll || []).join("|"),
         (u.ufsSearch || []).join("|"),
-        formatDate(u.createdAt),
+        formatDate(getCreatedAt(u)),
+
         formatDate(u.lastLoginAt || u.lastLogin),
         u.planoStatus || "",
       ];
@@ -540,6 +619,14 @@ function UsuariosAdminPage() {
       u.id === id ? { ...u, role: novo, tipo: novo } : u,
     );
     aplicarFiltrosEExibir();
+
+    // notifica outras abas/páginas (ex.: lista) sobre a mudança
+    try {
+      const bc = new BroadcastChannel("admin-users");
+      bc.postMessage({ type: "user-updated", id, patch: { role: novo, tipo: novo } });
+      bc.close();
+    } catch {}
+
     await logAdmin("update-role", id, before || null, { role: novo });
   }
 
@@ -561,6 +648,13 @@ function UsuariosAdminPage() {
       u.id === id ? { ...u, tags: Array.from(tags) } : u,
     );
     aplicarFiltrosEExibir();
+
+    try {
+      const bc = new BroadcastChannel("admin-users");
+      bc.postMessage({ type: "user-updated", id, patch: { tags: Array.from(tags) } });
+      bc.close();
+    } catch {}
+
     await logAdmin(
       "apply-tag",
       id,
@@ -609,6 +703,7 @@ function UsuariosAdminPage() {
     [listaExibida, visibleMax],
   );
   const fimDaLista = paginada.length >= listaExibida.length;
+const [fPeriodoCadastro, setFPeriodoCadastro] = useState<"" | "7" | "30" | "90">("");
 
   return (
     <main
@@ -686,42 +781,17 @@ function UsuariosAdminPage() {
             flexWrap: "wrap",
           }}
         >
-          <ResumoCard
-            label="Total"
-            value={stats.total}
-            icon={<Users size={18} />}
-            color="#2563eb"
-          />
-          <ResumoCard
-            label="Admins"
-            value={stats.admins}
-            icon={<ShieldCheck size={18} />}
-            color="#4f46e5"
-          />
-          <ResumoCard
-            label="Patrocinadores ativos"
-            value={stats.patrocinadoresAtivos}
-            icon={<BadgeCheck size={18} />}
-            color="#059669"
-          />
-          <ResumoCard
-            label="Ativos"
-            value={stats.ativos}
-            icon={<CheckCircle2 size={18} />}
-            color="#10b981"
-          />
-          <ResumoCard
-            label="Com WhatsApp"
-            value={stats.comWhats}
-            icon={<CheckCircle2 size={18} />}
-            color="#22c55e"
-          />
-          <ResumoCard
-            label="Perfis melhorados"
-            value={stats.perfisMelhorados}
-            icon={<TagIcon size={18} />}
-            color="#f59e0b"
-          />
+          <ResumoCard label="Total" value={stats.total} icon={<Users size={18} />} color="#2563eb" />
+<ResumoCard label="Admins" value={stats.admins} icon={<ShieldCheck size={18} />} color="#4f46e5" />
+<ResumoCard label="Patrocinadores" value={stats.patrocinadores} icon={<BadgeCheck size={18} />} color="#059669" />
+<ResumoCard label="Ativos" value={stats.ativos} icon={<CheckCircle2 size={18} />} color="#10b981" />
+<ResumoCard label="Fornecedores" value={stats.fornecedores} icon={<BadgeCheck size={18} />} color="#0ea5e9" />
+<ResumoCard label="Perfis melhorados" value={stats.perfisMelhorados} icon={<TagIcon size={18} />} color="#f59e0b" />
+
+{/* novos (cadastros recentes) */}
+<ResumoCard label="Últimos 7 dias" value={stats.ult7} icon={<Users size={18} />} color="#22c55e" />
+<ResumoCard label="Últimos 30 dias" value={stats.ult30} icon={<Users size={18} />} color="#a855f7" />
+<ResumoCard label="Últimos 90 dias" value={stats.ult90} icon={<Users size={18} />} color="#ef4444" />
         </div>
 
         {/* Busca + filtros */}
@@ -759,7 +829,18 @@ function UsuariosAdminPage() {
               <option value="admin">Admin</option>
               <option value="patrocinador">Patrocinador</option>
               <option value="usuario">Usuário</option>
+              <option value="fornecedor">Fornecedor (selo)</option>
             </select>
+<select
+  value={fPeriodoCadastro}
+  onChange={(e) => setFPeriodoCadastro(e.target.value as any)}
+  className="filterItem"
+>
+  <option value="">Período</option>
+  <option value="7">Últimos 7 dias</option>
+  <option value="30">Últimos 30 dias</option>
+  <option value="90">Últimos 90 dias</option>
+</select>
 
             <select
               value={fStatus}
@@ -774,16 +855,6 @@ function UsuariosAdminPage() {
             </select>
 
             <select
-              value={fFornecedor}
-              onChange={(e) => setFFornecedor(e.target.value as any)}
-              className="filterItem"
-            >
-              <option value="">Fornecedor?</option>
-              <option value="sim">Sim</option>
-              <option value="nao">Não</option>
-            </select>
-
-            <select
               value={fUF}
               onChange={(e) => {
                 setFUF(e.target.value);
@@ -791,7 +862,7 @@ function UsuariosAdminPage() {
               }}
               className="filterItem"
             >
-              <option value="">UF (cadastro)</option>
+              <option value="">Estado (cadastro)</option>
               {estadosDisponiveis.map((uf) => (
                 <option key={uf} value={uf}>
                   {uf}
@@ -814,31 +885,13 @@ function UsuariosAdminPage() {
 
             <select
               value={fCategoria}
-              onChange={(e) => {
-                setFCategoria(e.target.value);
-                setFSubcat("");
-              }}
+              onChange={(e) => setFCategoria(e.target.value)}
               className="filterItem"
             >
               <option value="">Categoria</option>
               {categoriasDisponiveis.map((c) => (
                 <option key={c} value={c}>
                   {c}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={fSubcat}
-              onChange={(e) => setFSubcat(e.target.value)}
-              className="filterItem"
-              disabled={!fCategoria}
-              title={fCategoria ? "Subcategoria" : "Selecione uma categoria"}
-            >
-              <option value="">{fCategoria ? "Subcategoria" : "—"}</option>
-              {subcatsDisponiveis.map((s) => (
-                <option key={s} value={s}>
-                  {s}
                 </option>
               ))}
             </select>
@@ -868,19 +921,21 @@ function UsuariosAdminPage() {
               <option value="expirado">Expirado</option>
             </select>
 
+            {/* Toggle Somente perfis melhorados */}
+            <label className="chk">
+              <input
+                type="checkbox"
+                checked={fSomenteMelhorados}
+                onChange={(e) => setFSomenteMelhorados(e.target.checked)}
+              />{" "}
+              Somente perfis melhorados
+            </label>
+
             <details className="filterItem detailsAdv">
               <summary className="btnAdv">
                 <Filter size={16} /> Avançados <ChevronDown size={14} />
               </summary>
               <div className="advContent">
-                <label className="chk">
-                  <input
-                    type="checkbox"
-                    checked={fPerfilIncompleto}
-                    onChange={(e) => setFPerfilIncompleto(e.target.checked)}
-                  />{" "}
-                  Perfil incompleto
-                </label>
                 <label className="chk">
                   <input
                     type="checkbox"
@@ -915,14 +970,16 @@ function UsuariosAdminPage() {
                 label: `Busca: "${busca}"`,
                 onClear: () => setBusca(""),
               },
-              fRole && { label: `Tipo: ${fRole}`, onClear: () => setFRole("") },
+              fRole && {
+                label:
+                  fRole === "fornecedor"
+                    ? "Tipo: Fornecedor"
+                    : `Tipo: ${fRole}`,
+                onClear: () => setFRole(""),
+              },
               fStatus && {
                 label: `Status: ${fStatus}`,
                 onClear: () => setFStatus(""),
-              },
-              fFornecedor && {
-                label: `Fornecedor: ${fFornecedor}`,
-                onClear: () => setFFornecedor(""),
               },
               fUF && { label: `UF: ${fUF}`, onClear: () => setFUF("") },
               fCidade && {
@@ -931,14 +988,7 @@ function UsuariosAdminPage() {
               },
               fCategoria && {
                 label: `Categoria: ${fCategoria}`,
-                onClear: () => {
-                  setFCategoria("");
-                  setFSubcat("");
-                },
-              },
-              fSubcat && {
-                label: `Subcategoria: ${fSubcat}`,
-                onClear: () => setFSubcat(""),
+                onClear: () => setFCategoria(""),
               },
               fUFCobertura && {
                 label: `Cobertura: ${fUFCobertura}`,
@@ -948,29 +998,34 @@ function UsuariosAdminPage() {
                 label: `Patrocínio: ${fPatro}`,
                 onClear: () => setFPatro(""),
               },
-              fPerfilIncompleto && {
-                label: "Perfil incompleto",
-                onClear: () => setFPerfilIncompleto(false),
+              fSomenteMelhorados && {
+                label: "Somente perfis melhorados",
+                onClear: () => setFSomenteMelhorados(false),
               },
               fSemWhats && {
                 label: "Sem WhatsApp",
                 onClear: () => setFSemWhats(false),
               },
+              fPeriodoCadastro && {
+  label: `Cadastro: últimos ${fPeriodoCadastro} dias`,
+  onClear: () => setFPeriodoCadastro(""),
+},
               fTag && { label: `Tag: ${fTag}`, onClear: () => setFTag("") },
             ].filter(Boolean) as any[]
           }
+
+          
           onClearAll={() => {
             setBusca("");
+            setFPeriodoCadastro("");
             setFRole("");
             setFStatus("");
-            setFFornecedor("");
             setFUF("");
             setFCidade("");
             setFCategoria("");
-            setFSubcat("");
             setFUFCobertura("");
             setFPatro("");
-            setFPerfilIncompleto(false);
+            setFSomenteMelhorados(false);
             setFSemWhats(false);
             setFTag("");
           }}
@@ -1067,6 +1122,7 @@ function UsuariosAdminPage() {
           >
             {paginada.map((u) => {
               const role = asRole(u);
+              const papelVisual = isPatrocinador(u) ? "PATROCINADOR" : (asRole(u) || "usuario").toUpperCase();
               const status = asStatus(u);
               const isSelected = !!selecionados[u.id];
               const expiraEm = tsToDate(u.planoExpiraEm);
@@ -1229,8 +1285,8 @@ function UsuariosAdminPage() {
                     }}
                   >
                     <span style={pill("#eef2ff", "#4f46e5")}>
-                      {(role || "usuario").toUpperCase()}
-                    </span>
+  {papelVisual}
+</span>
                     <span
                       style={pill(
                         status === "Ativo" ? "#e7faec" : "#ffe6e6",
@@ -1239,6 +1295,11 @@ function UsuariosAdminPage() {
                     >
                       {status}
                     </span>
+                    {u.verificado && (
+                      <span style={pill("#e0f2fe", "#0369a1")}>
+                        <BadgeCheck size={12} /> Fornecedor
+                      </span>
+                    )}
                     {badgePlano && (
                       <span style={pill(badgePlano.bg, badgePlano.fg)}>
                         {badgePlano.txt}
@@ -1252,15 +1313,14 @@ function UsuariosAdminPage() {
                   </div>
 
                   <div style={{ color: "#A0A0A0", fontSize: 12 }}>
-                    {u.createdAt && <>Cadastro: {formatDate(u.createdAt)}</>}
-                    {(u.lastLoginAt || u.lastLogin) && (
-                      <>
-                        {" "}
-                        {" | "}Último login:{" "}
-                        {formatDate(u.lastLoginAt || u.lastLogin)}
-                      </>
-                    )}
-                  </div>
+  Cadastro: {formatDate(getCreatedAt(u))}
+  {(u.lastLoginAt || u.lastLogin) && (
+    <>
+      {" "}{" | "}Último login: {formatDate(u.lastLoginAt || u.lastLogin)}
+    </>
+  )}
+</div>
+
 
                   {/* ações */}
                   <div
@@ -1476,7 +1536,7 @@ function UsuariosAdminPage() {
         @media (min-width: 1024px) {
           .filtersScroller {
             display: grid;
-            grid-template-columns: repeat(9, minmax(160px, 1fr));
+            grid-template-columns: repeat(8, minmax(160px, 1fr)) 220px;
             gap: 10px;
             overflow: visible;
           }

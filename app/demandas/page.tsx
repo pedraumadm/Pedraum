@@ -1,4 +1,3 @@
-// app/demandas/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -22,7 +21,6 @@ import {
   Calendar,
   Plus,
   Eye,
-  Users,
   Filter,
   ChevronDown,
   ChevronUp,
@@ -53,6 +51,10 @@ function fmtData(ts?: any) {
   const d = toDate(ts);
   return d ? d.toLocaleDateString("pt-BR") : "-";
 }
+function strEq(a?: any, b?: string) {
+  if (!a || !b) return false;
+  return String(a).trim().toLowerCase() === b.toLowerCase();
+}
 function isFechada(d: any) {
   const s = (d?.status || "").toString().toLowerCase();
   return s === "fechada" || !!d?.fechada;
@@ -64,33 +66,50 @@ function getContatoFromDemanda(d: any) {
   const email = d?.email || d?.contatoEmail || null;
   return { nome, whatsapp, email };
 }
-function strEq(a?: any, b?: string) {
-  if (!a || !b) return false;
-  return String(a).trim().toLowerCase() === b.toLowerCase();
+
+/* ==== NOVO: normalizador/checagens de status para filtrar PENDENTES e REJEITADAS ==== */
+function normStatus(v: any) {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
 }
-function detectPatrocinador(p: any): boolean {
-  if (!p || typeof p !== "object") return false;
-
-  if (p.isPatrocinador === true) return true;
-  if (p.patrocinador === true) return true;
-  if (p.patrocinadorAtivo === true) return true;
-  if (strEq(p.role, "patrocinador")) return true;
-  if (strEq(p.plano, "patrocinador")) return true;
-
-  if (p.patrocinador && typeof p.patrocinador === "object") {
-    if (p.patrocinador.ativo === true) return true;
-    if (strEq(p.patrocinador.status, "ativo")) return true;
-    if (strEq(p.patrocinador.plano, "patrocinador")) return true;
-  }
-  if (p.financeiro && typeof p.financeiro === "object") {
-    if (strEq(p.financeiro.plano, "patrocinador")) return true;
-    if (
-      strEq(p.financeiro.status, "ativo") &&
-      strEq(p.financeiro.tipo, "patrocinador")
-    )
-      return true;
-  }
-  return false;
+function isPendente(d: any) {
+  const s = normStatus(d?.status);
+  const pend = new Set([
+    "pending",
+    "pendente",
+    "em_analise",
+    "em_análise",
+    "em_analise_interna",
+    "aguardando",
+    "review",
+    "analise",
+    "análise",
+    "aprovacao_pendente",
+  ]);
+  return (
+    pend.has(s) ||
+    d?.pendente === true ||
+    (d?.approved === false && d?.rejeitada !== true)
+  );
+}
+function isRejeitada(d: any) {
+  const s = normStatus(d?.status);
+  const rej = new Set([
+    "rejected",
+    "rejeitada",
+    "rejeitado",
+    "recusada",
+    "recusado",
+    "negada",
+    "negado",
+    "bloqueada",
+    "bloqueado",
+    "nao_aprovada",
+    "não_aprovada",
+  ]);
+  return rej.has(s) || d?.rejeitada === true || d?.aprovada === false;
 }
 
 /* ================== Categorias oficiais (fallback/UX) ================== */
@@ -112,7 +131,14 @@ const CATEGORIAS_DEMANDAS = [
 ] as const;
 
 /* ================== Tipos ================== */
-type SortKey = "recentes" | "views_desc" | "interessados_desc";
+type SortKey = "recentes" | "views_desc";
+
+/* ================== CONFIG DO WHATSAPP ================== */
+/** Substitua pelo número oficial do Pedraum (apenas dígitos, com DDI), ex: 55DDDNUMERO */
+const WHATSAPP_PEDRAUM = "5531990903613";
+/** Mensagem padrão que será enviada com a origem (URL) anexa */
+const WHATSAPP_MSG_PADRAO =
+  "Olá! Quero ser patrocinador no Pedraum. Vim pela vitrine de demandas.";
 
 export default function VitrineDemandas() {
   /* ===== Auth / Perfil ===== */
@@ -122,6 +148,14 @@ export default function VitrineDemandas() {
 
   /* ===== Exploração ===== */
   const [explorarOutras, setExplorarOutras] = useState(false);
+
+  /* ===== Link do WhatsApp (com origem) ===== */
+  const whatsHref = useMemo(() => {
+    const origem =
+      typeof window !== "undefined" ? ` Origem: ${window.location.href}` : "";
+    const txt = encodeURIComponent(`${WHATSAPP_MSG_PADRAO}${origem}`);
+    return `https://wa.me/${WHATSAPP_PEDRAUM}?text=${txt}`;
+  }, []);
 
   /* ===== Categorias do usuário ===== */
   const userCats: string[] = useMemo(() => {
@@ -159,6 +193,28 @@ export default function VitrineDemandas() {
     if (!isPatrocinador) return false;
     return demandaCategoryMatch(d, userCats);
   }
+  function detectPatrocinador(p: any): boolean {
+    if (!p || typeof p !== "object") return false;
+    if (p.isPatrocinador === true) return true;
+    if (p.patrocinador === true) return true;
+    if (p.patrocinadorAtivo === true) return true;
+    if (strEq(p.role, "patrocinador")) return true;
+    if (strEq(p.plano, "patrocinador")) return true;
+    if (p.patrocinador && typeof p.patrocinador === "object") {
+      if (p.patrocinador.ativo === true) return true;
+      if (strEq(p.patrocinador.status, "ativo")) return true;
+      if (strEq(p.patrocinador.plano, "patrocinador")) return true;
+    }
+    if (p.financeiro && typeof p.financeiro === "object") {
+      if (strEq(p.financeiro.plano, "patrocinador")) return true;
+      if (
+        strEq(p.financeiro.status, "ativo") &&
+        strEq(p.financeiro.tipo, "patrocinador")
+      )
+        return true;
+    }
+    return false;
+  }
 
   /* ===== Lista e paginação ===== */
   const [demandas, setDemandas] = useState<any[]>([]);
@@ -172,7 +228,7 @@ export default function VitrineDemandas() {
   const [categoria, setCategoria] = useState("");
   const [estado, setEstado] = useState("");
   const [cidade, setCidade] = useState("");
-  const [somenteAbertas, setSomenteAbertas] = useState(true);
+  const [somenteAbertas, setSomenteAbertas] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("recentes");
 
   /* ===== Busca (debounce) ===== */
@@ -217,7 +273,7 @@ export default function VitrineDemandas() {
       const qRef = query(
         collection(db, "demandas"),
         orderBy("createdAt", "desc"),
-        limit(pageSize),
+        limit(pageSize)
       );
       const snap = await getDocs(qRef);
 
@@ -246,7 +302,7 @@ export default function VitrineDemandas() {
       collection(db, "demandas"),
       orderBy("createdAt", "desc"),
       startAfter(lastDocRef.current),
-      limit(pageSize),
+      limit(pageSize)
     );
     const snap = await getDocs(qRef);
 
@@ -267,6 +323,8 @@ export default function VitrineDemandas() {
   /* ================== Base filtrada (UI) ================== */
   const demandasFiltradasBase = useMemo(() => {
     let arr = demandas.filter((d) => {
+      if (isPendente(d) || isRejeitada(d)) return false;
+
       if (categoria && d.categoria !== categoria) return false;
       if (estado && d.estado !== estado) return false;
       if (cidade && d.cidade !== cidade) return false;
@@ -290,7 +348,6 @@ export default function VitrineDemandas() {
       return true;
     });
 
-    // ordenação
     if (sortKey === "recentes") {
       arr.sort((a, b) => {
         const da = toDate(a.createdAt)?.getTime() ?? 0;
@@ -299,11 +356,8 @@ export default function VitrineDemandas() {
       });
     } else if (sortKey === "views_desc") {
       arr.sort((a, b) => (b.visualizacoes ?? 0) - (a.visualizacoes ?? 0));
-    } else if (sortKey === "interessados_desc") {
-      arr.sort((a, b) => (b.qtdInteressados ?? 0) - (a.qtdInteressados ?? 0));
     }
 
-    // se o toggle “somente abertas” estiver OFF, mantemos fechadas no fim
     if (!somenteAbertas) {
       const abertas = arr.filter((x) => !isFechada(x));
       const fechadas = arr.filter((x) => isFechada(x));
@@ -322,10 +376,7 @@ export default function VitrineDemandas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandasFiltradasBase, isPatrocinador, explorarOutras, perfil, userCats]);
 
-  /* ================== Opções de CATEGORIA ==================
-     - Usuário comum (ou explorar): TODAS as categorias oficiais + dinâmicas do que já carregou
-     - Patrocinador (padrão): SOMENTE categorias onde ele tem contato liberado (independente de outros filtros)
-  ========================================================== */
+  /* ================== Opções de CATEGORIA ================== */
   const categoriasTodasCarregadas = useMemo(() => {
     const set = new Set<string>([...CATEGORIAS_DEMANDAS]);
     for (const d of demandas) {
@@ -333,7 +384,7 @@ export default function VitrineDemandas() {
       if (cat) set.add(cat);
     }
     return Array.from(set).sort((a, b) =>
-      a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+      a.localeCompare(b, "pt-BR", { sensitivity: "base" })
     );
   }, [demandas]);
 
@@ -346,7 +397,7 @@ export default function VitrineDemandas() {
       }
     }
     return Array.from(set).sort((a, b) =>
-      a.localeCompare(b, "pt-BR", { sensitivity: "base" }),
+      a.localeCompare(b, "pt-BR", { sensitivity: "base" })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandas, perfil, userCats, isPatrocinador]);
@@ -362,14 +413,13 @@ export default function VitrineDemandas() {
     categoriasTodasCarregadas,
   ]);
 
-  // se a seleção atual ficar inválida após alternar modo/estado, limpa
   useEffect(() => {
     if (categoria && !categoriasDisponiveis.includes(categoria)) {
       setCategoria("");
     }
   }, [categoriasDisponiveis, categoria]);
 
-  /* ================== Estados/Cidades (mantidos dinâmicos com base no visível) ================== */
+  /* ================== Estados/Cidades (dinâmicos com base no visível) ================== */
   const estadosDisponiveis = useMemo(() => {
     const set = new Set<string>();
     for (const d of demandasVisiveis) {
@@ -475,60 +525,65 @@ export default function VitrineDemandas() {
       )}
 
       {/* Barra de ação / CTA topo */}
-      <div
-        style={{
-          display: "flex",
-          gap: 14,
-          marginBottom: 24,
-          flexWrap: "wrap",
-          alignItems: "center",
-        }}
-      >
-        <Link
-          href="/create-demanda"
-          className="hover:scale-[1.04] transition"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 9,
-            padding: "13px 30px",
-            borderRadius: 17,
-            background: "#FB8500",
-            color: "#fff",
-            fontWeight: 800,
-            fontSize: "1.13rem",
-            boxShadow: "0 4px 16px #fb850013",
-            textDecoration: "none",
-            border: "none",
-            outline: "none",
-          }}
-        >
-          <Plus size={22} /> Postar uma Demanda
-        </Link>
+<div
+  style={{
+    display: "flex",
+    gap: 14,
+    marginBottom: 24,
+    flexWrap: "wrap",
+    alignItems: "center",
+  }}
+>
+  <Link
+    href="/create-demanda"
+    className="hover:scale-[1.04] transition"
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 9,
+      padding: "13px 30px",
+      borderRadius: 17,
+      background: "#FB8500",
+      color: "#fff",
+      fontWeight: 800,
+      fontSize: "1.13rem",
+      boxShadow: "0 4px 16px #fb850013",
+      textDecoration: "none",
+      border: "none",
+      outline: "none",
+    }}
+  >
+    <Plus size={22} /> Postar uma Demanda
+  </Link>
 
-        {!isPatrocinador && (
-          <Link
-            href="/planos"
-            className="hover:scale-[1.03] transition"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "11px 22px",
-              borderRadius: 14,
-              background: "#ecfeff",
-              color: "#0ea5e9",
-              fontWeight: 800,
-              fontSize: "1.02rem",
-              border: "1px solid #bae6fd",
-              textDecoration: "none",
-            }}
-            title="Contatos inclusos. Sem pagar extra por demanda."
-          >
-            <ShieldCheck size={18} /> Seja Patrocinador (contatos inclusos)
-          </Link>
-        )}
-      </div>
+  {/* 👉 AGORA É ANCHOR PARA O WHATSAPP (sem /planos) */}
+  {!isPatrocinador && (
+    <a
+      href={whatsHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="hover:scale-[1.03] transition"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "11px 22px",
+        borderRadius: 14,
+        background: "#ecfeff",
+        color: "#0ea5e9",
+        fontWeight: 800,
+        fontSize: "1.02rem",
+        border: "1px solid #bae6fd",
+        textDecoration: "none",
+      }}
+      title="Fale no WhatsApp para virar Patrocinador — contatos inclusos"
+      data-cta="whatsapp-patrocinador"
+    >
+      <ShieldCheck size={18} /> Seja Patrocinador (Veja as vantagens)
+    </a>
+  )}
+</div>
+
 
       {/* Filtros */}
       <div
@@ -607,7 +662,6 @@ export default function VitrineDemandas() {
         >
           <option value="recentes">Ordenar: Recentes</option>
           <option value="views_desc">Ordenar: Mais vistos</option>
-          <option value="interessados_desc">Ordenar: Mais interessados</option>
         </select>
 
         <button
@@ -638,7 +692,7 @@ export default function VitrineDemandas() {
             setEstado("");
             setCidade("");
             setBuscaRaw("");
-            setSomenteAbertas(true);
+            setSomenteAbertas(false);
             setSortKey("recentes");
           }}
         >
@@ -738,6 +792,8 @@ export default function VitrineDemandas() {
               const contato = getContatoFromDemanda(item);
               const contatoLiberado = canSeeContacts(item);
 
+              const statusStr = normStatus(item?.status);
+
               return (
                 <div
                   key={item.id}
@@ -752,10 +808,10 @@ export default function VitrineDemandas() {
                     minHeight: 280,
                     position: "relative",
                     overflow: "hidden",
-                    opacity: fechada ? 0.92 : 1,
                   }}
                   className="hover:shadow-xl group"
                 >
+                  {/* Selo FECHADA */}
                   {fechada && (
                     <span
                       style={{
@@ -775,6 +831,38 @@ export default function VitrineDemandas() {
                       FECHADA
                     </span>
                   )}
+
+                  {/* Chip de status (quando existir e não for pending/rejected/fechada) */}
+                  {!fechada &&
+                    statusStr &&
+                    statusStr !== "pending" &&
+                    statusStr !== "rejected" && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 14,
+                          left: 14,
+                          background:
+                            statusStr === "em_andamento"
+                              ? "#E0F2FE"
+                              : "#ECFDF5",
+                          color:
+                            statusStr === "em_andamento"
+                              ? "#0369A1"
+                              : "#166534",
+                          fontWeight: 900,
+                          fontSize: 12.5,
+                          padding: "3px 12px",
+                          borderRadius: 10,
+                          zIndex: 2,
+                          letterSpacing: ".03em",
+                          border: "1px solid #e5e7eb",
+                        }}
+                        title={`Status: ${String(item.status).toUpperCase()}`}
+                      >
+                        {String(item.status).toUpperCase()}
+                      </span>
+                    )}
 
                   {isPatrocinador && (
                     <span
@@ -897,8 +985,6 @@ export default function VitrineDemandas() {
                       {fmtData(item.createdAt)}
                       <Eye size={17} />
                       {item.visualizacoes ?? 0}
-                      <Users size={17} />
-                      {item.qtdInteressados ?? 0}
                     </div>
 
                     {/* Bloco de contato — apenas quando liberado */}

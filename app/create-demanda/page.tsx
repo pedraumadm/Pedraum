@@ -16,16 +16,16 @@ import nextDynamic from "next/dynamic";
 import {
   Loader2,
   Save,
-  Tag,
-  MapPin,
-  CheckCircle2,
   Sparkles,
   Upload,
-  BookOpen,
   Info,
   ArrowLeft,
   FileText,
   Image as ImageIcon,
+  ShieldCheck,
+  User as UserIcon,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 
 /** ============ SSR/ISR ============ */
@@ -40,31 +40,15 @@ const DrivePDFViewer = nextDynamic(
 
 /* ================== Tipos e Constantes ================== */
 type FormState = {
-  titulo: string;
   descricao: string;
 
-  /** Estes campos existem apenas para compatibilidade futura; ficarão vazios aqui */
-  categoria: string;
-  subcategoria: string;
-  itemFinal: string;
-  outraCategoriaTexto: string;
-
-  estado: string;
-  cidade: string;
-  prazo: string;
-
+  // Autor — auto-preenchido, mas o usuário pode editar
   autorNome: string;
   autorEmail: string;
   autorWhatsapp: string;
-  whatsapp?: string;
 };
 
-const ESTADOS = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR",
-  "PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
-] as const;
-
-const RASCUNHO_KEY = "pedraum:create-demandas:draft_v3";
+const RASCUNHO_KEY = "pedraum:create-demandas:draft_v5_min_author";
 
 /* ================== Página interna ================== */
 function CreateDemandaContent() {
@@ -74,27 +58,11 @@ function CreateDemandaContent() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const [form, setForm] = useState<FormState>({
-    titulo: "",
     descricao: "",
-
-    // categorias vazias por padrão (ADM fará curadoria)
-    categoria: "",
-    subcategoria: "",
-    itemFinal: "",
-    outraCategoriaTexto: "",
-
-    estado: "",
-    cidade: "",
-    prazo: "",
-
     autorNome: "",
     autorEmail: "",
     autorWhatsapp: "",
-    whatsapp: "",
   });
-
-  const [cidades, setCidades] = useState<string[]>([]);
-  const [carregandoCidades, setCarregandoCidades] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -103,27 +71,23 @@ function CreateDemandaContent() {
 
   /* ---------- Autosave local ---------- */
   useEffect(() => {
-    const raw = localStorage.getItem(RASCUNHO_KEY);
-    if (raw) {
-      try {
-        const p = JSON.parse(raw);
-        if (p?.form) {
-          setForm((prev) => ({
-            ...prev,
-            ...Object.fromEntries(
-              Object.entries(p.form).filter(([k]) =>
-                [
-                  "titulo","descricao",
-                  "estado","cidade","prazo",
-                  "autorNome","autorEmail","autorWhatsapp","whatsapp",
-                ].includes(k),
-              ),
-            ),
-          }));
-        }
-        if (Array.isArray(p?.imagens)) setImagens(p.imagens);
-        if (p?.pdfUrl) setPdfUrl(p.pdfUrl);
-      } catch {}
+    try {
+      const raw = localStorage.getItem(RASCUNHO_KEY);
+      if (!raw) return;
+      const p = JSON.parse(raw);
+      if (p?.form) {
+        setForm((prev) => ({
+          ...prev,
+          descricao: p.form.descricao ?? prev.descricao,
+          autorNome: p.form.autorNome ?? prev.autorNome,
+          autorEmail: p.form.autorEmail ?? prev.autorEmail,
+          autorWhatsapp: p.form.autorWhatsapp ?? prev.autorWhatsapp,
+        }));
+      }
+      if (Array.isArray(p?.imagens)) setImagens(p.imagens);
+      if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null) setPdfUrl(p.pdfUrl);
+    } catch {
+      /* ignore */
     }
   }, []);
 
@@ -133,11 +97,11 @@ function CreateDemandaContent() {
     const id = setTimeout(() => {
       localStorage.setItem(RASCUNHO_KEY, JSON.stringify(draft));
       setSavingDraft(false);
-    }, 500);
+    }, 400);
     return () => clearTimeout(id);
   }, [form, imagens, pdfUrl]);
 
-  /* ---------- Autofill do autor ---------- */
+  /* ---------- Autofill do autor (editável) ---------- */
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
       if (!user) return;
@@ -149,9 +113,7 @@ function CreateDemandaContent() {
           ...prev,
           autorNome: prev.autorNome || prof?.nome || user.displayName || "",
           autorEmail: prev.autorEmail || prof?.email || user.email || "",
-          autorWhatsapp:
-            prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
-          whatsapp: prev.whatsapp || prof?.whatsapp || prof?.telefone || "",
+          autorWhatsapp: prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
         }));
       } catch {
         setForm((prev) => ({
@@ -164,65 +126,30 @@ function CreateDemandaContent() {
     return () => unsub();
   }, []);
 
-  /* ---------- Cidades por UF (IBGE) ---------- */
-  useEffect(() => {
-    let abort = false;
-    async function fetchCidades(uf: string) {
-      if (!uf) {
-        setCidades([]);
-        return;
-      }
-      setCarregandoCidades(true);
-      try {
-        const res = await fetch(
-          `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" },
-        );
-        const data = (await res.json()) as Array<{ nome: string }>;
-        if (abort) return;
-        const nomes = data
-          .map((m) => m.nome)
-          .sort((a, b) => a.localeCompare(b, "pt-BR"));
-        setCidades(nomes);
-      } catch {
-        if (!abort) setCidades([]);
-      } finally {
-        if (!abort) setCarregandoCidades(false);
-      }
-    }
-    fetchCidades(form.estado);
-    return () => {
-      abort = true;
-    };
-  }, [form.estado]);
-
   /* ---------- Handlers ---------- */
-  function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
-  ) {
-    const { name, value } = e.target as any;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-      ...(name === "estado" ? { cidade: "" } : null),
-    }));
+  function handleDescChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setForm((prev) => ({ ...prev, descricao: e.target.value }));
+  }
+  function handleAutorChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
-  /* ---------- Preview ---------- */
+  /* ---------- Preview (mínimo) ---------- */
   const preview = useMemo(() => {
-    const local = form.estado
-      ? `${form.cidade ? form.cidade + ", " : ""}${form.estado}`
-      : "—";
+    const resumo =
+      form.descricao?.trim().length > 0
+        ? form.descricao.trim().slice(0, 140) + (form.descricao.trim().length > 140 ? "…" : "")
+        : "—";
     return {
-      titulo: form.titulo?.trim() || "—",
-      caminho: "A definir pela curadoria",
-      local,
-      prazo: form.prazo || "—",
-      imagens: imagens.length,
+      descricaoResumo: resumo,
+      anexos: imagens.length + (pdfUrl ? 1 : 0),
+      autor:
+        [form.autorNome, form.autorEmail, form.autorWhatsapp]
+          .filter(Boolean)
+          .join(" • ") || "—",
     };
-  }, [form, imagens]);
+  }, [form.descricao, form.autorNome, form.autorEmail, form.autorWhatsapp, imagens.length, pdfUrl]);
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: React.FormEvent) {
@@ -238,84 +165,61 @@ function CreateDemandaContent() {
       return;
     }
 
-    // Agora exigimos apenas os campos essenciais
-    const baseOk = !!(
-      form.titulo &&
-      form.descricao &&
-      form.prazo &&
-      form.estado &&
-      form.cidade
-    );
-
-    if (!baseOk) {
-      setError("Preencha todos os campos obrigatórios (*).");
+    if (!form.descricao || form.descricao.trim().length < 10) {
+      setError("Descreva com pelo menos 10 caracteres o que você precisa.");
       setSubmitting(false);
       return;
     }
 
     try {
-      const searchBase = [
-        form.titulo,
-        form.descricao,
-        form.estado,
-        form.cidade,
-      ]
-        .filter(Boolean)
-        .join(" ")
+      // Palavras para busca futura (mesmo com curadoria posterior)
+      const searchBase = form.descricao
         .toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
       const payload = {
-        // Conteúdo
-        titulo: form.titulo,
-        descricao: form.descricao,
+        // Conteúdo essencial
+        descricao: form.descricao.trim(),
 
-        // Taxonomia será definida pelo ADM
-        categoria: "",
-        subcategoria: "",
-        itemFinal: "",
-        categoriaPath: [] as string[],
-
-        // Sinalizadores de curadoria
-        curated: false, // ADM ainda não categorizou
-        curationNotes: "",
-
-        // Local
-        estado: form.estado,
-        cidade: form.cidade,
-        prazo: form.prazo,
-
-        // Autor
-        autorNome: form.autorNome || "",
-        autorEmail: form.autorEmail || "",
-        autorWhatsapp: form.autorWhatsapp || "",
-        whatsapp: form.whatsapp || form.autorWhatsapp || "",
-
-        // Anexos
+        // Anexos opcionais
         imagens,
         pdfUrl: pdfUrl || null,
         imagesCount: imagens.length,
 
-        // Busca
-        searchKeywords: searchBase.split(/\s+/).slice(0, 80),
+        // Publicação/curadoria
+        status: "pending",           // <— NÃO aparece no feed
+        curated: false,
+        curationNotes: "",
+        publishedAt: null,
+        curatedBy: null,
+        curatedAt: null,
 
-        // Meta
-        status: "Aberta",
-        statusHistory: [{ status: "Aberta", at: new Date() }],
+        // Autor (editável pelo usuário antes do envio)
+        submittedBy: user.uid,
+        autorNome: form.autorNome || "",
+        autorEmail: form.autorEmail || "",
+        autorWhatsapp: form.autorWhatsapp || "",
 
+        // Busca básica
+        searchKeywords: searchBase ? searchBase.split(" ").slice(0, 80) : [],
+
+        // Metadados
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        userId: user.uid,
-      };
+      } as const;
 
       await addDoc(collection(db, "demandas"), payload);
+
       localStorage.removeItem(RASCUNHO_KEY);
-      setSuccess("Demanda cadastrada com sucesso!");
-      setTimeout(() => router.push("/demandas"), 900);
+      setSuccess("Recebemos sua demanda! Nossa equipe vai revisar e publicar.");
+      setTimeout(() => router.push("/demandas"), 1000);
     } catch (err) {
       console.error(err);
-      setError("Erro ao cadastrar. Tente novamente.");
+      setError("Erro ao cadastrar. Tente novamente em instantes.");
     } finally {
       setSubmitting(false);
     }
@@ -378,8 +282,10 @@ function CreateDemandaContent() {
         <div style={hintCardStyle}>
           <Info className="w-5 h-5" />
           <p style={{ margin: 0 }}>
-            Quanto mais detalhes, melhor a conexão com fornecedores ideais. Você
-            pode anexar imagens e PDF.
+            Apenas a <strong>descrição</strong> é obrigatória. Você pode anexar
+            imagens e/ou PDF (opcional). Seus dados aparecem preenchidos, mas
+            você pode editar antes de enviar. Sua solicitação passará por curadoria
+            antes de aparecer no feed.
           </p>
         </div>
 
@@ -387,7 +293,74 @@ function CreateDemandaContent() {
           onSubmit={handleSubmit}
           style={{ display: "flex", flexDirection: "column", gap: 22 }}
         >
-          {/* Anexos */}
+          {/* Descrição (único campo obrigatório) */}
+          <div>
+            <label style={labelStyle}>Descrição da necessidade *</label>
+            <textarea
+              name="descricao"
+              value={form.descricao}
+              onChange={handleDescChange}
+              style={{ ...inputStyle, height: 160 }}
+              placeholder="Ex.: Preciso de manutenção corretiva em britadeira; ruído anormal no rolamento, preferência por atendimento em até 7 dias."
+              required
+              maxLength={4000}
+            />
+            <div style={smallInfoStyle}>
+              {(form.descricao || "").length}/4000
+            </div>
+          </div>
+
+          {/* Dados do autor — auto-preenchidos e editáveis */}
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#fff" }}
+          >
+            <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
+              <UserIcon className="w-5 h-5 text-orange-500" /> Seus dados (opcional, editáveis)
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label style={labelStyle}>
+                  <UserIcon size={15} /> Nome
+                </label>
+                <input
+                  name="autorNome"
+                  value={form.autorNome}
+                  onChange={handleAutorChange}
+                  style={inputStyle}
+                  placeholder="Seu nome"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  <Mail size={15} /> E-mail
+                </label>
+                <input
+                  name="autorEmail"
+                  value={form.autorEmail}
+                  onChange={handleAutorChange}
+                  style={inputStyle}
+                  type="email"
+                  placeholder="seuemail@exemplo.com"
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>
+                  <MessageCircle size={15} /> WhatsApp
+                </label>
+                <input
+                  name="autorWhatsapp"
+                  value={form.autorWhatsapp}
+                  onChange={handleAutorChange}
+                  style={inputStyle}
+                  placeholder="(xx) xxxxx-xxxx"
+                  inputMode="tel"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Anexos (opcionais) */}
           <div
             className="rounded-2xl border"
             style={{
@@ -397,7 +370,7 @@ function CreateDemandaContent() {
             }}
           >
             <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <Upload className="w-5 h-5 text-orange-500" /> Arquivos do pedido
+              <Upload className="w-5 h-5 text-orange-500" /> Anexos (opcional)
             </h3>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -412,7 +385,7 @@ function CreateDemandaContent() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
-                  <strong className="text-[#0f172a]">Imagens (opcional)</strong>
+                  <strong className="text-[#0f172a]">Imagens</strong>
                 </div>
                 <div className="px-4 pb-4">
                   <div className="rounded-lg border border-dashed p-3">
@@ -423,7 +396,7 @@ function CreateDemandaContent() {
                     />
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
-                    Adicione até 5 imagens reais para contextualizar.
+                    Adicione até 5 imagens para contextualizar (opcional).
                   </p>
                 </div>
               </div>
@@ -440,7 +413,7 @@ function CreateDemandaContent() {
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
                   <strong className="text-[#0f172a]">
-                    Anexo PDF (opcional)
+                    Anexo PDF
                   </strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
@@ -460,7 +433,7 @@ function CreateDemandaContent() {
                     </div>
                   ) : (
                     <p className="text-xs text-slate-500">
-                      Envie orçamento, memorial ou ficha técnica (até ~8MB).
+                      Envie orçamento/memorial/ficha técnica (opcional).
                     </p>
                   )}
                 </div>
@@ -468,191 +441,27 @@ function CreateDemandaContent() {
             </div>
           </div>
 
-          {/* Principais */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label style={labelStyle}>
-                <Tag size={15} /> Título da Demanda *
-              </label>
-              <input
-                name="titulo"
-                value={form.titulo}
-                onChange={handleChange}
-                style={inputStyle}
-                placeholder="Ex: Manutenção em pá carregadeira CAT 938G"
-                required
-                maxLength={120}
-              />
-              <div style={smallInfoStyle}>{form.titulo.length}/120</div>
-            </div>
-
-            <div>
-              <label style={labelStyle}>
-                <CheckCircle2 size={15} /> Prazo (urgência) *
-              </label>
-              <select
-                name="prazo"
-                value={form.prazo}
-                onChange={handleChange}
-                style={inputStyle}
-                required
-              >
-                <option value="">Selecione</option>
-                <option value="urgente">Urgente</option>
-                <option value="até 3 dias">Até 3 dias</option>
-                <option value="até 7 dias">Até 7 dias</option>
-                <option value="até 15 dias">Até 15 dias</option>
-                <option value="flexível">Flexível</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-3">
-              <label style={labelStyle}>
-                <BookOpen size={15} /> Descrição *
-              </label>
-              <textarea
-                name="descricao"
-                value={form.descricao}
-                onChange={handleChange}
-                style={{ ...inputStyle, height: 110 }}
-                placeholder="Marca/modelo, sintomas, local, horários, prazos, requisitos etc."
-                required
-                maxLength={2000}
-              />
-              <div style={smallInfoStyle}>{form.descricao.length}/2000</div>
-            </div>
-          </div>
-
-          {/* Localização */}
-          <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
-          >
-            <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-orange-500" /> Localização
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label style={labelStyle}>Estado (UF) *</label>
-                <select
-                  name="estado"
-                  value={form.estado}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  required
-                >
-                  <option value="">Selecione o Estado</option>
-                  {ESTADOS.map((uf) => (
-                    <option key={uf} value={uf}>
-                      {uf}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2">
-                <label style={labelStyle}>Cidade *</label>
-                <select
-                  name="cidade"
-                  value={form.cidade}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  required
-                  disabled={!form.estado || carregandoCidades}
-                >
-                  <option value="">
-                    {carregandoCidades
-                      ? "Carregando..."
-                      : form.estado
-                        ? "Selecione a cidade"
-                        : "Selecione primeiro o estado"}
-                  </option>
-                  {cidades.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Dados do autor */}
-          <div
-            className="rounded-2xl border p-4"
-            style={{ borderColor: "#e6ebf2", background: "#fff" }}
-          >
-            <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <Info className="w-5 h-5 text-orange-500" /> Seus dados
-              (editáveis)
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label style={labelStyle}>Nome *</label>
-                <input
-                  name="autorNome"
-                  value={form.autorNome}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  required
-                  placeholder="Seu nome"
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>E-mail *</label>
-                <input
-                  name="autorEmail"
-                  value={form.autorEmail}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  type="email"
-                  required
-                  placeholder="seuemail@exemplo.com"
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>WhatsApp (opcional)</label>
-                <input
-                  name="autorWhatsapp"
-                  value={form.autorWhatsapp}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="(xx) xxxxx-xxxx"
-                  inputMode="tel"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Pré-visualização */}
+          {/* Pré-visualização mínima */}
           <div style={previewCardStyle}>
-            <div style={{ fontWeight: 800, color: "#023047", marginBottom: 8 }}>
-              Pré-visualização
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span style={{ fontWeight: 800, color: "#023047" }}>
+                Antes da publicação:
+              </span>
             </div>
-            <div
-              style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
               <div>
-                <span style={muted}>Título:</span> {preview.titulo}
+                <span style={muted}>Resumo:</span> {preview.descricaoResumo}
               </div>
               <div>
-                <span style={muted}>Categoria:</span> {preview.caminho}
+                <span style={muted}>Anexos:</span> {preview.anexos}
               </div>
               <div>
-                <span style={muted}>Local:</span> {preview.local}
-              </div>
-                           <div>
-                <span style={muted}>Prazo:</span> {preview.prazo}
-              </div>
-
-              <div>
-                <span style={muted}>Imagens:</span> {preview.imagens}
+                <span style={muted}>Autor:</span> {preview.autor}
               </div>
             </div>
             <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-              {savingDraft
-                ? "Salvando rascunho..."
-                : "Rascunho salvo automaticamente"}
+              {savingDraft ? "Salvando rascunho..." : "Rascunho salvo automaticamente"}
             </div>
           </div>
 
@@ -685,7 +494,7 @@ function CreateDemandaContent() {
             ) : (
               <Save className="w-5 h-5" />
             )}
-            {submitting ? "Cadastrando..." : "Cadastrar Demanda"}
+            {submitting ? "Enviando..." : "Enviar para Curadoria"}
           </button>
         </form>
       </section>
