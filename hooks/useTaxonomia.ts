@@ -23,6 +23,12 @@ function slugify(s: string) {
     .replace(/\s+/g, "-")
     .toLowerCase();
 }
+/** Helpers de identificação de itens de correia */
+function isCorreiaItemName(nome: string) {
+  const n = (nome || "").toLowerCase();
+  // considera plurais, “correia transportadora”, etc.
+  return n.includes("correia");
+}
 
 /** Normalização robusta: aceita formatos antigos e converte para Cat/Subcat/Item (3 níveis) */
 function normalizeCats3(input: any[]): Cat[] {
@@ -102,7 +108,7 @@ function normalizeCats3(input: any[]): Cat[] {
 export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
   /* 1. Britagem */
   {
-    nome: "Britagem",
+    nome: "Britadores",
     subcategorias: [
       {
         nome: "Britadores",
@@ -150,7 +156,7 @@ export const TAXONOMIA_LOCAL: Cat[] = normalizeCats3([
 
   /* 2. Peneiramento */
   {
-    nome: "Peneiramento",
+    nome: "Peneiras",
     subcategorias: [
       {
         nome: "Peneiras",
@@ -620,7 +626,7 @@ const EXTRA_ADICOES: Cat[] = normalizeCats3([
     nome: "Correias e Transportadores",
     subcategorias: [
       {
-        nome: "Transportadores",
+        nome: "Tc´s",
         itens: [
           "Transportador de Correia Fixo",
           "Transportador de Correia Móvel",
@@ -796,12 +802,12 @@ function deepMergeCats(base: Cat[], extras: Cat[]): Cat[] {
 const SPLIT_CATEGORIES: Record<string, string[]> = {
   [slugify("Separadores Magnéticos e Detectores")]: [
     "Separadores Magnéticos",
-    "Detectores",
+    "Detectores de Metais",
   ],
-  [slugify("Correias e Transportadores")]: ["Correias", "Transportadores"],
+  [slugify("Correias e Transportadores")]: ["Correias", "Tc´s"],
   [slugify("Linha Amarela / Fora de Estrada")]: [
-    "Linha Amarela",
-    "Fora de Estrada",
+    "Caminhões Linha Amarela",
+    "Caminhões Fora de Estrada",
   ],
 };
 
@@ -830,6 +836,140 @@ function splitCompoundCategories(cats: Cat[]): Cat[] {
   const bySlug = new Map<string, Cat>();
   for (const c of result) bySlug.set(c.slug, bySlug.get(c.slug) ?? c);
   return Array.from(bySlug.values());
+}
+/** Especializa as categorias 'Correias' e 'Transportadores' para evitar duplicações */
+function refineCorreiasTransportadores(cats: Cat[]): Cat[] {
+  const CORREIAS = slugify("Correias");
+  const TRANSPORTADORES = slugify("Transportadores");
+
+  return cats.map((c) => {
+    // Só mexe nas categorias Correias e Transportadores
+    if (c.slug !== CORREIAS && c.slug !== TRANSPORTADORES) return c;
+
+    // pega subcats de interesse
+    const subTransportadores = c.subcategorias.find(
+      (s) => slugify(s.nome) === slugify("Transportadores")
+    );
+    const subPecas = c.subcategorias.find(
+      (s) => slugify(s.nome) === slugify("Peças")
+    );
+    const subServicos = c.subcategorias.find(
+      (s) => slugify(s.nome) === slugify("Serviços")
+    );
+    const subOutros = c.subcategorias.find(
+      (s) => slugify(s.nome) === slugify("Outros")
+    );
+
+    // listas originais (defensas contra undefined)
+    const transportadoresItens = subTransportadores?.itens ?? [];
+    const pecasItens = subPecas?.itens ?? [];
+    const servicosItens = subServicos?.itens ?? [];
+    const outrosItens = subOutros?.itens ?? [];
+
+    if (c.slug === CORREIAS) {
+      // Em "Correias" queremos:
+      // - Um grupo "Correias" com itens que são de correia (vindos de "Transportadores" que começam com 'Correia ...' ou contem 'correia')
+      // - Um grupo "Peças" com itens de correia (vindos de "Peças" que contem 'correia')
+      // - Mantém "Serviços" e "Outros"
+      const tiposCorreia = transportadoresItens.filter((i) =>
+        isCorreiaItemName(i.nome)
+      );
+      const pecasCorreia = pecasItens.filter((i) =>
+        isCorreiaItemName(i.nome)
+      );
+
+      const novasSubcats: Subcat[] = [];
+
+      if (tiposCorreia.length > 0) {
+        novasSubcats.push({
+          nome: "Correias",
+          slug: slugify("Correias"),
+          itens: tiposCorreia,
+        });
+      }
+      if (pecasCorreia.length > 0) {
+        novasSubcats.push({
+          nome: "Peças",
+          slug: slugify("Peças"),
+          itens: pecasCorreia,
+        });
+      }
+      if (servicosItens.length > 0) {
+        novasSubcats.push({
+          nome: "Serviços",
+          slug: slugify("Serviços"),
+          itens: servicosItens,
+        });
+      }
+      if (outrosItens.length > 0) {
+        novasSubcats.push({
+          nome: "Outros",
+          slug: slugify("Outros"),
+          itens: outrosItens,
+        });
+      }
+
+      // Se por acaso ficou vazio, preserva pelo menos um “Correias” para não quebrar UI
+      if (novasSubcats.length === 0) {
+        novasSubcats.push({
+          nome: "Correias",
+          slug: slugify("Correias"),
+          itens: [],
+        });
+      }
+
+      return { ...c, subcategorias: novasSubcats };
+    }
+
+    if (c.slug === TRANSPORTADORES) {
+      // Em "Transportadores" queremos:
+      // - Manter "Transportadores" (sem itens de correia que eram tipos de correia pura)
+      // - "Peças" sem os itens de correia
+      // - Mantém "Serviços" e "Outros"
+      const transportadoresSemCorreia = transportadoresItens.filter(
+        (i) => !isCorreiaItemName(i.nome)
+      );
+      const pecasSemCorreia = pecasItens.filter(
+        (i) => !isCorreiaItemName(i.nome)
+      );
+
+      const novasSubcats: Subcat[] = [];
+
+      // Transportadores pode existir mesmo que vazio, mas tentamos manter limpo:
+      if (transportadoresSemCorreia.length > 0 || subTransportadores) {
+        novasSubcats.push({
+          nome: "Transportadores",
+          slug: slugify("Transportadores"),
+          itens: transportadoresSemCorreia,
+        });
+      }
+      if (pecasSemCorreia.length > 0 || subPecas) {
+        novasSubcats.push({
+          nome: "Peças",
+          slug: slugify("Peças"),
+          itens: pecasSemCorreia,
+        });
+      }
+      if (servicosItens.length > 0) {
+        novasSubcats.push({
+          nome: "Serviços",
+          slug: slugify("Serviços"),
+          itens: servicosItens,
+        });
+      }
+      if (outrosItens.length > 0) {
+        novasSubcats.push({
+          nome: "Outros",
+          slug: slugify("Outros"),
+          itens: outrosItens,
+        });
+      }
+
+      return { ...c, subcategorias: novasSubcats };
+    }
+
+    return c;
+  });
 }
 
 /** ===================== DEDUPE GERAL (categorias, subcats, itens) ===================== */
@@ -866,8 +1006,11 @@ export function useTaxonomia() {
   const merged = deepMergeCats([...TAXONOMIA_LOCAL], EXTRA_ADICOES);
   // 2) dividir categorias compostas
   const splitted = splitCompoundCategories(merged);
+  // 2.1) especializar Correias x Transportadores
+  const specialized = refineCorreiasTransportadores(splitted);
   // 3) dedupe geral (garante 1 ocorrência no select)
-  const initial = dedupeAll(splitted);
+  const initial = dedupeAll(specialized);
+
 
   const [categorias, setCategorias] = useState<Cat[]>(initial);
   const [loading, setLoading] = useState<boolean>(!USE_ONLY_LOCAL);

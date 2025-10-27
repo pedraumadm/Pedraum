@@ -91,7 +91,7 @@ function isPendente(d: any) {
   return (
     pend.has(s) ||
     d?.pendente === true ||
-    (d?.approved === false && d?.rejeitada !== true)
+    (d?.aprovada === false && d?.rejeitada !== true)
   );
 }
 function isRejeitada(d: any) {

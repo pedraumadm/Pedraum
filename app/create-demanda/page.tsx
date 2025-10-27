@@ -26,6 +26,7 @@ import {
   User as UserIcon,
   Mail,
   MessageCircle,
+  CheckCircle2,
 } from "lucide-react";
 
 /** ============ SSR/ISR ============ */
@@ -49,6 +50,8 @@ type FormState = {
 };
 
 const RASCUNHO_KEY = "pedraum:create-demandas:draft_v5_min_author";
+const DESC_MAX = 4000;
+const DESC_MIN = 10;
 
 /* ================== Página interna ================== */
 function CreateDemandaContent() {
@@ -85,7 +88,8 @@ function CreateDemandaContent() {
         }));
       }
       if (Array.isArray(p?.imagens)) setImagens(p.imagens);
-      if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null) setPdfUrl(p.pdfUrl);
+      if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null)
+        setPdfUrl(p.pdfUrl);
     } catch {
       /* ignore */
     }
@@ -113,7 +117,8 @@ function CreateDemandaContent() {
           ...prev,
           autorNome: prev.autorNome || prof?.nome || user.displayName || "",
           autorEmail: prev.autorEmail || prof?.email || user.email || "",
-          autorWhatsapp: prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
+          autorWhatsapp:
+            prev.autorWhatsapp || prof?.whatsapp || prof?.telefone || "",
         }));
       } catch {
         setForm((prev) => ({
@@ -128,7 +133,8 @@ function CreateDemandaContent() {
 
   /* ---------- Handlers ---------- */
   function handleDescChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setForm((prev) => ({ ...prev, descricao: e.target.value }));
+    const value = e.target.value.slice(0, DESC_MAX);
+    setForm((prev) => ({ ...prev, descricao: value }));
   }
   function handleAutorChange(e: React.ChangeEvent<HTMLInputElement>) {
     const { name, value } = e.target;
@@ -136,10 +142,14 @@ function CreateDemandaContent() {
   }
 
   /* ---------- Preview (mínimo) ---------- */
+  const descLen = form.descricao?.length || 0;
+  const descPct = Math.min(100, Math.round((descLen / DESC_MAX) * 100));
+
   const preview = useMemo(() => {
     const resumo =
       form.descricao?.trim().length > 0
-        ? form.descricao.trim().slice(0, 140) + (form.descricao.trim().length > 140 ? "…" : "")
+        ? form.descricao.trim().slice(0, 140) +
+          (form.descricao.trim().length > 140 ? "…" : "")
         : "—";
     return {
       descricaoResumo: resumo,
@@ -149,7 +159,14 @@ function CreateDemandaContent() {
           .filter(Boolean)
           .join(" • ") || "—",
     };
-  }, [form.descricao, form.autorNome, form.autorEmail, form.autorWhatsapp, imagens.length, pdfUrl]);
+  }, [
+    form.descricao,
+    form.autorNome,
+    form.autorEmail,
+    form.autorWhatsapp,
+    imagens.length,
+    pdfUrl,
+  ]);
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: React.FormEvent) {
@@ -165,8 +182,10 @@ function CreateDemandaContent() {
       return;
     }
 
-    if (!form.descricao || form.descricao.trim().length < 10) {
-      setError("Descreva com pelo menos 10 caracteres o que você precisa.");
+    if (!form.descricao || form.descricao.trim().length < DESC_MIN) {
+      setError(
+        `Descreva com pelo menos ${DESC_MIN} caracteres o que você precisa.`,
+      );
       setSubmitting(false);
       return;
     }
@@ -191,7 +210,7 @@ function CreateDemandaContent() {
         imagesCount: imagens.length,
 
         // Publicação/curadoria
-        status: "pending",           // <— NÃO aparece no feed
+        status: "pending", // <— NÃO aparece no feed
         curated: false,
         curationNotes: "",
         publishedAt: null,
@@ -216,7 +235,7 @@ function CreateDemandaContent() {
 
       localStorage.removeItem(RASCUNHO_KEY);
       setSuccess("Recebemos sua demanda! Nossa equipe vai revisar e publicar.");
-      setTimeout(() => router.push("/demandas"), 1000);
+      setTimeout(() => router.push("/demandas"), 900);
     } catch (err) {
       console.error(err);
       setError("Erro ao cadastrar. Tente novamente em instantes.");
@@ -230,10 +249,12 @@ function CreateDemandaContent() {
     <main
       className="min-h-screen flex flex-col items-center py-8 px-2 sm:px-4"
       style={{
-        background: "linear-gradient(135deg, #f7f9fb, #ffffff 45%, #e0e7ef)",
+        background:
+          "linear-gradient(135deg, #f7f9fb 0%, #ffffff 45%, #eaf2fa 100%)",
       }}
     >
-      <div className="w-full max-w-3xl px-2 mb-3 flex">
+      {/* Topbar */}
+      <div className="w-full max-w-4xl px-2 mb-4 flex items-center justify-between">
         <button
           type="button"
           onClick={() => router.back()}
@@ -247,45 +268,54 @@ function CreateDemandaContent() {
           <ArrowLeft className="w-4 h-4 text-orange-500" />
           Voltar
         </button>
+
+        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          {savingDraft ? "Salvando rascunho..." : "Rascunho salvo automaticamente"}
+        </div>
       </div>
 
+      {/* Card principal */}
       <section
+        className="w-full"
         style={{
-          maxWidth: 760,
-          width: "100%",
+          maxWidth: 920,
           background: "#fff",
           borderRadius: 22,
-          boxShadow: "0 4px 32px #0001",
-          padding: "48px 2vw 55px 2vw",
-          marginTop: 8,
+          boxShadow: "0 6px 40px rgba(2,48,71,0.06)",
+          padding: "40px 2vw 48px 2vw",
           border: "1px solid #eef2f7",
         }}
       >
         <AuthGateRedirect />
 
-        <h1
-          style={{
-            fontSize: "2.3rem",
-            fontWeight: 900,
-            color: "#023047",
-            letterSpacing: "-1px",
-            margin: "0 0 20px 0",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <Sparkles className="w-9 h-9 text-orange-500" />
-          Cadastrar Demanda
-        </h1>
+        {/* Header */}
+        <div className="mb-6">
+          <h1
+            className="flex items-center gap-3"
+            style={{
+              fontSize: "2.35rem",
+              fontWeight: 900,
+              color: "#023047",
+              letterSpacing: "-0.5px",
+            }}
+          >
+            <Sparkles className="w-9 h-9 text-orange-500" />
+            Cadastrar Demanda
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Descreva o que você precisa e, se quiser, anexe imagens e um PDF.
+            Sua solicitação passa por <strong>curadoria</strong> antes de ir ao
+            feed.
+          </p>
+        </div>
 
-        <div style={hintCardStyle}>
+        {/* Aviso */}
+        <div style={hintCardStyle} className="mb-6">
           <Info className="w-5 h-5" />
           <p style={{ margin: 0 }}>
-            Apenas a <strong>descrição</strong> é obrigatória. Você pode anexar
-            imagens e/ou PDF (opcional). Seus dados aparecem preenchidos, mas
-            você pode editar antes de enviar. Sua solicitação passará por curadoria
-            antes de aparecer no feed.
+            Apenas a <strong>descrição</strong> é obrigatória. Seus dados abaixo
+            são preenchidos automaticamente e podem ser editados.
           </p>
         </div>
 
@@ -293,30 +323,45 @@ function CreateDemandaContent() {
           onSubmit={handleSubmit}
           style={{ display: "flex", flexDirection: "column", gap: 22 }}
         >
-          {/* Descrição (único campo obrigatório) */}
-          <div>
+          {/* Descrição */}
+          <div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2" }}>
             <label style={labelStyle}>Descrição da necessidade *</label>
             <textarea
               name="descricao"
               value={form.descricao}
               onChange={handleDescChange}
-              style={{ ...inputStyle, height: 160 }}
+              style={{ ...inputStyle, height: 180 }}
               placeholder="Ex.: Preciso de manutenção corretiva em britadeira; ruído anormal no rolamento, preferência por atendimento em até 7 dias."
               required
-              maxLength={4000}
+              maxLength={DESC_MAX}
             />
-            <div style={smallInfoStyle}>
-              {(form.descricao || "").length}/4000
+            {/* Barra de progresso de caracteres */}
+            <div className="mt-2 flex items-center justify-between">
+              <div className="h-2 w-full rounded-full bg-slate-100 mr-3 overflow-hidden">
+                <div
+                  className="h-2 rounded-full"
+                  style={{
+                    width: `${descPct}%`,
+                    background:
+                      descLen >= DESC_MIN
+                        ? "linear-gradient(90deg,#219ebc,#fb8500)"
+                        : "#f59e0b",
+                  }}
+                />
+              </div>
+              <div style={smallInfoStyle}>
+                {descLen}/{DESC_MAX}
+              </div>
             </div>
           </div>
 
-          {/* Dados do autor — auto-preenchidos e editáveis */}
+          {/* Dados do autor */}
           <div
             className="rounded-2xl border p-4"
             style={{ borderColor: "#e6ebf2", background: "#fff" }}
           >
             <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-              <UserIcon className="w-5 h-5 text-orange-500" /> Seus dados (opcional, editáveis)
+              <UserIcon className="w-5 h-5 text-orange-500" /> Seus dados (opcional)
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -360,7 +405,7 @@ function CreateDemandaContent() {
             </div>
           </div>
 
-          {/* Anexos (opcionais) */}
+          {/* Anexos */}
           <div
             className="rounded-2xl border"
             style={{
@@ -388,15 +433,19 @@ function CreateDemandaContent() {
                   <strong className="text-[#0f172a]">Imagens</strong>
                 </div>
                 <div className="px-4 pb-4">
-                  <div className="rounded-lg border border-dashed p-3">
-                    <ImageUploader
-                      imagens={imagens}
-                      setImagens={setImagens}
-                      max={5}
-                    />
-                  </div>
+                  <ImageUploader
+                    imagens={imagens}
+                    setImagens={setImagens}
+                    max={5}
+                    labels={{
+                      title: "Imagens",
+                      helper:
+                        "Arraste as fotos aqui ou clique em “Selecionar imagens”.",
+                      button: "Selecionar imagens",
+                    }}
+                  />
                   <p className="text-xs text-slate-500 mt-2">
-                    Adicione até 5 imagens para contextualizar (opcional).
+                    Máximo de 5 imagens (8MB cada).
                   </p>
                 </div>
               </div>
@@ -412,14 +461,19 @@ function CreateDemandaContent() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
-                  <strong className="text-[#0f172a]">
-                    Anexo PDF
-                  </strong>
+                  <strong className="text-[#0f172a]">Arquivo PDF</strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
-                  <div className="rounded-lg border border-dashed p-3">
-                    <PDFUploader onUploaded={setPdfUrl} />
-                  </div>
+                  <PDFUploader
+                    onUploaded={setPdfUrl}
+                    maxSizeMB={16}
+                    labels={{
+                      title: "Arquivo PDF",
+                      helper:
+                        "",
+                      button: "Selecionar PDF",
+                    }}
+                  />
 
                   {pdfUrl ? (
                     <div
@@ -427,7 +481,9 @@ function CreateDemandaContent() {
                       style={{ height: 300 }}
                     >
                       <DrivePDFViewer
-                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
+                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(
+                          pdfUrl || "",
+                        )}`}
                         height={300}
                       />
                     </div>
@@ -441,15 +497,24 @@ function CreateDemandaContent() {
             </div>
           </div>
 
-          {/* Pré-visualização mínima */}
+          {/* Pré-visualização */}
           <div style={previewCardStyle}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span style={{ fontWeight: 800, color: "#023047" }}>
                 Antes da publicação:
               </span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
+            <div
+              style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}
+            >
               <div>
                 <span style={muted}>Resumo:</span> {preview.descricaoResumo}
               </div>
@@ -461,7 +526,9 @@ function CreateDemandaContent() {
               </div>
             </div>
             <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
-              {savingDraft ? "Salvando rascunho..." : "Rascunho salvo automaticamente"}
+              {savingDraft
+                ? "Salvando rascunho..."
+                : "Rascunho salvo automaticamente"}
             </div>
           </div>
 
@@ -558,11 +625,6 @@ const hintCardStyle: React.CSSProperties = {
   borderRadius: 14,
   marginBottom: 16,
 };
-const smallInfoStyle: React.CSSProperties = {
-  fontSize: 12,
-  color: "#64748b",
-  marginTop: 4,
-};
 const errorStyle: React.CSSProperties = {
   background: "#fff7f7",
   color: "#d90429",
@@ -581,4 +643,10 @@ const successStyle: React.CSSProperties = {
   textAlign: "center",
   fontWeight: 700,
 };
+const smallInfoStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  marginTop: 4,
+};
+
 const muted: React.CSSProperties = { color: "#6b7280" };
