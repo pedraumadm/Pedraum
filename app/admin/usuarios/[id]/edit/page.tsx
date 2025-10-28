@@ -246,6 +246,11 @@ export default function AdminEditarUsuarioPage() {
   const senhaForca =
     pwd1.length >= 12 ? "Alta" : pwd1.length >= 8 ? "Média" : "Baixa";
 
+// NOVOS: geração de senha temporária
+const [tempPass, setTempPass] = useState<string | null>(null);
+const [genLoading, setGenLoading] = useState(false);
+const [genError, setGenError] = useState<string | null>(null);
+
   // avatar como lista pro ImageUploader
   const avatarLista = useMemo(
     () => (form?.avatar ? [form.avatar] : []),
@@ -654,54 +659,100 @@ export default function AdminEditarUsuarioPage() {
     }
   }
 
-  async function salvarNovaSenha() {
-    if (!form) return;
-    if (pwd1.length < 6) {
-      setMsg("A senha deve ter ao menos 6 caracteres.");
-      return;
-    }
-    if (pwd1 !== pwd2) {
-      setMsg("As senhas não coincidem.");
-      return;
-    }
-    setPwdSaving(true);
-    try {
-      const res = await fetch("/api/admin-reset-senha", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: form.id, senha: pwd1 }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setMsg("Senha redefinida com sucesso.");
-      setShowPwdModal(false);
-      setPwd1("");
-      setPwd2("");
-    } catch (e) {
-      console.error(e);
-      setMsg("Erro ao redefinir senha.");
-    } finally {
-      setPwdSaving(false);
-      setTimeout(() => setMsg(""), 4000);
-    }
+ async function salvarNovaSenha() {
+  if (!form) return;
+  if (pwd1.length < 8) {
+    setMsg("A nova senha deve ter ao menos 8 caracteres.");
+    return;
   }
+  if (pwd1 !== pwd2) {
+    setMsg("As senhas não coincidem.");
+    return;
+  }
+  setPwdSaving(true);
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Admin não autenticado.");
+    const token = await user.getIdToken();
 
-  async function revogarSessoes() {
-    if (!form) return;
-    try {
-      const res = await fetch("/api/admin-revoke-tokens", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: form.id }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setMsg("Sessões encerradas. O usuário precisará logar novamente.");
-    } catch (e) {
-      console.error(e);
-      setMsg("Falha ao encerrar sessões.");
-    } finally {
-      setTimeout(() => setMsg(""), 4000);
-    }
+    const res = await fetch("/api/admin/set-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ uid: form.id, newPassword: pwd1 }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || "Falha ao redefinir senha.");
+
+    setMsg("Senha redefinida com sucesso. Exigir troca no próximo login está ativo.");
+    setShowPwdModal(false);
+    setPwd1("");
+    setPwd2("");
+    setField("requirePasswordChange", true);
+  } catch (e) {
+    console.error(e);
+    setMsg("Erro ao redefinir senha.");
+  } finally {
+    setPwdSaving(false);
+    setTimeout(() => setMsg(""), 4000);
   }
+}
+
+async function gerarSenhaTemporaria() {
+  if (!form) return;
+  setGenError(null);
+  setGenLoading(true);
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Admin não autenticado.");
+    const token = await user.getIdToken();
+
+    const res = await fetch("/api/admin/set-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ uid: form.id, generate: true }),
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || "Falha ao gerar senha temporária.");
+
+    setTempPass(json.tempPassword || "");
+    setMsg("Senha temporária gerada. Envie ao usuário e ele será obrigado a trocar no login.");
+    // Marcar visualmente na UI que exigiremos troca (só na UI; a obrigatoriedade real é via custom claim)
+    setField("requirePasswordChange", true);
+  } catch (e: any) {
+    console.error(e);
+    setGenError(e?.message || "Erro ao gerar senha temporária.");
+  } finally {
+    setGenLoading(false);
+    setTimeout(() => setMsg(""), 4000);
+  }
+}
+
+ async function revogarSessoes() {
+  if (!form) return;
+  try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Admin não autenticado.");
+    const token = await user.getIdToken();
+
+    const res = await fetch("/api/admin/revoke-tokens", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ uid: form.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || "Falha ao encerrar sessões.");
+
+    setMsg("Sessões encerradas. O usuário precisará logar novamente.");
+  } catch (e) {
+    console.error(e);
+    setMsg("Falha ao encerrar sessões.");
+  } finally {
+    setTimeout(() => setMsg(""), 4000);
+  }
+}
+
 
   if (loading) {
     return (
@@ -1584,28 +1635,60 @@ export default function AdminEditarUsuarioPage() {
 
               <div className="section-subtitle">Segurança</div>
               <div className="btn-row">
-                <button
-                  type="button"
-                  className="btn-sec btn-outline"
-                  onClick={() => setShowPwdModal(true)}
-                >
-                  <Key size={16} /> Redefinir senha (definir nova)
-                </button>
-                <button
-                  type="button"
-                  className="btn-sec btn-outline"
-                  onClick={enviarResetSenha}
-                >
-                  <Mail size={16} /> Enviar link de redefinição
-                </button>
-                <button
-                  type="button"
-                  className="btn-sec btn-outline"
-                  onClick={revogarSessoes}
-                >
-                  <Shield size={16} /> Encerrar sessões
-                </button>
-              </div>
+  <button
+    type="button"
+    className="btn-sec btn-outline"
+    onClick={() => setShowPwdModal(true)}
+  >
+    <Key size={16} /> Redefinir senha (definir nova)
+  </button>
+
+  <button
+    type="button"
+    className="btn-sec btn-outline"
+    onClick={revogarSessoes}
+  >
+    <Shield size={16} /> Encerrar sessões
+  </button>
+
+ 
+</div>
+
+{/* NOVO: Mostrar senha gerada */}
+{(tempPass || genError) && (
+  <div
+    style={{
+      marginTop: 8,
+      background: "#f7fafc",
+      border: "1px solid #e6edf6",
+      borderRadius: 12,
+      padding: 12,
+    }}
+  >
+    {tempPass && (
+      <>
+        <div className="label">Senha temporária (copiar e enviar):</div>
+        <pre
+          style={{
+            userSelect: "all",
+            background: "#fff",
+            border: "1px solid #e6edf6",
+            borderRadius: 10,
+            padding: 10,
+            fontWeight: 800,
+          }}
+        >
+          {tempPass}
+        </pre>
+        <div style={{ fontSize: 12, color: "#334155", marginTop: 6 }}>
+          Ao fazer login com esta senha, o usuário será forçado a definir uma nova.
+        </div>
+      </>
+    )}
+    {genError && <div style={{ color: "#be123c", fontWeight: 800 }}>{genError}</div>}
+  </div>
+)}
+
 
               <label className="checkbox" style={{ marginTop: 8 }}>
                 <input
