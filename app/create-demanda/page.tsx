@@ -1,7 +1,8 @@
+// app/create-demanda/page.tsx
 "use client";
 
 import AuthGateRedirect from "@/components/AuthGateRedirect";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
 import {
@@ -27,6 +28,7 @@ import {
   Mail,
   MessageCircle,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 
 /** ============ SSR/ISR ============ */
@@ -52,6 +54,34 @@ type FormState = {
 const RASCUNHO_KEY = "pedraum:create-demandas:draft_v5_min_author";
 const DESC_MAX = 4000;
 const DESC_MIN = 10;
+const IMAGES_MAX = 5;
+
+/* ================== Utils ================== */
+function normalizeText(s: string) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractKeywords(text: string, max = 80) {
+  const base = normalizeText(text);
+  if (!base) return [];
+  const words = base.split(" ").filter(Boolean);
+  // Remove duplicadas preservando ordem
+  const uniq: string[] = [];
+  for (const w of words) if (!uniq.includes(w)) uniq.push(w);
+  return uniq.slice(0, max);
+}
+
+function sanitizeWhatsapp(s: string) {
+  // Mantém apenas dígitos
+  const digits = (s || "").replace(/\D+/g, "");
+  return digits;
+}
 
 /* ================== Página interna ================== */
 function CreateDemandaContent() {
@@ -72,7 +102,11 @@ function CreateDemandaContent() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  /* ---------- Autosave local ---------- */
+  const descLen = form.descricao?.length || 0;
+  const descPct = Math.min(100, Math.round((descLen / DESC_MAX) * 100));
+  const firstInvalidRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+
+  /* ---------- Autosave local (carrega) ---------- */
   useEffect(() => {
     try {
       const raw = localStorage.getItem(RASCUNHO_KEY);
@@ -87,19 +121,23 @@ function CreateDemandaContent() {
           autorWhatsapp: p.form.autorWhatsapp ?? prev.autorWhatsapp,
         }));
       }
-      if (Array.isArray(p?.imagens)) setImagens(p.imagens);
-      if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null)
-        setPdfUrl(p.pdfUrl);
+      if (Array.isArray(p?.imagens)) setImagens(p.imagens.slice(0, IMAGES_MAX));
+      if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null) setPdfUrl(p.pdfUrl);
     } catch {
       /* ignore */
     }
   }, []);
 
+  /* ---------- Autosave local (salva) ---------- */
   useEffect(() => {
     const draft = { form, imagens, pdfUrl };
     setSavingDraft(true);
     const id = setTimeout(() => {
-      localStorage.setItem(RASCUNHO_KEY, JSON.stringify(draft));
+      try {
+        localStorage.setItem(RASCUNHO_KEY, JSON.stringify(draft));
+      } catch {
+        // ignore quota
+      }
       setSavingDraft(false);
     }, 400);
     return () => clearTimeout(id);
@@ -132,19 +170,26 @@ function CreateDemandaContent() {
   }, []);
 
   /* ---------- Handlers ---------- */
-  function handleDescChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    const value = e.target.value.slice(0, DESC_MAX);
-    setForm((prev) => ({ ...prev, descricao: value }));
-  }
-  function handleAutorChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
+  const handleDescChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value.slice(0, DESC_MAX);
+      setForm((prev) => ({ ...prev, descricao: value }));
+    },
+    [],
+  );
+
+  const handleAutorChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      // Normaliza apenas o WhatsApp; os demais mantidos como digitados
+      const next =
+        name === "autorWhatsapp" ? sanitizeWhatsapp(value) : value;
+      setForm((prev) => ({ ...prev, [name]: next }));
+    },
+    [],
+  );
 
   /* ---------- Preview (mínimo) ---------- */
-  const descLen = form.descricao?.length || 0;
-  const descPct = Math.min(100, Math.round((descLen / DESC_MAX) * 100));
-
   const preview = useMemo(() => {
     const resumo =
       form.descricao?.trim().length > 0
@@ -169,80 +214,91 @@ function CreateDemandaContent() {
   ]);
 
   /* ---------- Submit ---------- */
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setSubmitting(true);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (submitting) return; // evita duplo clique
+      setError(null);
+      setSuccess(null);
+      setSubmitting(true);
+      firstInvalidRef.current = null;
 
-    const user = auth.currentUser;
-    if (!user) {
-      setError("Você precisa estar logado para cadastrar uma demanda.");
-      setSubmitting(false);
-      return;
-    }
+      const user = auth.currentUser;
+      if (!user) {
+        setError("Você precisa estar logado para cadastrar uma demanda.");
+        setSubmitting(false);
+        return;
+      }
 
-    if (!form.descricao || form.descricao.trim().length < DESC_MIN) {
-      setError(
-        `Descreva com pelo menos ${DESC_MIN} caracteres o que você precisa.`,
-      );
-      setSubmitting(false);
-      return;
-    }
+      // Regras mínimas
+      if (!form.descricao || form.descricao.trim().length < DESC_MIN) {
+        setError(`Descreva com pelo menos ${DESC_MIN} caracteres o que você precisa.`);
+        setSubmitting(false);
+        // tenta focar a descrição
+        setTimeout(() => {
+          const el = document.querySelector<HTMLTextAreaElement>("textarea[name='descricao']");
+          el?.focus();
+        }, 0);
+        return;
+      }
 
-    try {
-      // Palavras para busca futura (mesmo com curadoria posterior)
-      const searchBase = form.descricao
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\w\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+      try {
+        // Keywords para busca (curadoria posterior mantém esses dados)
+        const searchKeywords = extractKeywords(form.descricao);
 
-      const payload = {
-        // Conteúdo essencial
-        descricao: form.descricao.trim(),
+        // Limita imagens por segurança
+        const safeImages = Array.isArray(imagens)
+          ? imagens.slice(0, IMAGES_MAX)
+          : [];
 
-        // Anexos opcionais
-        imagens,
-        pdfUrl: pdfUrl || null,
-        imagesCount: imagens.length,
+        const payload = {
+          // Conteúdo essencial
+          descricao: form.descricao.trim(),
 
-        // Publicação/curadoria
-        status: "pending", // <— NÃO aparece no feed
-        curated: false,
-        curationNotes: "",
-        publishedAt: null,
-        curatedBy: null,
-        curatedAt: null,
+          // Anexos opcionais
+          imagens: safeImages,
+          pdfUrl: pdfUrl || null,
+          imagesCount: safeImages.length,
 
-        // Autor (editável pelo usuário antes do envio)
-        submittedBy: user.uid,
-        autorNome: form.autorNome || "",
-        autorEmail: form.autorEmail || "",
-        autorWhatsapp: form.autorWhatsapp || "",
+          // Publicação/curadoria
+          status: "pending", // <— NÃO aparece no feed
+          curated: false,
+          curationNotes: "",
+          publishedAt: null,
+          curatedBy: null,
+          curatedAt: null,
 
-        // Busca básica
-        searchKeywords: searchBase ? searchBase.split(" ").slice(0, 80) : [],
+          // Autor (editável pelo usuário antes do envio)
+          submittedBy: user.uid,
+          autorNome: form.autorNome || "",
+          autorEmail: form.autorEmail || "",
+          autorWhatsapp: form.autorWhatsapp || "",
 
-        // Metadados
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      } as const;
+          // Busca básica
+          searchKeywords,
 
-      await addDoc(collection(db, "demandas"), payload);
+          // Metadados
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        } as const;
 
-      localStorage.removeItem(RASCUNHO_KEY);
-      setSuccess("Recebemos sua demanda! Nossa equipe vai revisar e publicar.");
-      setTimeout(() => router.push("/demandas"), 900);
-    } catch (err) {
-      console.error(err);
-      setError("Erro ao cadastrar. Tente novamente em instantes.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
+        await addDoc(collection(db, "demandas"), payload);
+
+        try {
+          localStorage.removeItem(RASCUNHO_KEY);
+        } catch { /* ignore */ }
+
+        setSuccess("Recebemos sua demanda! Nossa equipe vai revisar e publicar.");
+        setTimeout(() => router.push("/demandas"), 900);
+      } catch (err) {
+        console.error(err);
+        setError("Erro ao cadastrar. Tente novamente em instantes.");
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [form, imagens, pdfUrl, router, submitting],
+  );
 
   /* ---------- UI ---------- */
   return (
@@ -264,12 +320,13 @@ function CreateDemandaContent() {
             border: "1.5px solid #cfd8e3",
             color: "#023047",
           }}
+          aria-label="Voltar"
         >
           <ArrowLeft className="w-4 h-4 text-orange-500" />
           Voltar
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500">
+        <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500" aria-live="polite">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           {savingDraft ? "Salvando rascunho..." : "Rascunho salvo automaticamente"}
         </div>
@@ -311,7 +368,7 @@ function CreateDemandaContent() {
         </div>
 
         {/* Aviso */}
-        <div style={hintCardStyle} className="mb-6">
+        <div style={hintCardStyle} className="mb-6" role="status" aria-live="polite">
           <Info className="w-5 h-5" />
           <p style={{ margin: 0 }}>
             Apenas a <strong>descrição</strong> é obrigatória. Seus dados abaixo
@@ -319,14 +376,12 @@ function CreateDemandaContent() {
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: "flex", flexDirection: "column", gap: 22 }}
-        >
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           {/* Descrição */}
           <div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2" }}>
-            <label style={labelStyle}>Descrição da necessidade *</label>
+            <label htmlFor="descricao" style={labelStyle}>Descrição da necessidade *</label>
             <textarea
+              id="descricao"
               name="descricao"
               value={form.descricao}
               onChange={handleDescChange}
@@ -334,10 +389,15 @@ function CreateDemandaContent() {
               placeholder="Ex.: Preciso de manutenção corretiva em britadeira; ruído anormal no rolamento, preferência por atendimento em até 7 dias."
               required
               maxLength={DESC_MAX}
+              aria-describedby="descricaoHelp"
             />
+            <div id="descricaoHelp" className="sr-only">
+              Descreva o que você precisa em pelo menos {DESC_MIN} caracteres.
+            </div>
+
             {/* Barra de progresso de caracteres */}
-            <div className="mt-2 flex items-center justify-between">
-              <div className="h-2 w-full rounded-full bg-slate-100 mr-3 overflow-hidden">
+            <div className="mt-2 flex items-center justify-between" aria-live="polite">
+              <div className="h-2 w-full rounded-full bg-slate-100 mr-3 overflow-hidden" aria-hidden>
                 <div
                   className="h-2 rounded-full"
                   style={{
@@ -365,42 +425,55 @@ function CreateDemandaContent() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label style={labelStyle}>
+                <label htmlFor="autorNome" style={labelStyle}>
                   <UserIcon size={15} /> Nome
                 </label>
                 <input
+                  id="autorNome"
                   name="autorNome"
                   value={form.autorNome}
                   onChange={handleAutorChange}
                   style={inputStyle}
                   placeholder="Seu nome"
+                  autoComplete="name"
                 />
               </div>
               <div>
-                <label style={labelStyle}>
+                <label htmlFor="autorEmail" style={labelStyle}>
                   <Mail size={15} /> E-mail
                 </label>
                 <input
+                  id="autorEmail"
                   name="autorEmail"
                   value={form.autorEmail}
                   onChange={handleAutorChange}
                   style={inputStyle}
                   type="email"
                   placeholder="seuemail@exemplo.com"
+                  autoComplete="email"
+                  inputMode="email"
                 />
               </div>
               <div>
-                <label style={labelStyle}>
+                <label htmlFor="autorWhatsapp" style={labelStyle}>
                   <MessageCircle size={15} /> WhatsApp
                 </label>
                 <input
+                  id="autorWhatsapp"
                   name="autorWhatsapp"
                   value={form.autorWhatsapp}
                   onChange={handleAutorChange}
                   style={inputStyle}
                   placeholder="(xx) xxxxx-xxxx"
                   inputMode="tel"
+                  autoComplete="tel"
                 />
+                {!!form.autorWhatsapp && form.autorWhatsapp.length < 10 && (
+                  <div className="mt-1 text-xs text-amber-600 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" />
+                    Verifique se o número está completo.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -435,8 +508,8 @@ function CreateDemandaContent() {
                 <div className="px-4 pb-4">
                   <ImageUploader
                     imagens={imagens}
-                    setImagens={setImagens}
-                    max={5}
+                    setImagens={(arr) => setImagens((arr || []).slice(0, IMAGES_MAX))}
+                    max={IMAGES_MAX}
                     labels={{
                       title: "Imagens",
                       helper:
@@ -444,8 +517,8 @@ function CreateDemandaContent() {
                       button: "Selecionar imagens",
                     }}
                   />
-                  <p className="text-xs text-slate-500 mt-2">
-                    Máximo de 5 imagens (8MB cada).
+                  <p className="text-xs text-slate-500 mt-2" aria-live="polite">
+                    Máximo de {IMAGES_MAX} imagens (8MB cada). Atual: {imagens.length}
                   </p>
                 </div>
               </div>
@@ -469,8 +542,7 @@ function CreateDemandaContent() {
                     maxSizeMB={16}
                     labels={{
                       title: "Arquivo PDF",
-                      helper:
-                        "",
+                      helper: "",
                       button: "Selecionar PDF",
                     }}
                   />
@@ -525,7 +597,7 @@ function CreateDemandaContent() {
                 <span style={muted}>Autor:</span> {preview.autor}
               </div>
             </div>
-            <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
+            <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }} aria-live="polite">
               {savingDraft
                 ? "Salvando rascunho..."
                 : "Rascunho salvo automaticamente"}
@@ -533,15 +605,17 @@ function CreateDemandaContent() {
           </div>
 
           {/* Alertas */}
-          {error && <div style={errorStyle}>{error}</div>}
-          {success && <div style={successStyle}>{success}</div>}
+          {error && <div style={errorStyle} role="alert">{error}</div>}
+          {success && <div style={successStyle} role="status" aria-live="polite">{success}</div>}
 
           {/* Botão principal */}
           <button
             type="submit"
             disabled={submitting}
             style={{
-              background: "linear-gradient(90deg,#fb8500,#219ebc)",
+              background: submitting
+                ? "linear-gradient(90deg,#94a3b8,#94a3b8)"
+                : "linear-gradient(90deg,#fb8500,#219ebc)",
               color: "#fff",
               border: "none",
               borderRadius: 13,
@@ -554,7 +628,10 @@ function CreateDemandaContent() {
               alignItems: "center",
               justifyContent: "center",
               gap: 10,
+              transition: "transform .08s ease",
             }}
+            aria-busy={submitting}
+            aria-label="Enviar para Curadoria"
           >
             {submitting ? (
               <Loader2 className="animate-spin w-6 h-6" />
@@ -648,5 +725,4 @@ const smallInfoStyle: React.CSSProperties = {
   color: "#64748b",
   marginTop: 4,
 };
-
 const muted: React.CSSProperties = { color: "#6b7280" };

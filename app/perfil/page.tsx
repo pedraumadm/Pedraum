@@ -37,7 +37,7 @@ const UFS = [
 const UFS_SET = new Set<string>(UFS);
 
 /** ====== Tipos novos (SEM subcategoria) ====== */
-type OfertaBasica = { ativo: boolean; obs: string }; // obs obrigatório se ativo=true
+type OfertaBasica = { ativo: boolean; obs: string };
 export type AtuacaoBasicaPorCategoria = {
   categoria: string;           // ex.: "Britagem"
   vendaProdutos: OfertaBasica; // "Vendo produtos para <categoria>"
@@ -87,6 +87,78 @@ type PerfilForm = {
   mpConnected?: boolean;
   mpStatus?: string;
 };
+
+/* ======================= INTELIGÊNCIA DE LINGUAGEM ======================= */
+/** Dicionário opcional por categoria para afinar gramática/cópia */
+type LinguaCat = {
+  visivelPlural?: string;      // “britadores”
+  visivelSingular?: string;    // “britador” (reservado p/ futuros usos)
+  prepProdutos?: string;       // "", "de", "para"...
+  prepPecas?: string;          // "para" (padrão)
+  prepServicos?: string;       // "em" (padrão)
+};
+
+/** Adicione exceções aqui quando necessário */
+const LINGUAGEM: Record<string, LinguaCat> = {
+  Britadores: { visivelPlural: "britadores", prepProdutos: "", prepPecas: "para", prepServicos: "em" },
+  Transportadores: { visivelPlural: "transportadores", prepProdutos: "", prepPecas: "para", prepServicos: "em" },
+  Peneiramento: { visivelPlural: "peneiras", prepProdutos: "", prepPecas: "para", prepServicos: "em" },
+  Concreto: { visivelPlural: "equipamentos de concreto", prepProdutos: "de", prepPecas: "para", prepServicos: "em" },
+  // ...inclua outras categorias específicas quando quiser refinar a frase
+};
+
+/** Fallbacks (aplicados a qualquer categoria não listada no dicionário) */
+function toPluralVisivel(cat: string) {
+  // fallback simples: usa o nome tal como veio, em minúsculas
+  return (cat || "").trim().toLowerCase();
+}
+function prepProdutosPadrao() { return ""; }
+function prepPecasPadrao() { return "para"; }
+function prepServicosPadrao() { return "em"; }
+
+/** Geradores de rótulos e placeholders (usados no editor e nos chips) */
+function labelProdutos(cat: string) {
+  if (!cat) return "Vendo produtos";
+  const meta = LINGUAGEM[cat] || {};
+  const alvo = (meta.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (meta.prepProdutos ?? prepProdutosPadrao()).trim();
+  const partePrep = prep ? ` ${prep}` : "";
+  return `Vendo${partePrep} ${alvo}`.replace("  ", " ");
+}
+function labelPecas(cat: string) {
+  if (!cat) return "Vendo peças";
+  const meta = LINGUAGEM[cat] || {};
+  const alvo = (meta.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (meta.prepPecas ?? prepPecasPadrao()).trim();
+  return `Vendo peças ${prep} ${alvo}`;
+}
+function labelServicos(cat: string) {
+  if (!cat) return "Presto serviços";
+  const meta = LINGUAGEM[cat] || {};
+  const alvo = (meta.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (meta.prepServicos ?? prepServicosPadrao()).trim();
+  return `Presto serviços ${prep} ${alvo}`;
+}
+function phProdutos(cat: string) {
+  if (!cat) return "Descreva o que você vende (obrigatório)";
+  const alvo = (LINGUAGEM[cat]?.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (LINGUAGEM[cat]?.prepProdutos ?? prepProdutosPadrao()).trim();
+  const partePrep = prep ? ` ${prep}` : "";
+  return `Descreva o que você vende${partePrep} ${alvo} (obrigatório)`.replace("  ", " ");
+}
+function phPecas(cat: string) {
+  if (!cat) return "Quais peças você vende? (obrigatório)";
+  const alvo = (LINGUAGEM[cat]?.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (LINGUAGEM[cat]?.prepPecas ?? prepPecasPadrao()).trim();
+  return `Quais peças você vende ${prep} ${alvo}? (obrigatório)`;
+}
+function phServicos(cat: string) {
+  if (!cat) return "Quais serviços você presta? (obrigatório)";
+  const alvo = (LINGUAGEM[cat]?.visivelPlural || toPluralVisivel(cat)).trim();
+  const prep = (LINGUAGEM[cat]?.prepServicos ?? prepServicosPadrao()).trim();
+  return `Quais serviços você presta ${prep} ${alvo}? (obrigatório)`;
+}
+/* ================================================================ */
 
 export default function PerfilPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -407,7 +479,7 @@ export default function PerfilPage() {
         setMsg("Categoria adicionada.");
         setTimeout(() => setMsg(""), 2500);
         resetEditorCategoria();
-        setEditorOpen(false); // fecha após adicionar
+        setEditorOpen(false);
         return { ...f, atuacaoBasica: [...f.atuacaoBasica, novo] };
       }
 
@@ -415,7 +487,7 @@ export default function PerfilPage() {
       setMsg("Categoria atualizada.");
       setTimeout(() => setMsg(""), 2500);
       resetEditorCategoria();
-      setEditorOpen(false); // fecha após atualizar
+      setEditorOpen(false);
       return {
         ...f,
         atuacaoBasica: f.atuacaoBasica.map((a) => (a.categoria === categoria ? novo : a)),
@@ -443,7 +515,7 @@ export default function PerfilPage() {
     setMsg("");
 
     try {
-      // Validação leve: se alguma opção ativa em alguma categoria estiver sem descrição → bloquear
+      // Validação leve
       for (const a of form.atuacaoBasica) {
         if (a.vendaProdutos.ativo && !a.vendaProdutos.obs?.trim()) {
           setMsg(`Descreva o que vende em "Vendo produtos" para ${a.categoria}.`);
@@ -710,7 +782,7 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* Atuação (NOVA LÓGICA) */}
+        {/* Atuação (NOVA LÓGICA + rótulos dinâmicos) */}
         <div className="card">
           <div className="card-title">Atuação por Categoria </div>
 
@@ -749,7 +821,7 @@ export default function PerfilPage() {
                 </div>
               )}
 
-              {/* EDITOR – só aparece quando há categoria selecionada E o editor está aberto */}
+              {/* EDITOR */}
               <div ref={editorRef}>
                 {!selCategoria ? (
                   <div className="rounded-xl border p-4 mt-3" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
@@ -799,60 +871,62 @@ export default function PerfilPage() {
                           O que você faz nessa categoria?
                         </div>
 
-                        {/* Vendo produtos */}
+                        {/* Vendo produtos (dinâmico) */}
                         <label className="checkbox">
                           <input
                             type="checkbox"
                             checked={vendaProdutosAtivo}
                             onChange={(e) => setVendaProdutosAtivo(e.target.checked)}
                           />
-                          <span>Vendo produtos para {selCategoria}</span>
+                          <span>{labelProdutos(selCategoria)}</span>
                         </label>
                         {vendaProdutosAtivo && (
                           <textarea
                             className="input mt-2"
                             rows={3}
-                            placeholder="Descreva o que você vende (obrigatório)"
+                            placeholder={phProdutos(selCategoria)}
                             value={vendaProdutosObs}
                             onChange={(e) => setVendaProdutosObs(e.target.value)}
                           />
                         )}
 
-                        {/* Vendo peças */}
                         <div style={{ height: 10 }} />
+
+                        {/* Vendo peças (dinâmico) */}
                         <label className="checkbox">
                           <input
                             type="checkbox"
                             checked={vendaPecasAtivo}
                             onChange={(e) => setVendaPecasAtivo(e.target.checked)}
                           />
-                          <span>Vendo peças</span>
+                          <span>{labelPecas(selCategoria)}</span>
                         </label>
                         {vendaPecasAtivo && (
                           <textarea
                             className="input mt-2"
                             rows={3}
-                            placeholder="Quais peças você vende? (obrigatório)"
+                            placeholder={phPecas(selCategoria)}
                             value={vendaPecasObs}
                             onChange={(e) => setVendaPecasObs(e.target.value)}
                           />
                         )}
 
-                        {/* Presto serviços */}
                         <div style={{ height: 10 }} />
+
+                        {/* Presto serviços (dinâmico) */}
                         <label className="checkbox">
                           <input
                             type="checkbox"
                             checked={servicosAtivo}
                             onChange={(e) => setServicosAtivo(e.target.checked)}
                           />
-                          <span>Presto serviços</span>
+                          <span>{labelServicos(selCategoria)}</span>
                         </label>
                         {servicosAtivo && (
                           <textarea
                             className="input mt-2"
                             rows={3}
-                            placeholder="Que serviços você presta? (obrigatório)"
+                            placeholder={phServicos(selCategoria)}
                             value={servicosObs}
                             onChange={(e) => setServicosObs(e.target.value)}
                           />
@@ -935,16 +1009,19 @@ export default function PerfilPage() {
                           </div>
                         </div>
 
+                        {/* Chips com rótulos dinâmicos */}
                         <div className="chips" style={{ marginTop: 8 }}>
                           <span className="chip" style={{ opacity: a.vendaProdutos.ativo ? 1 : 0.5 }}>
-                            <Check size={14} /> Produtos{" "}
+                            <Check size={14} /> {labelProdutos(a.categoria)}{" "}
                             {a.vendaProdutos.ativo ? "— " + a.vendaProdutos.obs : "(não aplica)"}
                           </span>
                           <span className="chip" style={{ opacity: a.vendaPecas.ativo ? 1 : 0.5 }}>
-                            <Check size={14} /> Peças {a.vendaPecas.ativo ? "— " + a.vendaPecas.obs : "(não aplica)"}
+                            <Check size={14} /> {labelPecas(a.categoria)}{" "}
+                            {a.vendaPecas.ativo ? "— " + a.vendaPecas.obs : "(não aplica)"}
                           </span>
                           <span className="chip" style={{ opacity: a.servicos.ativo ? 1 : 0.5 }}>
-                            <Check size={14} /> Serviços {a.servicos.ativo ? "— " + a.servicos.obs : "(não aplica)"}
+                            <Check size={14} /> {labelServicos(a.categoria)}{" "}
+                            {a.servicos.ativo ? "— " + a.servicos.obs : "(não aplica)"}
                           </span>
                         </div>
                       </div>
