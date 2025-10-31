@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "@/lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+
 /** ===================== Helper: Autorização ===================== */
 function isAllowedAdmin(decoded: any): boolean {
   const allow = (process.env.ADMIN_EMAILS || "")

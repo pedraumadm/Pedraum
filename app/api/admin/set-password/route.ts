@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "@/lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+
 /** ===================== Helper: Geração de senha ===================== */
 function genTempPassword(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
