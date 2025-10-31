@@ -1,29 +1,19 @@
-// =============================
-// app/404/page.tsx
-// =============================
-
-"use client";
-
-import Link from "next/link";
+// app/404/page.tsx  — Server Component (sem hooks de next/navigation)
+export const dynamic = "force-static"; // garante estático
 
 export default function NotFoundPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-[#8ECAE6] to-[#219EBC] p-6">
-      <div className="bg-white shadow-2xl rounded-2xl p-10 max-w-lg text-center">
-        <h1 className="text-6xl font-bold text-[#FB8500] mb-4">404</h1>
-        <p className="text-xl font-semibold text-[#023047] mb-2">
-          Página não encontrada
-        </p>
-        <p className="text-sm text-gray-600 mb-6">
-          A página que você está tentando acessar não existe ou foi movida.
-        </p>
-        <Link
-          href="/"
-          className="inline-block bg-[#FB8500] hover:bg-[#FFB703] transition-colors text-white font-semibold py-2 px-6 rounded-xl"
-        >
-          Voltar para o início
-        </Link>
-      </div>
-    </div>
+    <main className="mx-auto max-w-3xl px-6 py-16">
+      <h1 className="text-3xl md:text-4xl font-bold text-blue-700">Página não encontrada</h1>
+      <p className="mt-3 text-gray-600">
+        O link pode estar incorreto ou o conteúdo foi removido.
+      </p>
+      <a
+        href="/"
+        className="mt-8 inline-block rounded-xl bg-blue-600 px-5 py-3 text-white hover:bg-blue-700 transition"
+      >
+        Voltar para a Home
+      </a>
+    </main>
   );
 }
