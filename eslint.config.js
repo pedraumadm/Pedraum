@@ -34,6 +34,14 @@ export default tseslint.config(
     },
   },
   {
+  languageOptions: {
+    parserOptions: {
+      projectService: true, // habilita rules que precisam do TS
+    },
+  },
+},
+
+  {
     files: ["app/api/**/*.ts"],
     rules: {
       // Na camada API, relaxa as regras de "unsafe" pois lidamos com JSON bruto
