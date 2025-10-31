@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { db, auth } from "@/firebaseConfig";
+import { usuarioConverter } from "@/lib/fs-converters";
 import {
   doc,
   getDoc,
@@ -43,7 +44,6 @@ const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
 const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
   ssr: false,
 });
-
 /* ========= Constantes ========= */
 const estados = [
   "BRASIL",
@@ -258,133 +258,112 @@ const [genError, setGenError] = useState<string | null>(null);
   );
 
   useEffect(() => {
-    (async () => {
-      try {
-        if (!id) throw new Error("ID inválido");
-        const ref = doc(db, "usuarios", id);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          setMsg("Usuário não encontrado.");
-          setLoading(false);
-          return;
-        }
-        const data = snap.data() || {};
+  (async () => {
+    try {
+      if (!id) throw new Error("ID inválido");
 
-        const baseAgenda = Object.fromEntries(
-          diasSemana.map((d) => [
-            d.key,
-            { ativo: d.key !== "dom", das: "08:00", ate: "18:00" },
-          ]),
-        ) as Record<string, AgendaDia>;
-
-        // Novo modelo
-        const atuacaoBasica: AtuacaoBasicaPorCategoria[] = Array.isArray(
-          data.atuacaoBasica,
-        )
-          ? data.atuacaoBasica
-          : [];
-
-        // Legados (apenas para manter compatibilidade)
-        const categoriasAtuacaoPairs: CategoriaPair[] = Array.isArray(
-          data.categoriasAtuacaoPairs,
-        )
-          ? data.categoriasAtuacaoPairs
-          : [];
-        const categoriasAtuacaoTriplets: CategoriaTriplet[] = Array.isArray(
-          data.categoriasAtuacaoTriplets,
-        )
-          ? data.categoriasAtuacaoTriplets
-          : [];
-
-        // PDFs: aceita string única ou array
-        const pdfs: string[] = Array.isArray(data.portfolioPDFs)
-          ? data.portfolioPDFs
-          : data.portfolioPdfUrl
-          ? [data.portfolioPdfUrl]
-          : [];
-
-        setForm({
-          id,
-          nome: data.nome || "",
-
-          // Patrocinador
-          isPatrocinador: !!data.isPatrocinador,
-          patrocinadorDesde: data.patrocinadorDesde || null,
-          patrocinadorAte: data.patrocinadorAte || null,
-
-          email: data.email || "",
-          telefone: data.whatsappE164
-            ? maskBRFrom55(data.whatsappE164)
-            : data.whatsapp
-            ? maskBRFrom55(data.whatsapp)
-            : data.telefone || "",
-          cidade: data.cidade || "",
-          estado: data.estado || "",
-          cpf_cnpj: data.cpf_cnpj || data.cpfCnpj || "",
-          bio: data.bio || "",
-          avatar: data.avatar || "",
-          tipo: data.tipo || "Usuário",
-
-          prestaServicos: !!data.prestaServicos,
-          vendeProdutos: !!data.vendeProdutos,
-
-          atuacaoBasica,
-
-          // legados (não usados na nova UI)
-          categoriasAtuacaoPairs,
-          categoriasAtuacaoTriplets,
-          categoriasAtuacao: Array.isArray(data.categoriasAtuacao)
-            ? data.categoriasAtuacao
-            : [],
-          categoriasLocked: !!data.categoriasLocked,
-
-          atendeBrasil: !!data.atendeBrasil,
-          ufsAtendidas: data.ufsAtendidas || [],
-
-          agenda: data.agenda || baseAgenda,
-
-          portfolioImagens: data.portfolioImagens || [],
-          portfolioVideos: data.portfolioVideos || [],
-          portfolioPDFs: pdfs,
-          portfolioPdfUrl: data.portfolioPdfUrl || null,
-
-          leadPreferencias: {
-            categorias: data.leadPreferencias?.categorias || [],
-            ufs: data.leadPreferencias?.ufs || [],
-            ticketMin: data.leadPreferencias?.ticketMin ?? null,
-            ticketMax: data.leadPreferencias?.ticketMax ?? null,
-          },
-
-          mpConnected: !!data.mpConnected,
-          mpStatus: data.mpStatus || "desconectado",
- categoryLimit: Number(data?.categoryLimit ?? 3),
-          // extras admin
-          status: (data.status as any) || "ativo",
-          verificado: !!data.verificado,
-          role: (data.role as any) || "user",
-          financeiro: {
-            plano: data.financeiro?.plano || "",
-            situacao: data.financeiro?.situacao || "pendente",
-            valor: data.financeiro?.valor ?? null,
-            proxRenovacao: data.financeiro?.proxRenovacao || "",
-          },
-          limites: {
-            leadsDia: data.limites?.leadsDia ?? 10,
-            prioridade: data.limites?.prioridade ?? 0,
-            bloquearUFs: data.limites?.bloquearUFs || [],
-            bloquearCategorias: data.limites?.bloquearCategorias || [],
-          },
-          observacoesInternas: data.observacoesInternas || "",
-          requirePasswordChange: !!data.requirePasswordChange,
-        });
-      } catch (e) {
-        console.error(e);
-        setMsg("Erro ao carregar dados.");
-      } finally {
+      // use o converter + id aqui
+      const ref = doc(db, "usuarios", id).withConverter(usuarioConverter);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        setMsg("Usuário não encontrado.");
         setLoading(false);
+        return;
       }
-    })();
-  }, [id]);
+      const data = snap.data(); // ✅ tipado
+
+      const baseAgenda = Object.fromEntries(
+        diasSemana.map((d) => [
+          d.key,
+          { ativo: d.key !== "dom", das: "08:00", ate: "18:00" },
+        ]),
+      ) as Record<string, AgendaDia>;
+
+      // PDFs: aceita string única ou array
+      const pdfs: string[] = Array.isArray(data.portfolioPDFs)
+        ? data.portfolioPDFs
+        : data.portfolioPdfUrl
+        ? [data.portfolioPdfUrl]
+        : [];
+
+      setForm({
+        id,
+        nome: data.nome || "",
+        isPatrocinador: !!data.isPatrocinador,
+        patrocinadorDesde: data.patrocinadorDesde || null,
+        patrocinadorAte: data.patrocinadorAte || null,
+        email: data.email || "",
+        telefone: (data as any).whatsappE164
+          ? maskBRFrom55((data as any).whatsappE164)
+          : (data as any).whatsapp
+          ? maskBRFrom55((data as any).whatsapp)
+          : data.telefone || "",
+        cidade: data.cidade || "",
+        estado: data.estado || "",
+        cpf_cnpj: (data as any).cpf_cnpj || (data as any).cpfCnpj || "",
+        bio: data.bio || "",
+        avatar: data.avatar || "",
+        tipo: data.tipo || "Usuário",
+
+        prestaServicos: !!data.prestaServicos,
+        vendeProdutos: !!data.vendeProdutos,
+
+        atuacaoBasica: Array.isArray(data.atuacaoBasica) ? data.atuacaoBasica : [],
+
+        // legados
+        categoriasAtuacaoPairs: Array.isArray((data as any).categoriasAtuacaoPairs) ? (data as any).categoriasAtuacaoPairs : [],
+        categoriasAtuacaoTriplets: Array.isArray((data as any).categoriasAtuacaoTriplets) ? (data as any).categororiasAtuacaoTriplets : [],
+        categoriasAtuacao: Array.isArray((data as any).categoriasAtuacao) ? (data as any).categoriasAtuacao : [],
+        categoriasLocked: !!(data as any).categoriasLocked,
+
+        atendeBrasil: !!data.atendeBrasil,
+        ufsAtendidas: Array.isArray(data.ufsAtendidas) ? data.ufsAtendidas : [],
+
+        agenda: (data as any).agenda || baseAgenda,
+
+        portfolioImagens: Array.isArray(data.portfolioImagens) ? data.portfolioImagens : [],
+        portfolioVideos: Array.isArray(data.portfolioVideos) ? data.portfolioVideos : [],
+        portfolioPDFs: pdfs,
+        portfolioPdfUrl: data.portfolioPdfUrl || null,
+
+        leadPreferencias: {
+          categorias: (data.leadPreferencias?.categorias as string[]) || [],
+          ufs: (data.leadPreferencias?.ufs as string[]) || [],
+          ticketMin: data.leadPreferencias?.ticketMin ?? null,
+          ticketMax: data.leadPreferencias?.ticketMax ?? null,
+        },
+
+        mpConnected: !!data.mpConnected,
+        mpStatus: data.mpStatus || "desconectado",
+        categoryLimit: Number((data as any)?.categoryLimit ?? 3),
+
+        status: (data.status as any) || "ativo",
+        verificado: !!data.verificado,
+        role: (data.role as any) || "user",
+        financeiro: {
+          plano: (data.financeiro as any)?.plano || "",
+          situacao: (data.financeiro as any)?.situacao || "pendente",
+          valor: (data.financeiro as any)?.valor ?? null,
+          proxRenovacao: (data.financeiro as any)?.proxRenovacao || "",
+        },
+        limites: {
+          leadsDia: (data.limites as any)?.leadsDia ?? 10,
+          prioridade: (data.limites as any)?.prioridade ?? 0,
+          bloquearUFs: (data.limites as any)?.bloquearUFs || [],
+          bloquearCategorias: (data.limites as any)?.bloquearCategorias || [],
+        },
+        observacoesInternas: (data as any).observacoesInternas || "",
+        requirePasswordChange: !!data.requirePasswordChange,
+      });
+    } catch (e) {
+      console.error(e);
+      setMsg("Erro ao carregar dados.");
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, [id]);
+
 
   function setField<K extends keyof PerfilForm>(key: K, value: PerfilForm[K]) {
     if (!form) return;

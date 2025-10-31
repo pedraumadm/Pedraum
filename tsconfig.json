@@ -1,31 +1,32 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "jsx": "preserve",
+
     "allowJs": true,
     "resolveJsonModule": true,
     "esModuleInterop": true,
+
     "skipLibCheck": true,
     "noEmit": true,
     "incremental": true,
     "forceConsistentCasingInFileNames": true,
-    "strict": false, // mantenho para não quebrar seu build atual
+
+    "strict": false,
+
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
       "@/app/*": ["app/*"],
       "@/components/*": ["components/*"],
       "@/lib/*": ["lib/*"],
-      "@/server/*": ["server/*"] // << alias que faltava
+      "@/server/*": ["server/*"]
     },
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+
+    "plugins": [{ "name": "next" }],
     "types": ["node"],
     "isolatedModules": true
   },
