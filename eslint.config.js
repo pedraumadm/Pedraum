@@ -1,27 +1,20 @@
-import js from "@eslint/js";
-import nextPlugin from "@next/eslint-plugin-next";
-import tseslint from "typescript-eslint";
+// eslint.config.js
+import js from '@eslint/js';
+import tseslint from 'typescript-eslint';
 
 export default [
+  { ignores: ['.next/**', 'node_modules/**', 'dist/**'] },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
-  nextPlugin.configs["core-web-vitals"],
-
+  ...tseslint.configs.recommendedTypeChecked,   // requer tsconfig.json com "checkJs": false
   {
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "off",
-      "unused-imports/no-unused-imports": "warn",
-      "react/no-unescaped-entities": "off",
-      "@next/next/no-img-element": "warn",
-      "prefer-const": "warn",
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
-    ignores: [
-      ".next/",
-      "node_modules/",
-      "public/",
-      "**/*.config.*",
-      "next-env.d.ts",
-    ],
+    rules: {
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
   },
 ];
