@@ -23,11 +23,7 @@ import {
   ClipboardList,
   MessageCircle,
   Bell,
-  Star,
   Users,
-  BookOpen,
-  Briefcase,
-  Heart,
   Lightbulb,
   Wallet2,
   LifeBuoy,
@@ -36,31 +32,13 @@ import {
   Target,
   CircleHelp,
   X,
+  Briefcase,
 } from "lucide-react";
 
 // =============== Aliases de campos/flags =================
-const USER_EQ_FIELDS_NOTIFS = [
-  "usuarioId",
-  "userId",
-  "uid",
-  "recipientId",
-  "ownerId",
-];
-const USER_EQ_FIELDS_MSGS = [
-  "destinatarioId",
-  "toUserId",
-  "usuarioId",
-  "userId",
-  "recipientId",
-  "ownerId",
-];
-const USER_ARRAY_FIELDS = [
-  "users",
-  "participants",
-  "members",
-  "recipients",
-  "threadUsers",
-];
+const USER_EQ_FIELDS_NOTIFS = ["usuarioId", "userId", "uid", "recipientId", "ownerId"];
+const USER_EQ_FIELDS_MSGS = ["destinatarioId", "toUserId", "usuarioId", "userId", "recipientId", "ownerId"];
+const USER_ARRAY_FIELDS = ["users", "participants", "members", "recipients", "threadUsers"];
 const READ_FLAGS = ["lida", "lido", "read", "seen", "visualizado", "visto"];
 
 // =============== Helpers de consulta =====================
@@ -82,9 +60,7 @@ function qByAnyUserField(
     }
   }
   // fallback (scan)
-  return extra
-    ? extra(colRef as unknown as Query)
-    : (colRef as unknown as Query);
+  return extra ? extra(colRef as unknown as Query) : (colRef as unknown as Query);
 }
 
 // contagem segura
@@ -119,10 +95,7 @@ async function countBy(
         const q = extra ? extra(base) : base;
         const n = await safeCount(q);
         if (n > best) best = n;
-        if (n > 0)
-          console.debug(
-            `[metrics] ${labelForLog || colName}: ${colName}.${f} => ${n}`,
-          );
+        if (n > 0) console.debug(`[metrics] ${labelForLog || colName}: ${colName}.${f} => ${n}`);
       } catch (e) {
         console.debug(`[metrics] falha em ${colName}.${f}`, e);
       }
@@ -140,9 +113,7 @@ async function smartScanCount(
   considerUnread = false,
 ) {
   try {
-    const snap = await getDocs(
-      query(collection(db, colName), orderBy("__name__", "desc"), limit(200)),
-    );
+    const snap = await getDocs(query(collection(db, colName), orderBy("__name__", "desc"), limit(200)));
     let total = 0;
     let unread = 0;
 
@@ -151,9 +122,7 @@ async function smartScanCount(
 
       const match =
         eqFields.some((f) => data?.[f] === uid) ||
-        arrayFields.some(
-          (arr) => Array.isArray(data?.[arr]) && data[arr].includes(uid),
-        );
+        arrayFields.some((arr) => Array.isArray(data?.[arr]) && data[arr].includes(uid));
 
       if (!match) continue;
 
@@ -184,17 +153,10 @@ async function smartScanCount(
 }
 
 // não lidas primeiro; senão total; senão scan
-async function robustUnreadOrTotal(
-  colName: string,
-  uid: string,
-  eqFields: string[],
-  arrayFields: string[],
-): Promise<number> {
+async function robustUnreadOrTotal(colName: string, uid: string, eqFields: string[], arrayFields: string[]): Promise<number> {
   let unreadSum = 0;
   for (const flag of READ_FLAGS) {
-    const qUnread = qByAnyUserField(colName, uid, eqFields, (base) =>
-      query(base, where(flag as any, "==", false)),
-    );
+    const qUnread = qByAnyUserField(colName, uid, eqFields, (base) => query(base, where(flag as any, "==", false)));
     unreadSum += await safeCount(qUnread);
   }
   if (unreadSum > 0) return unreadSum;
@@ -283,83 +245,32 @@ export default function PainelUnificado() {
       const cMsgs = ["mensagens", "messages"];
       const cOpps = ["demandAssignments", "assignments"];
 
-      const ownerUser = [
-        "usuarioId",
-        "userId",
-        "ownerId",
-        "uid",
-        "autorId",
-        "authorId",
-      ];
+      const ownerUser = ["usuarioId", "userId", "ownerId", "uid", "autorId", "authorId"];
 
-      const [
-        maquinas,
-        produtos,
-        servicos,
-        leads,
-        demandas,
-        favoritos,
-        propostas,
-        pedidos,
-        sugestoes,
-        avaliacoes,
-      ] = await Promise.all([
-        countBy(cMaquinas, uid, ownerUser, undefined, "maquinas"),
-        countBy(cProdutos, uid, ownerUser, undefined, "produtos"),
-        countBy(cServicos, uid, ownerUser, undefined, "servicos"),
-        countBy(cLeads, uid, ownerUser, undefined, "leads"),
-        countBy(cDemandas, uid, ownerUser, undefined, "demandas"),
-        countBy(cFavoritos, uid, ownerUser, undefined, "favoritos"),
-        countBy(cPropostas, uid, ownerUser, undefined, "propostas"),
-        countBy(cPedidos, uid, ownerUser, undefined, "pedidos"),
-        countBy(cSugestoes, uid, ownerUser, undefined, "sugestoes"),
-        countBy(
-          cAval,
-          uid,
-          ["avaliadoId", ...ownerUser],
-          undefined,
-          "avaliacoes",
-        ),
-      ]);
+      const [maquinas, produtos, servicos, leads, demandas, favoritos, propostas, pedidos, sugestoes, avaliacoes] =
+        await Promise.all([
+          countBy(cMaquinas, uid, ownerUser, undefined, "maquinas"),
+          countBy(cProdutos, uid, ownerUser, undefined, "produtos"),
+          countBy(cServicos, uid, ownerUser, undefined, "servicos"),
+          countBy(cLeads, uid, ownerUser, undefined, "leads"),
+          countBy(cDemandas, uid, ownerUser, undefined, "demandas"),
+          countBy(cFavoritos, uid, ownerUser, undefined, "favoritos"),
+          countBy(cPropostas, uid, ownerUser, undefined, "propostas"),
+          countBy(cPedidos, uid, ownerUser, undefined, "pedidos"),
+          countBy(cSugestoes, uid, ownerUser, undefined, "sugestoes"),
+          countBy(cAval, uid, ["avaliadoId", ...ownerUser], undefined, "avaliacoes"),
+        ]);
 
       const [notificacoes, mensagens] = await Promise.all([
-        robustUnreadOrTotal(
-          cNotifs[0],
-          uid,
-          USER_EQ_FIELDS_NOTIFS,
-          USER_ARRAY_FIELDS,
-        ),
-        robustUnreadOrTotal(
-          cMsgs[0],
-          uid,
-          USER_EQ_FIELDS_MSGS,
-          USER_ARRAY_FIELDS,
-        ),
+        robustUnreadOrTotal(cNotifs[0], uid, USER_EQ_FIELDS_NOTIFS, USER_ARRAY_FIELDS),
+        robustUnreadOrTotal(cMsgs[0], uid, USER_EQ_FIELDS_MSGS, USER_ARRAY_FIELDS),
       ]);
 
       const oppOwnerFields = ["supplierId", "usuarioId", "userId"];
       const [oppSent, oppViewed, oppUnlocked] = await Promise.all([
-        countBy(
-          cOpps,
-          uid,
-          oppOwnerFields,
-          (b) => query(b, where("status", "==", "sent")),
-          "opp.sent",
-        ),
-        countBy(
-          cOpps,
-          uid,
-          oppOwnerFields,
-          (b) => query(b, where("status", "==", "viewed")),
-          "opp.viewed",
-        ),
-        countBy(
-          cOpps,
-          uid,
-          oppOwnerFields,
-          (b) => query(b, where("status", "==", "unlocked")),
-          "opp.unlocked",
-        ),
+        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "sent")), "opp.sent"),
+        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "viewed")), "opp.viewed"),
+        countBy(cOpps, uid, oppOwnerFields, (b) => query(b, where("status", "==", "unlocked")), "opp.unlocked"),
       ]);
 
       setMetrics({
@@ -399,6 +310,136 @@ export default function PainelUnificado() {
     return "U";
   }, [nome, user?.email]);
 
+ /** ===== Registro dos passos do TOUR (grupo: painel, order: 1) ===== */
+useEffect(() => {
+  const steps = [
+    {
+      id: "painel-welcome",
+      target: "[data-tour='painel-welcome']",
+      title: "Seu Painel",
+      content: "Aqui você acompanha tudo: oportunidades, mensagens, notificações e seus cadastros.",
+      placement: "bottom",
+    },
+    {
+      id: "painel-quick-links",
+      target: "[data-tour='painel-quick-links']",
+      title: "Acesso rápido",
+      content: "Atalhos úteis para navegar: Oportunidades, Notificações e Serviços.",
+      placement: "bottom",
+    },
+    {
+      id: "painel-metrics",
+      target: "[data-tour='painel-metrics']",
+      title: "Indicadores",
+      content: "Resumo das suas métricas. Vermelho destaca itens que pedem sua atenção (ex.: novas mensagens).",
+      placement: "left",
+    },
+    {
+      id: "tile-oportunidades",
+      target: "[data-tour='tile-oportunidades']",
+      title: "Demandas recebidas",
+      content: "As demandas que chegaram até você. Desbloqueie e inicie o atendimento.",
+      placement: "top",
+    },
+    {
+      id: "tile-minhas-demandas",
+      target: "[data-tour='tile-minhas-demandas']",
+      title: "Minhas Demandas",
+      content: "Suas demandas publicadas. Edite status, arquivos e visibilidade.",
+      placement: "top",
+    },
+    {
+      id: "tile-produtos",
+      target: "[data-tour='tile-produtos']",
+      title: "Produtos & Máquinas",
+      content: "Gerencie suas publicações de produtos e máquinas na vitrine.",
+      placement: "top",
+    },
+    {
+      id: "tile-servicos",
+      target: "[data-tour='tile-servicos']",
+      title: "Meus Serviços",
+      content: "Cadastre e edite serviços oferecidos (instalações, manutenção, etc.).",
+      placement: "top",
+    },
+    {
+      id: "tile-leads",
+      target: "[data-tour='tile-leads']",
+      title: "Contatos Interessados",
+      content: "Clientes que demonstraram interesse nas suas ofertas. Converta em negócio.",
+      placement: "top",
+    },
+    {
+      id: "tile-mensagens",
+      target: "[data-tour='tile-mensagens']",
+      title: "Mensagens",
+      content: "Converse direto com clientes. As não lidas aparecem primeiro no contador.",
+      placement: "top",
+    },
+    {
+      id: "tile-notificacoes",
+      target: "[data-tour='tile-notificacoes']",
+      title: "Notificações",
+      content: "Avisos sobre propostas, desbloqueios e interações importantes.",
+      placement: "top",
+    },
+    {
+      id: "tile-propostas",
+      target: "[data-tour='tile-propostas']",
+      title: "Minhas Propostas",
+      content: "Acompanhe propostas enviadas/recebidas e seus respectivos status.",
+      placement: "top",
+    },
+    {
+      id: "tile-sugestoes",
+      target: "[data-tour='tile-sugestoes']",
+      title: "Sugestões",
+      content: "Mande ideias. Usamos esse canal para priorizar melhorias na plataforma.",
+      placement: "top",
+    },
+    {
+      id: "tile-perfil",
+      target: "[data-tour='tile-perfil']",
+      title: "Meu Perfil",
+      content: "Atualize logo, contatos, cidades e categorias para aparecer melhor nas buscas.",
+      placement: "top",
+    },
+    {
+      id: "tile-ajuda",
+      target: "[data-tour='tile-ajuda']",
+      title: "Central de Ajuda",
+      content: "FAQ, suporte e tickets. Se precisar, estamos por aqui.",
+      placement: "top",
+    },
+    {
+      id: "tile-financeiro",
+      target: "[data-tour='tile-financeiro']",
+      title: "Financeiro",
+      content: "Área para faturas e pagamentos (em breve).",
+      placement: "top",
+    },
+    {
+      id: "tile-sair",
+      target: "[data-tour='tile-sair']",
+      title: "Sair",
+      content: "Encerra sua sessão com segurança.",
+      placement: "left",
+    },
+  ];
+
+  // pequeno atraso: garante que o OnboardingTour já está escutando o evento
+  const t = setTimeout(() => {
+    window.dispatchEvent(
+      new CustomEvent("pedraum:tour-register", {
+        detail: { group: "painel", order: 1, steps },
+      }),
+    );
+  }, 500);
+
+  return () => clearTimeout(t);
+}, []);
+
+
   // ===== Loader enquanto verifica auth =====
   if (authChecking) {
     return (
@@ -407,18 +448,10 @@ export default function PainelUnificado() {
           minHeight: "100vh",
           display: "grid",
           placeItems: "center",
-          background:
-            "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
+          background: "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
           <div
             className="animate-spin"
             style={{
@@ -429,9 +462,7 @@ export default function PainelUnificado() {
               borderRadius: "999px",
             }}
           />
-          <span style={{ color: "#64748b", fontWeight: 700 }}>
-            Carregando seu painel…
-          </span>
+          <span style={{ color: "#64748b", fontWeight: 700 }}>Carregando seu painel…</span>
         </div>
       </div>
     );
@@ -442,8 +473,7 @@ export default function PainelUnificado() {
     <main
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
+        background: "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -462,12 +492,8 @@ export default function PainelUnificado() {
       >
         {/* Cabeçalho */}
         <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 18,
-            marginBottom: 24,
-          }}
+          data-tour="painel-welcome"
+          style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 24 }}
         >
           <div
             style={{
@@ -502,46 +528,25 @@ export default function PainelUnificado() {
                 <img
                   src={user.photoURL}
                   alt={nome || user?.email || "Usuário"}
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                    borderRadius: "50%",
-                  }}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
                 />
               ) : (
-                initials
+                (nome ? nome.trim().charAt(0).toUpperCase() : initials)
               )}
             </div>
 
             <div style={{ flex: 1, minWidth: 240 }}>
-              <div
-                style={{
-                  fontWeight: 800,
-                  fontSize: "1.65rem",
-                  color: "#023047",
-                  marginBottom: 2,
-                }}
-              >
+              <div style={{ fontWeight: 800, fontSize: "1.65rem", color: "#023047", marginBottom: 2 }}>
                 Bem-vindo{nome ? `, ${nome}` : ""}!
               </div>
-              <div style={{ fontSize: "1.01rem", color: "#6b7680" }}>
-                {user?.email}
-              </div>
+              <div style={{ fontSize: "1.01rem", color: "#6b7680" }}>{user?.email}</div>
 
               {/* Acesso rápido */}
               <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  marginTop: 14,
-                  flexWrap: "wrap",
-                }}
+                data-tour="painel-quick-links"
+                style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}
               >
-                <QuickLink
-                  href="/dashboard/oportunidades"
-                  label="Ver Oportunidades"
-                />
+                <QuickLink href="/dashboard/oportunidades" label="Ver Oportunidades" />
                 <QuickLink href="/notificacoes" label="Notificações" />
                 <QuickLink href="/meus-servicos" label="Meus Serviços" />
               </div>
@@ -549,57 +554,16 @@ export default function PainelUnificado() {
 
             {/* Métricas rápidas */}
             <div
-              style={{
-                display: "flex",
-                gap: 11,
-                flexWrap: "wrap",
-                justifyContent: "flex-end",
-              }}
+              data-tour="painel-metrics"
+              style={{ display: "flex", gap: 11, flexWrap: "wrap", justifyContent: "flex-end" }}
             >
-              <MetricBadge
-                icon={<Target size={17} />}
-                value={loadingMetrics ? "..." : metrics.oportunidades}
-                label="oportunidades"
-                color="#2563eb"
-              />
-              <MetricBadge
-                icon={<ClipboardList size={15} />}
-                value={loadingMetrics ? "..." : metrics.emAtendimento}
-                label="em atendimento"
-                color="#059669"
-              />
-              <MetricBadge
-                icon={<Layers size={17} />}
-                value={
-                  loadingMetrics ? "..." : metrics.produtos + metrics.maquinas
-                }
-                label="produtos"
-                color="#FB8500"
-              />
-              <MetricBadge
-                icon={<Briefcase size={15} />}
-                value={loadingMetrics ? "..." : metrics.servicos}
-                label="serviços"
-                color="#219ebc"
-              />
-              <MetricBadge
-                icon={<Inbox size={15} />}
-                value={loadingMetrics ? "..." : metrics.leads}
-                label="contatos"
-                color="#FB8500"
-              />
-              <MetricBadge
-                icon={<MessageCircle size={15} />}
-                value={loadingMetrics ? "..." : metrics.mensagens}
-                label="mensagens"
-                color="#2563eb"
-              />
-              <MetricBadge
-                icon={<Bell size={15} />}
-                value={loadingMetrics ? "..." : metrics.notificacoes}
-                label="notificações"
-                color="#FB8500"
-              />
+              <MetricBadge icon={<Target size={17} />} value={loadingMetrics ? "..." : metrics.oportunidades} label="oportunidades" color="#2563eb" />
+              <MetricBadge icon={<ClipboardList size={15} />} value={loadingMetrics ? "..." : metrics.emAtendimento} label="em atendimento" color="#059669" />
+              <MetricBadge icon={<Layers size={17} />} value={loadingMetrics ? "..." : metrics.produtos + metrics.maquinas} label="produtos" color="#FB8500" />
+              <MetricBadge icon={<Briefcase size={15} />} value={loadingMetrics ? "..." : metrics.servicos} label="serviços" color="#219ebc" />
+              <MetricBadge icon={<Inbox size={15} />} value={loadingMetrics ? "..." : metrics.leads} label="contatos" color="#FB8500" />
+              <MetricBadge icon={<MessageCircle size={15} />} value={loadingMetrics ? "..." : metrics.mensagens} label="mensagens" color="#2563eb" />
+              <MetricBadge icon={<Bell size={15} />} value={loadingMetrics ? "..." : metrics.notificacoes} label="notificações" color="#FB8500" />
             </div>
           </div>
         </div>
@@ -612,154 +576,170 @@ export default function PainelUnificado() {
             gap: 28,
           }}
         >
-          <Tile
-            href="/dashboard/oportunidades"
-            color="#2563eb"
-            bg="#f3f7ff"
-            icon={<Target size={36} />}
-            title="Demandas"
-            desc="Novas demandas enviadas para você. Desbloqueie e atenda!"
-            badge={loadingMetrics ? undefined : metrics.oportunidades}
-          />
-          <Tile
-            href="/minhas-demandas"
-            color="#219ebc"
-            bg="#e0f7fa"
-            icon={<ClipboardList size={36} />}
-            title="Minhas Demandas"
-            desc="Gerencie suas Demandas publicadas."
-            badge={loadingMetrics ? undefined : metrics.demandas}
-          />
-          <Tile
-            href="/meus-produtos"
-            color="#FB8500"
-            bg="#fff7ed"
-            icon={<Layers size={36} />}
-            title="Meus Produtos/Máquinas"
-            desc="Gerencie seus produtos e máquinas."
-            badge={
-              loadingMetrics ? undefined : metrics.produtos + metrics.maquinas
-            }
-          />
-          <Tile
-            href="/meus-servicos"
-            color="#219ebc"
-            bg="#e0f7fa"
-            icon={<Briefcase size={36} />}
-            title="Meus Serviços"
-            desc="Gerencie serviços e soluções oferecidas."
-            badge={loadingMetrics ? undefined : metrics.servicos}
-          />
-          <Tile
-            href="/meus-leads"
-            color="#FB8500"
-            bg="#fff7ed"
-            icon={<Inbox size={36} />}
-            title="Contatos Interessados"
-            desc="Veja clientes interessados nas suas ofertas."
-            badge={loadingMetrics ? undefined : metrics.leads}
-          />
-          <Tile
-            href="/mensagens"
-            color="#2563eb"
-            bg="#f3f7ff"
-            icon={<MessageCircle size={36} />}
-            title="Mensagens"
-            desc="Converse com clientes e negocie direto."
-            badge={loadingMetrics ? undefined : metrics.mensagens}
-          />
-          <Tile
-            href="/notificacoes"
-            color="#FB8500"
-            bg="#fff7ed"
-            icon={<Bell size={36} />}
-            title="Notificações"
-            desc="Mostra não lidas primeiro; cai para total."
-            badge={loadingMetrics ? undefined : metrics.notificacoes}
-          />
-          <Tile
-            href="/minhas-propostas"
-            color="#2563eb"
-            bg="#f3f7ff"
-            icon={<ClipboardList size={36} />}
-            title="Minhas Propostas"
-            desc="Acompanhe propostas enviadas e recebidas."
-            badge={loadingMetrics ? undefined : metrics.propostas}
-          />
-          <Tile
-            href="/sugestoes"
-            color="#FB8500"
-            bg="#fff7ed"
-            icon={<Lightbulb size={36} />}
-            title="Sugestões"
-            desc="Envie ideias para melhorar a plataforma."
-            badge={loadingMetrics ? undefined : metrics.sugestoes}
-          />
+          <div data-tour="tile-oportunidades">
+            <div data-tour="tile-oportunidades" className="painel-oportunidades"></div>
+            <Tile
+              href="/dashboard/oportunidades"
+              color="#2563eb"
+              bg="#f3f7ff"
+              icon={<Target size={36} />}
+              title="Demandas"
+              desc="Novas demandas enviadas para você. Desbloqueie e atenda!"
+              badge={loadingMetrics ? undefined : metrics.oportunidades}
+            />
+          </div>
+
+          <div data-tour="tile-minhas-demandas">
+            <div data-tour="tile-minhas-demandas" className="painel-minhas-demandas"></div>
+            <Tile
+              href="/minhas-demandas"
+              color="#219ebc"
+              bg="#e0f7fa"
+              icon={<ClipboardList size={36} />}
+              title="Minhas Demandas"
+              desc="Gerencie suas Demandas publicadas."
+              badge={loadingMetrics ? undefined : metrics.demandas}
+            />
+          </div>
+ <div data-tour="tile-perfil">
+  <div data-tour="tile-perfil"></div>
+            <Tile href="/perfil" color="#2563eb" bg="#f3f7ff" icon={<Users size={36} />} title="Meu Perfil" desc="Gerencie seus dados pessoais e de empresa." />
+          </div>
+          <div data-tour="tile-produtos">
+            <div data-tour="tile-produtos" className="painel-produtos"></div>
+            <Tile
+              href="/meus-produtos"
+              color="#FB8500"
+              bg="#fff7ed"
+              icon={<Layers size={36} />}
+              title="Meus Produtos/Máquinas"
+              desc="Gerencie seus produtos e máquinas."
+              badge={loadingMetrics ? undefined : metrics.produtos + metrics.maquinas}
+            />
+          </div>
+
+          <div data-tour="tile-servicos">
+            <div data-tour="tile-servicos" className="painel-servicos"></div>
+            <Tile
+              href="/meus-servicos"
+              color="#219ebc"
+              bg="#e0f7fa"
+              icon={<Briefcase size={36} />}
+              title="Meus Serviços"
+              desc="Gerencie serviços e soluções oferecidas."
+              badge={loadingMetrics ? undefined : metrics.servicos}
+            />
+          </div>
+
+          <div data-tour="tile-leads">
+            
+            <div data-tour="tile-leads"></div>
+            <Tile
+              href="/meus-leads"
+              color="#FB8500"
+              bg="#fff7ed"
+              icon={<Inbox size={36} />}
+              title="Contatos Interessados"
+              desc="Veja clientes interessados nas suas ofertas."
+              badge={loadingMetrics ? undefined : metrics.leads}
+            />
+          </div>
+
+          <div data-tour="tile-mensagens">
+            <Tile
+              href="/mensagens"
+              color="#2563eb"
+              bg="#f3f7ff"
+              icon={<MessageCircle size={36} />}
+              title="Mensagens"
+              desc="Converse com clientes e negocie direto."
+              badge={loadingMetrics ? undefined : metrics.mensagens}
+            />
+          </div>
+
+          <div data-tour="tile-notificacoes">
+            <div data-tour="tile-notificacoes" className="painel-notificacoes"></div>
+            <Tile
+              href="/notificacoes"
+              color="#FB8500"
+              bg="#fff7ed"
+              icon={<Bell size={36} />}
+              title="Notificações"
+              desc="Mostra não lidas primeiro; cai para total."
+              badge={loadingMetrics ? undefined : metrics.notificacoes}
+            />
+          </div>
+
+          <div data-tour="tile-propostas">
+            <Tile
+              href="/minhas-propostas"
+              color="#2563eb"
+              bg="#f3f7ff"
+              icon={<ClipboardList size={36} />}
+              title="Minhas Propostas"
+              desc="Acompanhe propostas enviadas e recebidas."
+              badge={loadingMetrics ? undefined : metrics.propostas}
+            />
+          </div>
+
+          <div data-tour="tile-sugestoes">
+            <Tile
+              href="/sugestoes"
+              color="#FB8500"
+              bg="#fff7ed"
+              icon={<Lightbulb size={36} />}
+              title="Sugestões"
+              desc="Envie ideias para melhorar a plataforma."
+              badge={loadingMetrics ? undefined : metrics.sugestoes}
+            />
+          </div>
 
           {/* informativos */}
-          <Tile
-            href="/perfil"
-            color="#2563eb"
-            bg="#f3f7ff"
-            icon={<Users size={36} />}
-            title="Meu Perfil"
-            desc="Gerencie seus dados pessoais e de empresa."
-          />
-          <Tile
-            href="/ajuda"
-            color="#059669"
-            bg="#ecfdf5"
-            icon={<LifeBuoy size={36} />}
-            title="Central de Ajuda"
-            desc="FAQ, suporte e abertura de tickets."
-          />
-          <Tile
-            href="/financeiro"
-            color="#6d28d9"
-            bg="#f9fafb"
-            icon={<Wallet2 size={36} />}
-            title="Financeiro"
-            desc="Pagamentos e notas (em breve)."
-          />
+          <div >
+            <Tile href="/perfil" color="#2563eb" bg="#f3f7ff" icon={<Users size={36} />} title="Meu Perfil" desc="Gerencie seus dados pessoais e de empresa." />
+          </div>
+
+          <div data-tour="tile-ajuda">
+            <Tile href="/ajuda" color="#059669" bg="#ecfdf5" icon={<LifeBuoy size={36} />} title="Central de Ajuda" desc="FAQ, suporte e abertura de tickets." />
+          </div>
+
+          <div data-tour="tile-financeiro">
+            <Tile href="/financeiro" color="#6d28d9" bg="#f9fafb" icon={<Wallet2 size={36} />} title="Financeiro" desc="Pagamentos e notas (em breve)." />
+          </div>
 
           {/* Sair */}
-          <button
-            onClick={handleLogout}
-            disabled={loadingLogout}
-            style={{
-              background: "#fff3ea",
-              border: "1.5px solid #ffb680",
-              borderRadius: 22,
-              boxShadow: "0 8px 36px #0001",
-              padding: "32px 8px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 10,
-              color: "#E85D04",
-              fontWeight: 700,
-              fontSize: "1.05rem",
-              minHeight: 185,
-              position: "relative",
-              cursor: loadingLogout ? "not-allowed" : "pointer",
-            }}
-            className="group hover:shadow-xl hover:scale-[1.03] transition"
-            aria-label="Sair da conta"
-            title="Encerrar sessão"
-          >
-            <LogOut
-              size={36}
-              className="mb-2 group-hover:scale-110 transition-transform duration-200"
-            />
-            <span style={{ color: "#E85D04", fontWeight: 800, fontSize: 19 }}>
-              {loadingLogout ? "Saindo..." : "Sair"}
-            </span>
-            <span
-              style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}
+          <div data-tour="tile-sair">
+            <button
+              onClick={handleLogout}
+              disabled={loadingLogout}
+              style={{
+                background: "#fff3ea",
+                border: "1.5px solid #ffb680",
+                borderRadius: 22,
+                boxShadow: "0 8px 36px #0001",
+                padding: "32px 8px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 10,
+                color: "#E85D04",
+                fontWeight: 700,
+                fontSize: "1.05rem",
+                minHeight: 185,
+                position: "relative",
+                cursor: loadingLogout ? "not-allowed" : "pointer",
+              }}
+              className="group hover:shadow-xl hover:scale-[1.03] transition"
+              aria-label="Sair da conta"
+              title="Encerrar sessão"
             >
-              Encerrar sessão na plataforma.
-            </span>
-          </button>
+              <LogOut size={36} className="mb-2 group-hover:scale-110 transition-transform duration-200" />
+              <span style={{ color: "#E85D04", fontWeight: 800, fontSize: 19 }}>
+                {loadingLogout ? "Saindo..." : "Sair"}
+              </span>
+              <span style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}>Encerrar sessão na plataforma.</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -808,32 +788,15 @@ function MetricBadge({
         boxShadow: "0 2px 6px #0000000f",
       }}
     >
-      <span style={{ color, display: "flex", alignItems: "center" }}>
-        {icon}
-      </span>
+      <span style={{ color, display: "flex", alignItems: "center" }}>{icon}</span>
       <span>{value}</span>
-      <span
-        style={{
-          marginLeft: 2,
-          color: "#5a7b8b",
-          fontWeight: 500,
-          fontSize: ".91em",
-        }}
-      >
-        {label}
-      </span>
+      <span style={{ marginLeft: 2, color: "#5a7b8b", fontWeight: 500, fontSize: ".91em" }}>{label}</span>
     </div>
   );
 }
 
 /** Popover de ajuda (hover + clique). */
-function InfoBubble({
-  text,
-  color = "#023047",
-}: {
-  text: string;
-  color?: string;
-}) {
+function InfoBubble({ text, color = "#023047" }: { text: string; color?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div
@@ -876,26 +839,9 @@ function InfoBubble({
             color: "#334155",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 4,
-            }}
-          >
-            <strong style={{ color: "#023047", fontSize: ".98rem" }}>
-              O que é isto?
-            </strong>
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Fechar"
-              style={{
-                background: "transparent",
-                border: 0,
-                cursor: "pointer",
-              }}
-            >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <strong style={{ color: "#023047", fontSize: ".98rem" }}>O que é isto?</strong>
+            <button onClick={() => setOpen(false)} aria-label="Fechar" style={{ background: "transparent", border: 0, cursor: "pointer" }}>
               <X size={16} />
             </button>
           </div>
@@ -945,15 +891,7 @@ function Tile({
         }}
         className="hover:shadow-xl hover:scale-[1.035] transition group"
       >
-        <div
-          style={{
-            color,
-            marginBottom: 12,
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
+        <div style={{ color: color, marginBottom: 12, position: "relative", display: "flex", alignItems: "center" }}>
           {icon}
           {showBadge && (
             <span
@@ -988,15 +926,7 @@ function Tile({
         >
           {title}
         </span>
-        <span
-          style={{
-            color: "#64748b",
-            fontSize: "1.02rem",
-            textAlign: "center",
-            marginTop: 1,
-            lineHeight: 1.35,
-          }}
-        >
+        <span style={{ color: "#64748b", fontSize: "1.02rem", textAlign: "center", marginTop: 1, lineHeight: 1.35 }}>
           {desc}
         </span>
 

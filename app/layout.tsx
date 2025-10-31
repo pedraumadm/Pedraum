@@ -5,10 +5,9 @@
 import "@/styles/globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import OnboardingTour from "@/components/OnboardingTour";
 import Header from "@/components/Header";
-import { FontProvider } from "@/components/FontProvider";
 import Footer from "@/components/Footer";
-import { SessionProvider } from "next-auth/react";
 import WhatsappFloatButton from "@/components/WhatsappFloatButton";
 
 const inter = Inter({
@@ -58,13 +57,14 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <head />
-      <body
-        className={`${inter.className} bg-[#F6F9FA] text-[#023047] antialiased`}
-      >
+      <body className={`${inter.className} bg-[#F6F9FA] text-[#023047] antialiased`}>
         <Header />
         <main className="min-h-screen">{children}</main>
         <WhatsappFloatButton />
         <Footer />
+
+        {/* Tour guiado – fica no final para garantir que os alvos já estejam no DOM */}
+        <OnboardingTour />
       </body>
     </html>
   );

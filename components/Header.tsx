@@ -1,19 +1,9 @@
 // components/Header.tsx
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import {
-  Menu,
-  X,
-  LogIn,
-  User,
-  Package,
-  ClipboardList,
-  FileText,
-  ChevronDown,
-  Info,
-} from "lucide-react";
+import { Menu, X, LogIn, User, Package, ClipboardList, ChevronDown, Info } from "lucide-react";
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -21,7 +11,16 @@ type NavItem = {
   href: string;
   label: string;
   desc: string;
-  icon: React.ReactNode; // evita erro do namespace JSX
+  icon: React.ReactNode;
+  className: string; // para mapear no tour
+};
+
+type TourStep = {
+  id: string;
+  selector: string; // CSS selector do alvo
+  title: string;
+  content: string;
+  placement?: "top" | "bottom" | "left" | "right" | "auto";
 };
 
 export default function Header() {
@@ -29,9 +28,8 @@ export default function Header() {
   const [painelHref, setPainelHref] = useState("/auth/login");
   const [isAuthed, setIsAuthed] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false); // evita flash no desktop
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // ESC fecha o menu
   const onKeydown = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") setOpen(false);
   }, []);
@@ -40,7 +38,6 @@ export default function Header() {
     return () => document.removeEventListener("keydown", onKeydown);
   }, [onKeydown]);
 
-  // Rota do painel conforme tipo de usuário
   useEffect(() => {
     const off = auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -53,8 +50,7 @@ export default function Header() {
       setIsAuthed(true);
       try {
         const snap = await getDoc(doc(db, "usuarios", user.uid));
-        const tipo =
-          (snap.exists() ? snap.data()?.tipo : "usuario") || "usuario";
+        const tipo = (snap.exists() ? snap.data()?.tipo : "usuario") || "usuario";
         setIsAdmin(tipo === "admin");
         setPainelHref(tipo === "admin" ? "/admin" : "/painel");
       } catch {
@@ -67,31 +63,107 @@ export default function Header() {
     return () => off();
   }, []);
 
-  const links: NavItem[] = [
-    {
-      href: "/vitrine",
-      label: "Produtos e Serviços",
-      desc: "Explore e filtre soluções disponíveis para compra/contratação.",
-      icon: <Package size={16} />,
-    },
-    {
-      href: "/demandas",
-      label: "Demandas",
-      desc: "Veja pedidos de compradores e feche negócios.",
-      icon: <ClipboardList size={16} />,
-    },
+  const links: NavItem[] = useMemo(
+    () => [
+      {
+        href: "/vitrine",
+        label: "Produtos e Serviços",
+        desc: "Explore e filtre soluções disponíveis para compra/contratação.",
+        icon: <Package size={16} />,
+        className: "nav-produtos",
+      },
+      {
+        href: "/demandas",
+        label: "Demandas",
+        desc: "Veja pedidos de compradores e feche negócios.",
+        icon: <ClipboardList size={16} />,
+        className: "nav-demandas",
+      },
+      {
+        href: painelHref,
+        label: "Painel",
+        desc: isAuthed
+          ? isAdmin
+            ? "Painel do Administrador."
+            : "Gerencie seus cadastros e leads."
+          : "Entre para acessar seu painel.",
+        icon: <User size={16} />,
+        className: "nav-painel",
+      },
+    ],
+    [isAuthed, isAdmin, painelHref]
+  );
 
-    {
-      href: painelHref,
-      label: "Painel",
-      desc: isAuthed
-        ? isAdmin
-          ? "Painel do Administrador."
-          : "Gerencie seus cadastros e leads."
-        : "Entre para acessar seu painel.",
-      icon: <User size={16} />,
-    },
-  ];
+  /** ======== Registro de passos do tour (HEADER é o primeiro grupo) ======== */
+  useEffect(() => {
+    // monta os passos dinamicamente conforme estado de auth e layout
+    const steps: TourStep[] = [
+      {
+        id: "header-logo",
+        selector: "[data-tour='header-logo']",
+        title: "Pedraum Brasil",
+        content: "Clique no logo para voltar ao início a qualquer momento.",
+        placement: "bottom",
+      },
+      {
+        id: "header-produtos",
+        selector: "[data-tour='header-nav-produtos']",
+        title: "Vitrine: Produtos e Serviços",
+        content: "Encontre máquinas, peças e serviços. Use filtros e entre em contato com fornecedores.",
+        placement: "bottom",
+      },
+      {
+        id: "header-demandas",
+        selector: "[data-tour='header-nav-demandas']",
+        title: "Feed de Demandas",
+        content: "Veja pedidos de compradores. Se você vende, pode oferecer sua solução e fechar negócio.",
+        placement: "bottom",
+      },
+      {
+        id: "header-painel",
+        selector: "[data-tour='header-nav-painel']",
+        title: isAuthed ? (isAdmin ? "Painel Admin" : "Seu Painel") : "Acesso ao Painel",
+        content: isAuthed
+          ? "Gerencie suas publicações, contatos e notificações."
+          : "Entre para acessar seu painel e começar a publicar.",
+        placement: "bottom",
+      },
+      !isAuthed
+        ? {
+            id: "header-register",
+            selector: "[data-tour='header-register']",
+            title: "Criar Conta",
+            content: "Leva 1 minuto. Com uma conta você publica, responde demandas e fala com compradores.",
+            placement: "left",
+          }
+        : {
+            id: "header-login",
+            selector: "[data-tour='header-login']",
+            title: "Seu Perfil",
+            content: "Acesse e personalize seu perfil: categorias, contato e portfólio.",
+            placement: "left",
+          },
+      {
+        id: "header-hamburger",
+        selector: "[data-tour='header-hamburger']",
+        title: "Menu Mobile",
+        content: "No celular, use este menu para navegar rapidamente por toda a plataforma.",
+        placement: "left",
+      },
+    ].filter(Boolean) as TourStep[];
+
+    // Emite o evento global para o orquestrador do tour ouvir e inserir estes passos como os primeiros
+    // Importante: este grupo tem ordem '0' para garantir que o Header aparece antes de qualquer outro.
+    window.dispatchEvent(
+      new CustomEvent("pedraum:tour-register", {
+        detail: {
+          group: "header",
+          order: 0,
+          steps,
+        },
+      })
+    );
+  }, [isAuthed, isAdmin]);
 
   return (
     <>
@@ -104,6 +176,7 @@ export default function Header() {
           position: "relative",
           zIndex: 50,
         }}
+        data-tour="header-root"
       >
         <nav
           style={{
@@ -117,8 +190,8 @@ export default function Header() {
           }}
           className="no-underline"
         >
-          {/* Logo */}
-          <Link href="/" aria-label="Início">
+          {/* Logo (alvo do tour) */}
+          <Link href="/" aria-label="Início" className="header-logo" data-tour="header-logo">
             <span
               style={{
                 display: "flex",
@@ -131,17 +204,13 @@ export default function Header() {
                 height: 56,
               }}
             >
-              <img
-                src="/logo-pedraum.png"
-                alt="Pedraum Brasil"
-                style={{ height: 44, marginRight: 10, display: "block" }}
-              />
+              <img src="/logo-pedraum.png" alt="Pedraum Brasil" style={{ height: 44, marginRight: 10, display: "block" }} />
             </span>
           </Link>
 
           {/* Menu Desktop */}
           <ul
-            className="menu-desktop"
+            className="menu-desktop header-nav"
             style={{
               display: "flex",
               gap: 28,
@@ -153,8 +222,19 @@ export default function Header() {
               justifyContent: "center",
             }}
           >
-            {links.map(({ href, label, icon, desc }) => (
-              <li key={href} style={{ position: "relative" }}>
+            {links.map(({ href, label, icon, desc, className }) => (
+              <li
+                key={href}
+                style={{ position: "relative" }}
+                className={className}
+                data-tour={
+                  label === "Produtos e Serviços"
+                    ? "header-nav-produtos"
+                    : label === "Demandas"
+                    ? "header-nav-demandas"
+                    : "header-nav-painel"
+                }
+              >
                 <Link href={href}>
                   <span style={linkDesktop}>
                     {label}
@@ -169,39 +249,25 @@ export default function Header() {
           </ul>
 
           {/* Ações (desktop + mobile) */}
-          <div
-            className="actions"
-            style={{ display: "flex", alignItems: "center", gap: 10 }}
-          >
-            {/* Ícone de Login/Perfil sempre visível no mobile (e também no desktop) */}
+          <div className="actions header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {/* Login/Perfil (alvo do tour: header-login) */}
             {isAuthed ? (
-              <Link
-                href="/perfil"
-                title="Meu Perfil"
-                className="login-mobile no-underline"
-              >
+              <Link href="/perfil" title="Meu Perfil" className="login-mobile no-underline header-login" data-tour="header-login">
                 <span style={{ color: "#219EBC", padding: 6, borderRadius: 9 }}>
                   <User size={24} strokeWidth={2.1} />
                 </span>
               </Link>
             ) : (
-              <Link
-                href="/auth/login"
-                title="Login"
-                className="login-mobile no-underline"
-              >
+              <Link href="/auth/login" title="Login" className="login-mobile no-underline header-login" data-tour="header-login">
                 <span style={{ color: "#FB8500", padding: 6, borderRadius: 9 }}>
                   <LogIn size={24} strokeWidth={2.1} />
                 </span>
               </Link>
             )}
 
-            {/* Botão Cadastrar (desktop) — só para não logados */}
+            {/* Botão Cadastrar (alvo: header-register) */}
             {authChecked && !isAuthed && (
-              <Link
-                href="/auth/register"
-                className="btn-register-desktop no-underline"
-              >
+              <Link href="/auth/register" className="btn-register-desktop no-underline header-register" data-tour="header-register">
                 <span
                   style={{
                     background: "#FB8500",
@@ -219,11 +285,12 @@ export default function Header() {
               </Link>
             )}
 
-            {/* Hambúrguer */}
+            {/* Hambúrguer (alvo: header-hamburger) */}
             <button
-              className="hamburger"
+              className="hamburger header-hamburger"
               onClick={() => setOpen(true)}
               aria-label="Abrir menu"
+              data-tour="header-hamburger"
             >
               <Menu size={30} />
             </button>
@@ -231,55 +298,26 @@ export default function Header() {
         </nav>
 
         {/* Overlay */}
-        <div
-          className="overlay"
-          onClick={() => setOpen(false)}
-          aria-hidden={!open}
-          style={{ display: open ? "block" : "none" }}
-        />
+        <div className="overlay" onClick={() => setOpen(false)} aria-hidden={!open} style={{ display: open ? "block" : "none" }} />
 
-        {/* Menu Mobile */}
-        <nav
-          className="menu-mobile no-underline"
-          style={{
-            right: open ? 0 : "-110vw",
-          }}
-        >
+        {/* Menu Mobile (alvo do tour: menu-mobile-drawer) */}
+        <nav className="menu-mobile no-underline menu-mobile-drawer" style={{ right: open ? 0 : "-110vw" }} data-tour="menu-mobile-drawer">
           <div className="mobile-head">
-            <button
-              onClick={() => setOpen(false)}
-              aria-label="Fechar menu"
-              className="close"
-            >
+            <button onClick={() => setOpen(false)} aria-label="Fechar menu" className="close">
               <X size={30} />
             </button>
 
-            <Link
-              href="/"
-              onClick={() => setOpen(false)}
-              className="logo-mobile"
-              aria-label="Início"
-            >
+            <Link href="/" onClick={() => setOpen(false)} className="logo-mobile" aria-label="Início">
               <img src="/logo-pedraum.png" alt="Pedraum Brasil" />
             </Link>
 
-            {/* Ícone de Login/Perfil também no topo do drawer */}
+            {/* Ícone Login/Perfil topo drawer */}
             {isAuthed ? (
-              <Link
-                href="/perfil"
-                onClick={() => setOpen(false)}
-                title="Meu Perfil"
-                className="icon-top"
-              >
+              <Link href="/perfil" onClick={() => setOpen(false)} title="Meu Perfil" className="icon-top">
                 <User size={22} />
               </Link>
             ) : (
-              <Link
-                href="/auth/login"
-                onClick={() => setOpen(false)}
-                title="Login"
-                className="icon-top"
-              >
+              <Link href="/auth/login" onClick={() => setOpen(false)} title="Login" className="icon-top">
                 <LogIn size={22} />
               </Link>
             )}
@@ -293,9 +331,7 @@ export default function Header() {
                     <span className="left">
                       {icon}
                       <span>{label}</span>
-                      {label === "Painel" && isAdmin && (
-                        <small className="badge">ADMIN</small>
-                      )}
+                      {label === "Painel" && isAdmin && <small className="badge">ADMIN</small>}
                     </span>
                     <ChevronDown size={18} className="chev" />
                   </span>
@@ -307,28 +343,16 @@ export default function Header() {
             {/* Ações rápidas no mobile */}
             {!isAuthed ? (
               <li className="quick-actions">
-                <Link
-                  href="/auth/login"
-                  onClick={() => setOpen(false)}
-                  className="btn-ghost"
-                >
+                <Link href="/auth/login" onClick={() => setOpen(false)} className="btn-ghost">
                   Entrar
                 </Link>
-                <Link
-                  href="/auth/register"
-                  onClick={() => setOpen(false)}
-                  className="btn-cta"
-                >
+                <Link href="/auth/register" onClick={() => setOpen(false)} className="btn-cta" data-tour="header-register">
                   Cadastrar
                 </Link>
               </li>
             ) : (
               <li className="quick-actions">
-                <Link
-                  href={painelHref}
-                  onClick={() => setOpen(false)}
-                  className="btn-cta"
-                >
+                <Link href={painelHref} onClick={() => setOpen(false)} className="btn-cta">
                   Ir para o Painel
                 </Link>
               </li>
@@ -339,13 +363,9 @@ export default function Header() {
 
       {/* ======= ESTILOS ======= */}
       <style>{`
-        /* Sem sublinhado */
         .no-underline a { text-decoration: none !important; }
-
-        /* Overlay */
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.28); z-index: 90; }
 
-        /* Tooltip (desktop) */
         .hint-wrap { margin-left: 6px; display: inline-flex; align-items: center; position: relative; color: #9ca3af; cursor: help; }
         .hint-wrap:hover { color: #64748b; }
         .hint-bubble {
@@ -358,7 +378,6 @@ export default function Header() {
         }
         .hint-wrap:hover .hint-bubble { visibility: visible; opacity: 1; }
 
-        /* Menu mobile drawer */
         .menu-mobile {
           position: fixed; top: 0; right: 0; width: min(84vw, 360px); height: 100vh; background: #fff;
           z-index: 100; box-shadow: -10px 0 36px rgba(0,0,0,.18);
@@ -395,29 +414,21 @@ export default function Header() {
         .btn-cta { background: #FB8500; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.08); grid-column: span 2; }
         .btn-ghost { background: #f3f4f6; color: #023047; }
 
-        /* Hambúrguer e visibilidade mobile */
         .hamburger {
           background: transparent; border: none; color: #023047; padding: 6px; margin-left: 6px; cursor: pointer; border-radius: 10px;
         }
         .hamburger:hover { background: #f3f4f6; }
 
-        /* Desktop vs Mobile */
         @media (max-width: 980px) {
           .menu-desktop { display: none !important; }
-          /* No mobile, mostramos login e hambúrguer; escondemos o botão "Cadastrar" grande */
           .btn-register-desktop { display: none !important; }
           .login-mobile { display: inline-flex !important; }
-        }
-        @media (min-width: 981px) {
-          /* No desktop, o ícone login-mobile também aparece (não esconde) para reforçar,
-             mas se quiser ocultar, basta setar: .login-mobile { display:none !important; } */
         }
       `}</style>
     </>
   );
 }
 
-/* ===== estilos JS do link desktop ===== */
 const linkDesktop = {
   color: "#023047",
   fontWeight: 600,

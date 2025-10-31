@@ -1,27 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { db } from "@/firebaseConfig";
 import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 
-import HeroRevamp from "@/components/HeroRevamp"; // novo hero com banners
+import Hero from "@/components/Hero";
 import FeaturesSection from "@/components/FeaturesSection";
 import MachinesShowcase from "@/components/MachinesShowcase";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import DemandasShowcase from "@/components/DemandasShowcase";
 import SectionTransition from "@/components/SectionTransition";
 import NewsletterSection from "@/components/NewsletterSection";
-import BlogShowcase from "@/components/BlogShowcase";
-
-import HeroClassic from "@/components/HeroClassic";
 import HowItWorks from "@/components/HowItWorks";
-import CTAWide from "@/components/CTAWide";
-import StatsBar from "@/components/StatsBar";
 import SuppliersServices from "@/components/SuppliersServices";
-import Hero from "@/components/Hero";
 
-// Tipos...
 interface Machine {
   id: string;
   nome: string;
@@ -45,12 +37,12 @@ export default function HomePage() {
         const machinesQuery = query(
           collection(db, "machines"),
           orderBy("createdAt", "desc"),
-          limit(8),
+          limit(8)
         );
         const demandasQuery = query(
           collection(db, "demandas"),
           orderBy("createdAt", "desc"),
-          limit(6),
+          limit(6)
         );
         const [machinesSnapshot, demandasSnapshot] = await Promise.all([
           getDocs(machinesQuery),
@@ -60,14 +52,14 @@ export default function HomePage() {
         setMachines(
           machinesSnapshot.docs.map((doc) => ({
             id: doc.id,
-            ...doc.data(),
-          })) as Machine[],
+            ...(doc.data() as any),
+          })) as Machine[]
         );
         setDemandas(
           demandasSnapshot.docs.map((doc) => ({
             id: doc.id,
-            ...doc.data(),
-          })) as Demanda[],
+            ...(doc.data() as any),
+          })) as Demanda[]
         );
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -78,36 +70,39 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#e8f0ff] via-[#fdf7ee] to-[#e8eaff] font-inter">
-      {/* HERO com banners + CTA principal */}
+      {/* HERO com wrapper-alvo do tour */}
+      <div className="home-hero-section">
+        <Hero />
+        {/* IMPORTANTE: dentro do componente Hero, o botão principal precisa ter className="home-hero-cta" */}
+      </div>
 
-      <Hero />
-
-      {/* Seção de benefícios (mantendo a sua) */}
+      {/* Benefícios */}
       <div className="mt-20">
         <FeaturesSection />
       </div>
+
       {/* Como funciona (3 passos) */}
       <div className="mt-24">
         <HowItWorks />
       </div>
 
-      {/* Vitrine de demandas (prova de movimento) */}
-      <div className="mt-24">
+      {/* Demandas recentes (wrapper-alvo do tour) */}
+      <div className="mt-24 demandas-section">
         <DemandasShowcase />
       </div>
 
-      {/* Seção de fornecedores e serviços (clareza) */}
+      {/* Fornecedores e serviços */}
       <div className="mt-24">
         <SuppliersServices />
       </div>
 
-      {/* Vitrine de máquinas (manter no fim) */}
-      <div className="mt-24">
+      {/* Vitrine de máquinas (wrapper-alvo do tour) */}
+      <div className="mt-24 machines-section">
         <MachinesShowcase />
       </div>
 
-      {/* Depoimentos */}
-      <div className="mt-24 mb-24">
+      {/* Depoimentos (wrapper-alvo do tour) */}
+      <div className="mt-24 mb-24 testimonials-section">
         <TestimonialsSection />
       </div>
 

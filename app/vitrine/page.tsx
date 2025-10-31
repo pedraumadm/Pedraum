@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
 import Link from "next/link";
 import { Plus, Zap, Hammer } from "lucide-react";
 
-// ========= Utilidades =========
+declare global {
+  interface Window {
+    pedraumTour?: {
+      expose: (key: string, el: HTMLElement | null) => void;
+      start: (flow: string) => void;
+    };
+  }
+}
+
+/* ================= Utilidades ================= */
 function isNovo(createdAt?: any) {
   if (!createdAt?.seconds) return false;
   const dias = (Date.now() / 1000 - createdAt.seconds) / 86400;
@@ -18,21 +27,15 @@ function resumo(str: string = "", len = 90) {
 }
 function getDateFromTs(ts?: any): Date | null {
   if (!ts) return null;
-  // Firestore Timestamp
   if (typeof ts?.toDate === "function") return ts.toDate();
-  // seconds/nanoseconds
   if (typeof ts?.seconds === "number") return new Date(ts.seconds * 1000);
-  // Date ou string
   const d = new Date(ts);
   return isNaN(d.getTime()) ? null : d;
 }
 function isExpired(item: any): boolean {
   const now = new Date().getTime();
-  // 1) Se tiver expiraEm, usa
   const expiraEm = getDateFromTs(item.expiraEm);
   if (expiraEm) return now > expiraEm.getTime();
-
-  // 2) Senão, calcula por createdAt + 45 dias
   const created = getDateFromTs(item.createdAt);
   if (!created) return false;
   const plus45 = new Date(created);
@@ -40,7 +43,7 @@ function isExpired(item: any): boolean {
   return now > plus45.getTime();
 }
 
-// ========= Categorias (do PDF) =========
+/* ================= Categorias (do PDF) ================= */
 const categoriasPDF = [
   "Equipamentos de Perfuração e Demolição",
   "Equipamentos de Carregamento e Transporte",
@@ -58,17 +61,20 @@ const categoriasPDF = [
   "Outros",
 ];
 
-// ========= Cores do badge por tipo =========
+/* ================= Cores por tipo ================= */
 const badgeTipoCor: Record<string, string> = {
-  machines: "#3b82f6", // Máquinas
-  produtos: "#fb8500", // Produtos
-  services: "#219ebc", // Serviços
+  machines: "#3b82f6",
+  produtos: "#fb8500",
+  services: "#219ebc",
   default: "#64748b",
 };
 
 export default function VitrineCompleta() {
   const [itens, setItens] = useState<any[]>([]);
   const [carregando, setCarregando] = useState(true);
+
+  // ref do primeiro card ativo (para o tour apontar com precisão)
+  const firstCardRef = useRef<HTMLDivElement | null>(null);
 
   // Filtros
   const [tipo, setTipo] = useState("");
@@ -83,24 +89,23 @@ export default function VitrineCompleta() {
   const [estadosDisponiveis, setEstadosDisponiveis] = useState<string[]>([]);
   const [cidadesDisponiveis, setCidadesDisponiveis] = useState<string[]>([]);
 
-  // Buscar dados
+  /* ================= Buscar dados ================= */
   useEffect(() => {
     async function fetchData() {
       setCarregando(true);
       const all: any[] = [];
-      const cols = ["machines", "produtos", "services"];
+      const cols = ["machines", "produtos", "services"] as const;
 
       for (const colName of cols) {
         const snap = await getDocs(collection(db, colName));
-        snap.forEach((doc) => {
-          const data = doc.data();
-          all.push({ id: doc.id, ...data, tipo: colName });
+        snap.forEach((docu) => {
+          const data = docu.data();
+          all.push({ id: docu.id, ...data, tipo: colName });
         });
       }
 
       setItens(all);
 
-      // Estados únicos (de todos os itens)
       const estSet = new Set<string>();
       all.forEach((x) => x.estado && estSet.add(x.estado));
       setEstadosDisponiveis(Array.from(estSet).sort());
@@ -110,7 +115,7 @@ export default function VitrineCompleta() {
     fetchData();
   }, []);
 
-  // Cidades dependentes do estado escolhido
+  /* ================= Cidades dependentes ================= */
   useEffect(() => {
     if (!estado) {
       setCidadesDisponiveis([]);
@@ -122,35 +127,25 @@ export default function VitrineCompleta() {
       if (x.estado === estado && x.cidade) cidSet.add(x.cidade);
     });
     const cidades = Array.from(cidSet).sort((a, b) =>
-      a.localeCompare(b, "pt-BR"),
+      a.localeCompare(b, "pt-BR")
     );
     setCidadesDisponiveis(cidades);
-    // Se cidade atual não pertence mais ao estado selecionado, limpa
     if (cidade && !cidades.includes(cidade)) setCidade("");
-  }, [estado, itens]); // eslint-disable-line
+  }, [estado, itens]); // cidade é ajustada dentro
 
-  // Filtrar itens por filtros selecionados
+  /* ================= Filtragem ================= */
   const itensFiltrados = useMemo(() => {
     const texto = busca.trim().toLowerCase();
-
     return itens.filter((p) => {
-      // Tipo
       if (tipo && p.tipo !== tipo) return false;
-
-      // Categoria (usa apenas a do PDF no filtro; item.categoria deve bater com o texto)
       if (categoria && p.categoria !== categoria) return false;
-
-      // Estado e cidade
       if (estado && p.estado !== estado) return false;
       if (cidade && p.cidade !== cidade) return false;
-
-      // Preço
       if (precoMin && !(p.preco && Number(p.preco) >= Number(precoMin)))
         return false;
       if (precoMax && !(p.preco && Number(p.preco) <= Number(precoMax)))
         return false;
 
-      // Busca textual (nome/título/categoria/descrição)
       if (texto) {
         const alvo =
           (p.nome || "") +
@@ -162,20 +157,39 @@ export default function VitrineCompleta() {
           (p.descricao || "");
         if (!alvo.toLowerCase().includes(texto)) return false;
       }
-
       return true;
     });
   }, [itens, tipo, categoria, estado, cidade, precoMin, precoMax, busca]);
 
-  // Ordenar: ativos primeiro, expirados por último (mantém ordem natural dentro de cada grupo)
-  const ativos = itensFiltrados.filter((x) => !isExpired(x));
-  const expirados = itensFiltrados.filter((x) => isExpired(x));
-  const itensOrdenados = [...ativos, ...expirados];
+  /* ================= Ordenação: ativos primeiro ================= */
+  const ativos = useMemo(() => itensFiltrados.filter((x) => !isExpired(x)), [itensFiltrados]);
+  const expirados = useMemo(() => itensFiltrados.filter((x) => isExpired(x)), [itensFiltrados]);
+  const itensOrdenados = useMemo(() => [...ativos, ...expirados], [ativos, expirados]);
+
+  // Índice do primeiro card ATIVO (não expirado) para marcar no tour
+  const firstActiveIndex = useMemo(
+    () => itensOrdenados.findIndex((x) => !isExpired(x)),
+    [itensOrdenados]
+  );
+
+  /* ================= Integração leve com o orquestrador (opcional) ================= */
+  useEffect(() => {
+    // Expor o primeiro card quando existir
+    if (firstCardRef.current) {
+      window.pedraumTour?.expose?.("vitrine.card.first", firstCardRef.current);
+    }
+
+    // Iniciar tour via query param (opcional, não interfere no OnboardingTour)
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("tour") === "vitrine") {
+        window.pedraumTour?.start?.("vitrine");
+      }
+    }
+  }, [carregando, firstActiveIndex]);
 
   return (
-    <section
-      style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}
-    >
+    <section style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}>
       <h1
         style={{
           fontSize: "2.35rem",
@@ -191,6 +205,7 @@ export default function VitrineCompleta() {
       {/* Ações rápidas */}
       <div style={{ display: "flex", gap: 14, marginBottom: 24 }}>
         <Link
+          data-tour="vitrine.cta-novo-produto"
           href="/create-produto"
           className="hover:scale-[1.04] transition"
           style={{
@@ -199,7 +214,7 @@ export default function VitrineCompleta() {
             gap: 8,
             padding: "13px 34px",
             borderRadius: 17,
-            background: "#fb8500", // LARANJA (produto/máquina)
+            background: "#fb8500",
             color: "#fff",
             fontWeight: 800,
             fontSize: "1.13rem",
@@ -212,6 +227,7 @@ export default function VitrineCompleta() {
           <Plus size={21} /> Novo Produto
         </Link>
         <Link
+          data-tour="vitrine.cta-novo-servico"
           href="/create-service"
           className="hover:scale-[1.04] transition"
           style={{
@@ -220,7 +236,7 @@ export default function VitrineCompleta() {
             gap: 8,
             padding: "13px 34px",
             borderRadius: 17,
-            background: "#219ebc", // AZUL (serviço)
+            background: "#219ebc",
             color: "#fff",
             fontWeight: 800,
             fontSize: "1.13rem",
@@ -236,6 +252,7 @@ export default function VitrineCompleta() {
 
       {/* FILTROS */}
       <div
+        data-tour="vitrine.filtros"
         style={{
           display: "flex",
           gap: 10,
@@ -247,11 +264,7 @@ export default function VitrineCompleta() {
           marginBottom: 28,
         }}
       >
-        <select
-          className="filtro"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-        >
+        <select className="filtro" value={tipo} onChange={(e) => setTipo(e.target.value)}>
           <option value="">Todos</option>
           <option value="machines">Máquinas</option>
           <option value="produtos">Produtos</option>
@@ -259,6 +272,7 @@ export default function VitrineCompleta() {
         </select>
 
         <input
+          data-tour="vitrine.filtro-busca"
           className="filtro"
           placeholder="Busca por nome/categoria"
           value={busca}
@@ -267,6 +281,7 @@ export default function VitrineCompleta() {
         />
 
         <select
+          data-tour="vitrine.filtro-categoria"
           className="filtro"
           value={categoria}
           onChange={(e) => setCategoria(e.target.value)}
@@ -280,6 +295,7 @@ export default function VitrineCompleta() {
         </select>
 
         <select
+          data-tour="vitrine.filtro-estado"
           className="filtro"
           value={estado}
           onChange={(e) => setEstado(e.target.value)}
@@ -297,10 +313,7 @@ export default function VitrineCompleta() {
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
           disabled={!estado}
-          style={{
-            opacity: estado ? 1 : 0.6,
-            cursor: estado ? "pointer" : "not-allowed",
-          }}
+          style={{ opacity: estado ? 1 : 0.6, cursor: estado ? "pointer" : "not-allowed" }}
         >
           <option value="">{estado ? "Cidade" : "Selecione um estado"}</option>
           {cidadesDisponiveis.map((cid) => (
@@ -326,6 +339,7 @@ export default function VitrineCompleta() {
         />
 
         <button
+          data-tour="vitrine.filtro-limpar"
           className="filtro"
           type="button"
           style={{ background: "#f7f7fa", fontWeight: 600, color: "#fb8500" }}
@@ -346,6 +360,7 @@ export default function VitrineCompleta() {
       {/* SKELETON / EMPTY / GRID */}
       {carregando ? (
         <div
+          data-tour="vitrine.grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
@@ -378,10 +393,7 @@ export default function VitrineCompleta() {
             boxShadow: "0 4px 18px #0001",
           }}
         >
-          <Zap
-            size={32}
-            style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }}
-          />
+          <Zap size={32} style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }} />
           Nenhum item encontrado.
           <br />
           <span style={{ fontWeight: 400, fontSize: 16 }}>
@@ -390,43 +402,39 @@ export default function VitrineCompleta() {
         </div>
       ) : (
         <div
+          data-tour="vitrine.grid"
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
             gap: "34px",
           }}
         >
-          {itensOrdenados.map((item) => {
+          {itensOrdenados.map((item, idx) => {
             const expirado = isExpired(item);
             const tipoLabel =
-              item.tipo === "machines"
-                ? "Máquina"
-                : item.tipo === "produtos"
-                  ? "Produto"
-                  : "Serviço";
+              item.tipo === "machines" ? "Máquina" : item.tipo === "produtos" ? "Produto" : "Serviço";
             const corBadge = badgeTipoCor[item.tipo] || badgeTipoCor.default;
 
-            // preço (só exibe se > 0; se serviço e vazio => "Sob consulta")
+            const isFirstActive = idx === firstActiveIndex && !expirado;
+            const setFirstRef = isFirstActive ? { ref: firstCardRef } : {};
+
             const temPreco = item.preco && Number(item.preco) > 0;
             const textoPreco = temPreco
               ? `R$ ${Number(item.preco).toLocaleString("pt-BR")}`
               : item.tipo === "services"
-                ? "Sob consulta"
-                : "";
+              ? "Sob consulta"
+              : "";
 
-            // Botão por tipo/expiração
             const isServico = item.tipo === "services";
-            const botaoBg = expirado
-              ? "#d1d5db"
-              : isServico
-                ? "#219ebc"
-                : "#fb8500";
+            const botaoBg = expirado ? "#d1d5db" : isServico ? "#219ebc" : "#fb8500";
             const botaoLabel = expirado ? "Expirado" : "Ver Detalhes";
             const botaoHref = expirado ? undefined : `/${item.tipo}/${item.id}`;
 
             return (
               <div
+                {...setFirstRef}
                 key={item.id}
+                data-tour={isFirstActive ? "vitrine.card" : undefined}
                 style={{
                   borderRadius: 22,
                   boxShadow: "0 4px 32px #0001",
@@ -498,22 +506,13 @@ export default function VitrineCompleta() {
                   }}
                 >
                   {item.tipo === "services" ? (
-                    <Hammer
-                      size={68}
-                      style={{ color: "#fb8500", opacity: 0.19 }}
-                    />
+                    <Hammer size={68} style={{ color: "#fb8500", opacity: 0.19 }} />
                   ) : (
                     <img
                       src={item.imagens?.[0] || "/images/no-image.png"}
                       alt={item.nome || item.titulo}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                      onError={(e) =>
-                        (e.currentTarget.src = "/images/no-image.png")
-                      }
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      onError={(e) => (e.currentTarget.src = "/images/no-image.png")}
                     />
                   )}
                 </div>
@@ -528,9 +527,7 @@ export default function VitrineCompleta() {
                     gap: 5,
                   }}
                 >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 9 }}
-                  >
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                     <div
                       style={{
                         background: corBadge,
@@ -544,18 +541,13 @@ export default function VitrineCompleta() {
                     >
                       {tipoLabel}
                     </div>
-                    <div
-                      style={{
-                        color: "#219ebc",
-                        fontWeight: 700,
-                        fontSize: 15,
-                      }}
-                    >
+                    <div style={{ color: "#219ebc", fontWeight: 700, fontSize: 15 }}>
                       {item.categoria}
                     </div>
                   </div>
 
                   <div
+                    data-tour={isFirstActive ? "vitrine.card.titulo" : undefined}
                     style={{
                       fontSize: "1.12rem",
                       fontWeight: 800,
@@ -567,33 +559,20 @@ export default function VitrineCompleta() {
                     {item.nome || item.titulo}
                   </div>
 
-                  <div
-                    style={{ color: "#64748b", fontWeight: 500, fontSize: 15 }}
-                  >
+                  <div style={{ color: "#64748b", fontWeight: 500, fontSize: 15 }}>
                     {resumo(item.descricao)}
                   </div>
 
                   {textoPreco ? (
                     <div
-                      style={{
-                        color: "#FB8500",
-                        fontWeight: 800,
-                        fontSize: 19,
-                        marginTop: 2,
-                      }}
+                      data-tour={isFirstActive ? "vitrine.card.preco" : undefined}
+                      style={{ color: "#FB8500", fontWeight: 800, fontSize: 19, marginTop: 2 }}
                     >
                       {textoPreco}
                     </div>
                   ) : null}
 
-                  <div
-                    style={{
-                      color: "#8c9199",
-                      fontWeight: 600,
-                      fontSize: 15,
-                      marginTop: 2,
-                    }}
-                  >
+                  <div style={{ color: "#8c9199", fontWeight: 600, fontSize: 15, marginTop: 2 }}>
                     {item.cidade || "-"}, {item.estado || "-"}
                   </div>
 
@@ -601,6 +580,7 @@ export default function VitrineCompleta() {
                   {botaoHref ? (
                     <Link
                       href={botaoHref}
+                      data-tour={isFirstActive ? "vitrine.card.botao" : undefined}
                       style={{
                         marginTop: 13,
                         display: "flex",
@@ -634,7 +614,7 @@ export default function VitrineCompleta() {
                         gap: 8,
                         padding: "12px 0",
                         borderRadius: 13,
-                        background: botaoBg, // cinza para expirado
+                        background: botaoBg,
                         color: "#fff",
                         fontWeight: 800,
                         fontSize: "1.12rem",

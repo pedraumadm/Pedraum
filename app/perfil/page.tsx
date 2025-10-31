@@ -240,7 +240,21 @@ export default function PerfilPage() {
   });
 
   const avatarLista = useMemo(() => (form.avatar ? [form.avatar] : []), [form.avatar]);
+useEffect(() => {
+  const steps = [
+    { selector: "[data-tour='perfil.avatar']", title: "Foto e dados", content: "Atualize sua foto e informações básicas.", placement: "right" },
+    { selector: "[data-tour='perfil.atuacao']", title: "Atuação por categoria", content: "Marque o que você vende e os serviços que presta em cada categoria.", placement: "top" },
+    { selector: "[data-tour='perfil.portfolio']", title: "Portfólio", content: "Envie imagens e um PDF opcional para enriquecer seu perfil.", placement: "top" },
+    { selector: "[data-tour='perfil.salvar']", title: "Salvar", content: "Clique aqui para salvar todas as alterações.", placement: "left" },
+  ];
+    console.log("🔍 Disparando evento pedraum:tour-register → perfil", steps.length, "steps");
 
+  window.dispatchEvent(
+    new CustomEvent("pedraum:tour-register", {
+      detail: { group: "perfil", order: 1, steps },
+    }),
+  );
+}, []);
   /* ================= Auth + realtime ================= */
   useEffect(() => {
     const unsubAuth = auth.onAuthStateChanged((user) => {
@@ -681,11 +695,12 @@ export default function PerfilPage() {
 
       <form onSubmit={salvar} className="grid gap-16">
         {/* Identidade */}
-        <div className="card">
-          <div className="card-title">Identidade e Contato</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
-            <div>
-              <div className="label">Foto do Perfil</div>
+       <div className="card" /* ... */>
+  <div className="card-title">Identidade e Contato</div>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-16">
+    <div className="card" data-tour="perfil.avatar">
+
+      <div className="label">Foto do Perfil</div>
               <ImageUploader
                 imagens={avatarLista}
                 setImagens={(arr) => setField("avatar", arr[0] || "")}
@@ -783,6 +798,7 @@ export default function PerfilPage() {
         </div>
 
         {/* Atuação (NOVA LÓGICA + rótulos dinâmicos) */}
+      <div className="card" data-tour="perfil.atuacao"></div>
         <div className="card">
           <div className="card-title">Atuação por Categoria </div>
 
@@ -1079,7 +1095,12 @@ export default function PerfilPage() {
         </div>
 
         {/* Portfólio — Imagens + PDF */}
-        <div className="card">
+        <div
+  className="card perfil-documentos-section"
+  data-tour="perfil.portfolio"
+></div>
+        
+        <div className="card" data-tour="perfil.portfolio"></div><div className="card">
           <div className="card-title">Portfólio (Imagens + PDF)</div>
 
           <div
@@ -1183,11 +1204,12 @@ export default function PerfilPage() {
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button type="submit" className="btn-gradient" disabled={saving}>
-            {saving ? "Salvando..." : "Salvar Alterações"}
-          </button>
-        </div>
+       <div className="flex justify-end" data-tour="perfil.salvar">
+  <button type="submit" className="btn-gradient" disabled={saving}>
+    {saving ? "Salvando..." : "Salvar Alterações"}
+  </button>
+</div>
+
       </form>
 
       <style jsx>{`
