@@ -1,7 +1,13 @@
 // components/OnboardingTour.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -12,7 +18,8 @@ const LS_KEY = (route: string, group?: string) =>
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
-const isMobile = () => (typeof window !== "undefined" ? window.innerWidth <= 768 : false);
+const isMobile = () =>
+  typeof window !== "undefined" ? window.innerWidth <= 768 : false;
 
 const getEl = (sel: string): HTMLElement | null => {
   try {
@@ -25,7 +32,12 @@ const getEl = (sel: string): HTMLElement | null => {
 const isVisible = (el: HTMLElement | null) => {
   if (!el) return false;
   const style = window.getComputedStyle(el);
-  if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) return false;
+  if (
+    style.visibility === "hidden" ||
+    style.display === "none" ||
+    Number(style.opacity) === 0
+  )
+    return false;
   const rect = el.getBoundingClientRect();
   return rect.width > 0 && rect.height > 0;
 };
@@ -45,12 +57,18 @@ function uniqByTarget(steps: Step[]) {
 /** Aguarda até ter N alvos válidos (existentes + visíveis) e devolve SÓ os que existem e estão visíveis */
 async function waitAndFilterTargets(
   steps: Step[],
-  { minOk = 1, retries = 28, gapMs = 120 }: { minOk?: number; retries?: number; gapMs?: number } = {},
+  {
+    minOk = 1,
+    retries = 28,
+    gapMs = 120,
+  }: { minOk?: number; retries?: number; gapMs?: number } = {},
 ) {
   if (typeof window === "undefined") return [];
   let tries = 0;
   while (tries < retries) {
-    const ok = steps.filter((s) => typeof s.target === "string" && exists(String(s.target)));
+    const ok = steps.filter(
+      (s) => typeof s.target === "string" && exists(String(s.target)),
+    );
     if (ok.length >= minOk) return ok;
     tries++;
     await sleep(gapMs);
@@ -113,14 +131,17 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
   {
     pattern: "/",
     steps: [
-      { target: ".home-hero-section", content: "Bem-vindo! Destaque principal da Pedraum.", disableBeacon: true },
+      {
+        target: ".home-hero-section",
+        content: "Bem-vindo! Destaque principal da Pedraum.",
+        disableBeacon: true,
+      },
       { target: ".home-hero-cta", content: "Atalho para começar: crie uma demanda ou anuncie." },
       { target: ".demandas-section", content: "Demandas recentes do mercado." },
       { target: ".machines-section", content: "Vitrine de máquinas/produtos." },
       { target: ".testimonials-section", content: "Depoimentos de quem já usa a plataforma." },
     ],
   },
-
   {
     pattern: "/painel",
     steps: [
@@ -135,7 +156,6 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
       { target: ".painel-notificacoes, [data-tour='tile-notificacoes']", content: "Notificações e novidades da sua conta." },
     ],
   },
-
   {
     pattern: "/perfil",
     steps: [
@@ -145,7 +165,6 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
       { target: "[data-tour='perfil.salvar']", content: "Clique aqui para salvar todas as alterações." },
     ],
   },
-
   {
     pattern: "/vitrine",
     steps: [
@@ -164,8 +183,10 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
 
 /* -------------------- Header primeiro (sempre) -------------------- */
 function buildHeaderSteps(): Step[] {
-  const hasRegister = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-register"]');
-  const hasLogin = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-login"]');
+  const hasRegister =
+    typeof window !== "undefined" && !!document.querySelector('[data-tour="header-register"]');
+  const hasLogin =
+    typeof window !== "undefined" && !!document.querySelector('[data-tour="header-login"]');
 
   const firstTarget = hasRegister
     ? '[data-tour="header-register"]'
@@ -184,19 +205,35 @@ function buildHeaderSteps(): Step[] {
       disableBeacon: true,
       placement: "bottom",
     },
-    { target: '[data-tour="header-logo"]', content: "Clique no logo para voltar ao início a qualquer momento.", placement: "bottom" },
-    { target: '[data-tour="header-nav-produtos"]', content: "Vitrine: encontre máquinas, peças e serviços com filtros avançados." },
-    { target: '[data-tour="header-nav-demandas"]', content: "Feed de Demandas: veja pedidos de compradores e ofereça soluções." },
-    { target: '[data-tour="header-nav-painel"]', content: "Painel: gerencie suas publicações, contatos e notificações." },
-    { target: '[data-tour="header-hamburger"]', content: "No celular, use este menu para navegar rapidamente por toda a plataforma." },
+    {
+      target: '[data-tour="header-logo"]',
+      content: "Clique no logo para voltar ao início a qualquer momento.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="header-nav-produtos"]',
+      content: "Vitrine: encontre máquinas, peças e serviços com filtros avançados.",
+    },
+    {
+      target: '[data-tour="header-nav-demandas"]',
+      content: "Feed de Demandas: veja pedidos de compradores e ofereça soluções.",
+    },
+    {
+      target: '[data-tour="header-nav-painel"]',
+      content: "Painel: gerencie suas publicações, contatos e notificações.",
+    },
+    {
+      target: '[data-tour="header-hamburger"]',
+      content: "No celular, use este menu para navegar rapidamente por toda a plataforma.",
+    },
   ];
 
   return uniqByTarget(patchStepsForViewport(raw));
 }
 
 /* ================================================================ */
-
-export default function OnboardingTour() {
+/* ======================= Componente interno ===================== */
+function OnboardingInner() {
   const pathnameRaw = usePathname() || "/";
   const pathname = basePath(pathnameRaw);
   const search = useSearchParams();
@@ -215,7 +252,9 @@ export default function OnboardingTour() {
   const forcedGroupParam = (search?.get("tour") || "").toLowerCase();
   const groupFromPath = pathname.split("/")[1] || "home";
   const activeGroup =
-    forcedGroupParam && !["1", "true", "on"].includes(forcedGroupParam) ? forcedGroupParam : groupFromPath;
+    forcedGroupParam && !["1", "true", "on"].includes(forcedGroupParam)
+      ? forcedGroupParam
+      : groupFromPath;
 
   /* API global útil para páginas (start/expose) */
   useEffect(() => {
@@ -265,7 +304,10 @@ export default function OnboardingTour() {
         })
         .filter(Boolean) as Step[];
 
-      registryRef.current[group] = { order, steps: uniqByTarget(patchStepsForViewport(norm)) };
+      registryRef.current[group] = {
+        order,
+        steps: uniqByTarget(patchStepsForViewport(norm)),
+      };
       // força reprocessar
       setSteps((s) => s);
     };
@@ -280,7 +322,8 @@ export default function OnboardingTour() {
 
     // fallback por rota
     const routeDef =
-      ROUTE_STEPS.find((r) => r.pattern === pathname) || ROUTE_STEPS.find((r) => r.pattern === `/${groupFromPath}`);
+      ROUTE_STEPS.find((r) => r.pattern === pathname) ||
+      ROUTE_STEPS.find((r) => r.pattern === `/${groupFromPath}`);
     const routeSteps = routeDef?.steps ?? [];
 
     // registrados por evento (mesmo grupo da rota ou do ?tour)
@@ -294,7 +337,9 @@ export default function OnboardingTour() {
       { order: 2, steps: routeSteps },
     ];
 
-    const merged = uniqByTarget(tagged.sort((a, b) => a.order - b.order).flatMap((t) => t.steps));
+    const merged = uniqByTarget(
+      tagged.sort((a, b) => a.order - b.order).flatMap((t) => t.steps),
+    );
     return patchStepsForViewport(merged);
   }, [pathname, activeGroup, groupFromPath, registryRef.current]);
 
@@ -308,10 +353,16 @@ export default function OnboardingTour() {
 
     (async () => {
       await sleep(80); // header/dom
-      const safe = await waitAndFilterTargets(computedSteps, { minOk: 1, retries: 32, gapMs: 100 });
+      const safe = await waitAndFilterTargets(computedSteps, {
+        minOk: 1,
+        retries: 32,
+        gapMs: 100,
+      });
       if (!alive) return;
       setSteps(safe);
-      setValidNow(safe.every((s) => typeof s.target === "string" && exists(String(s.target))));
+      setValidNow(
+        safe.every((s) => typeof s.target === "string" && exists(String(s.target))),
+      );
       // aguarda 1 frame extra para evitar “piscar”
       await raf();
     })();
@@ -324,7 +375,9 @@ export default function OnboardingTour() {
   /* Política de start / persistência */
   useEffect(() => {
     const tourParam = forcedGroupParam;
-    const force = ["1", "true", "on", "start", "perfil", "painel", "vitrine", "demandas"].includes(tourParam);
+    const force = ["1", "true", "on", "start", "perfil", "painel", "vitrine", "demandas"].includes(
+      tourParam,
+    );
     const key = LS_KEY(pathname, activeGroup);
 
     if (tourParam === "reset") {
@@ -348,14 +401,16 @@ export default function OnboardingTour() {
     }
   }, [pathname, forcedGroupParam, activeGroup, steps, validNow]);
 
-  /* Revalida em resize/zoom e em mutações de DOM que possam esconder/exibir alvos (menu mobile abrindo, filtros, etc.) */
+  /* Revalida em resize/zoom e em mutações de DOM que possam esconder/exibir alvos */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     const onResize = () => {
       if (resizeTimer.current) window.clearTimeout(resizeTimer.current);
       resizeTimer.current = window.setTimeout(() => {
-        const ok = steps.every((s) => typeof s.target === "string" && exists(String(s.target)));
+        const ok = steps.every(
+          (s) => typeof s.target === "string" && exists(String(s.target)),
+        );
         setValidNow(ok);
         if (!ok) {
           setRun(false);
@@ -366,10 +421,11 @@ export default function OnboardingTour() {
 
     window.addEventListener("resize", onResize);
 
-    // Observa mudanças na árvore/atributos (ex.: abrir hambúrguer revela itens)
     if (!mutationObs.current) {
       mutationObs.current = new MutationObserver(() => {
-        const ok = steps.every((s) => typeof s.target === "string" && exists(String(s.target)));
+        const ok = steps.every(
+          (s) => typeof s.target === "string" && exists(String(s.target)),
+        );
         setValidNow(ok);
       });
       mutationObs.current.observe(document.body, {
@@ -422,7 +478,6 @@ export default function OnboardingTour() {
       locale={{ back: "Voltar", close: "Fechar", last: "Concluir", next: "Próximo", skip: "Pular" }}
       disableOverlay={false}
       floaterProps={{
-        // Mantém o tooltip preso ao alvo sem “pular” no mobile
         disableAnimation: false,
         hideArrow: false,
         offset: mobile ? 6 : 10,
@@ -447,10 +502,20 @@ export default function OnboardingTour() {
         buttonSkip: { borderRadius: 10 },
         spotlight: {
           borderRadius: 12,
-          boxShadow: "0 0 0 2px rgba(249,115,22,0.2), 0 0 0 9999px rgba(15,23,42,0.45)",
+          boxShadow:
+            "0 0 0 2px rgba(249,115,22,0.2), 0 0 0 9999px rgba(15,23,42,0.45)",
         },
       }}
       spotlightPadding={spotlightPadding}
     />
+  );
+}
+
+/* ===================== Export com Suspense (fix Next 14/15) ===================== */
+export default function OnboardingTour() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingInner />
+    </Suspense>
   );
 }
