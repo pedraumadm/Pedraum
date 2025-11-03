@@ -5,9 +5,6 @@ import { collection, query, where, getDocs } from "firebase/firestore";
 import { Loader, CheckCircle, Lock, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 type Lead = {
   id: string;
   tipo: "maquina" | "servico" | "produto";
