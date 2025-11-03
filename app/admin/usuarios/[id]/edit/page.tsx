@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { db, auth } from "@/firebaseConfig";
@@ -15,7 +16,7 @@ import {
   addDoc,
   collection,
 } from "firebase/firestore";
-import { sendPasswordResetEmail } from "firebase/auth";
+import { sendPasswordResetEmail, getIdToken } from "firebase/auth";
 import ImageUploader from "@/components/ImageUploader";
 import {
   ChevronLeft,
@@ -652,7 +653,7 @@ const [genError, setGenError] = useState<string | null>(null);
   try {
     const user = auth.currentUser;
     if (!user) throw new Error("Admin não autenticado.");
-    const token = await user.getIdToken();
+    const token = await getIdToken(user, true);
 
     const res = await fetch("/api/admin/set-password", {
       method: "POST",
@@ -660,8 +661,12 @@ const [genError, setGenError] = useState<string | null>(null);
       body: JSON.stringify({ uid: form.id, newPassword: pwd1 }),
     });
 
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || "Falha ao redefinir senha.");
+   const json = await res.json();
+if (!res.ok) {
+  if (res.status === 401) throw new Error("Sessão inválida/expirada (401). Faça login novamente.");
+  if (res.status === 403) throw new Error("Seu usuário não está autorizado. Verifique ADMIN_EMAILS/ADMIN_ALLOWED_EMAILS.");
+  throw new Error(json?.message || json?.error || "Falha ao redefinir senha.");
+}
 
     setMsg("Senha redefinida com sucesso. Exigir troca no próximo login está ativo.");
     setShowPwdModal(false);
@@ -684,7 +689,7 @@ async function gerarSenhaTemporaria() {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error("Admin não autenticado.");
-    const token = await user.getIdToken();
+    const token = await getIdToken(user, true); 
 
     const res = await fetch("/api/admin/set-password", {
       method: "POST",
@@ -713,7 +718,7 @@ async function gerarSenhaTemporaria() {
   try {
     const user = auth.currentUser;
     if (!user) throw new Error("Admin não autenticado.");
-    const token = await user.getIdToken();
+    const token = await getIdToken(user, true); 
 
     const res = await fetch("/api/admin/revoke-tokens", {
       method: "POST",
@@ -1958,7 +1963,7 @@ async function gerarSenhaTemporaria() {
                 type={pwdVisible ? "text" : "password"}
                 className="input"
                 value={pwd1}
-                minLength={6}
+                minLength={8}
                 onChange={(e) => setPwd1(e.target.value)}
                 placeholder="mín. 6 caracteres"
                 style={{ paddingRight: 42 }}
@@ -1993,7 +1998,7 @@ async function gerarSenhaTemporaria() {
               type={pwdVisible ? "text" : "password"}
               className="input"
               value={pwd2}
-              minLength={6}
+              minLength={8}
               onChange={(e) => setPwd2(e.target.value)}
             />
 
