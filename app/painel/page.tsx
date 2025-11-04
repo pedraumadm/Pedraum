@@ -645,42 +645,6 @@ useEffect(() => {
             />
           </div>
 
-          <div data-tour="tile-mensagens">
-            <Tile
-              href="/mensagens"
-              color="#2563eb"
-              bg="#f3f7ff"
-              icon={<MessageCircle size={36} />}
-              title="Mensagens"
-              desc="Converse com clientes e negocie direto."
-              badge={loadingMetrics ? undefined : metrics.mensagens}
-            />
-          </div>
-
-          <div data-tour="tile-notificacoes">
-            <div data-tour="tile-notificacoes" className="painel-notificacoes"></div>
-            <Tile
-              href="/notificacoes"
-              color="#FB8500"
-              bg="#fff7ed"
-              icon={<Bell size={36} />}
-              title="Notificações"
-              desc="Mostra não lidas primeiro; cai para total."
-              badge={loadingMetrics ? undefined : metrics.notificacoes}
-            />
-          </div>
-
-          <div data-tour="tile-propostas">
-            <Tile
-              href="/minhas-propostas"
-              color="#2563eb"
-              bg="#f3f7ff"
-              icon={<ClipboardList size={36} />}
-              title="Minhas Propostas"
-              desc="Acompanhe propostas enviadas e recebidas."
-              badge={loadingMetrics ? undefined : metrics.propostas}
-            />
-          </div>
 
           <div data-tour="tile-sugestoes">
             <Tile
@@ -695,10 +659,7 @@ useEffect(() => {
           </div>
 
           {/* informativos */}
-          <div >
-            <Tile href="/perfil" color="#2563eb" bg="#f3f7ff" icon={<Users size={36} />} title="Meu Perfil" desc="Gerencie seus dados pessoais e de empresa." />
-          </div>
-
+          
           <div data-tour="tile-ajuda">
             <Tile href="/ajuda" color="#059669" bg="#ecfdf5" icon={<LifeBuoy size={36} />} title="Central de Ajuda" desc="FAQ, suporte e abertura de tickets." />
           </div>

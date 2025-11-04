@@ -140,59 +140,50 @@ export default function RegisterPage() {
   }, [nome, email, senha, whatsappDigits55]);
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErro("");
+  e.preventDefault();
+  setErro("");
 
-    if (!formValido) {
-      setErro(
-        "Verifique os dados: nome (mín. 3), e-mail válido, senha (mín. 6) e WhatsApp no padrão +55 (DDD) número.",
-      );
-      return;
-    }
+  // Deriva o WhatsApp do valor atual do input
+  const digits = extractWhatsappDigits55(whatsapp).slice(0, 13);
+  const valido = isValidBRWhatsappDigits(digits);
 
-    setLoading(true);
-    try {
-      const cred = await createUserWithEmailAndPassword(
-        auth,
-        email.trim(),
-        senha,
-      );
-      const uid = cred.user.uid;
-
-      const digits = whatsappDigits55; // ex: 55 31 9XXXXXXX
-      const e164 = toE164(digits); // ex: +55319XXXXXXX
-
-      await setDoc(doc(db, "usuarios", uid), {
-        nome: nome.trim(),
-        email: email.trim().toLowerCase(),
-        whatsapp: digits, // só dígitos, começando por 55
-        whatsappE164: e164, // +55DDDN...
-        tipo: "usuario",
-        criadoEm: serverTimestamp(),
-        atualizadoEm: serverTimestamp(),
-        status: "ativo",
-      });
-
-      router.push("/auth/login");
-    } catch (e: any) {
-      // Mensagens amigáveis
-      let msg = "Erro ao cadastrar. Tente novamente.";
-      const code = e?.code || e?.message || "";
-
-      if (String(code).includes("auth/email-already-in-use"))
-        msg = "Este e-mail já está em uso.";
-      else if (String(code).includes("auth/invalid-email"))
-        msg = "E-mail inválido.";
-      else if (String(code).includes("auth/weak-password"))
-        msg = "Senha muito fraca. Use pelo menos 6 caracteres.";
-      else if (String(code).includes("network"))
-        msg = "Falha de conexão. Verifique sua internet.";
-
-      setErro(msg);
-    } finally {
-      setLoading(false);
-    }
+  if (!(nome.trim().length >= 3 && isValidEmail(email) && senha.length >= 6 && valido)) {
+    setErro(
+      "Verifique os dados: nome (mín. 3), e-mail válido, senha (mín. 6) e WhatsApp no padrão +55 (DDD) número."
+    );
+    return;
   }
+
+  setLoading(true);
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+    const uid = cred.user.uid;
+
+    await setDoc(doc(db, "usuarios", uid), {
+      nome: nome.trim(),
+      email: email.trim().toLowerCase(),
+      whatsapp: digits,                 // ex: 5531999999999
+      whatsappE164: `+${digits}`,       // ex: +5531999999999
+      tipo: "usuario",
+      status: "ativo",
+      criadoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
+    });
+
+    router.push("/auth/login");
+  } catch (e: any) {
+    let msg = "Erro ao cadastrar. Tente novamente.";
+    const code = e?.code || e?.message || "";
+    if (String(code).includes("auth/email-already-in-use")) msg = "Este e-mail já está em uso.";
+    else if (String(code).includes("auth/invalid-email")) msg = "E-mail inválido.";
+    else if (String(code).includes("auth/weak-password")) msg = "Senha muito fraca. Use pelo menos 6 caracteres.";
+    else if (String(code).includes("network")) msg = "Falha de conexão. Verifique sua internet.";
+    setErro(msg);
+  } finally {
+    setLoading(false);
+  }
+}
+
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#f7fafc] px-2 py-8">

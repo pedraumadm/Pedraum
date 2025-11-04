@@ -4,15 +4,41 @@ import { Usuario, Demanda } from "@/types/firestore";
 
 export const usuarioConverter: FirestoreDataConverter<Usuario> = {
   toFirestore(u: Usuario) {
-    return u as any;
+    // garante que, se vier só telefone em E.164, não quebre
+    return {
+      ...u,
+    } as any;
   },
+
   fromFirestore(snapshot: QueryDocumentSnapshot, options: SnapshotOptions): Usuario {
     const data = snapshot.data(options) as any;
+
+    // ✅ NORMALIZAÇÃO DO WHATSAPP (dois formatos)
+    // - whatsapp: apenas dígitos iniciando em 55 (ex: 5531999999999)
+    // - whatsappE164: +55… (ex: +5531999999999)
+    // - telefone: mantido como campo legado/visual (se existir)
+    const rawDigits: string =
+      typeof data.whatsapp === "string" && data.whatsapp
+        ? String(data.whatsapp)
+        : typeof data.whatsappE164 === "string" && data.whatsappE164
+        ? String(data.whatsappE164).replace(/\D/g, "").replace(/^(\+)?/, "")
+        : "";
+
+    const digits55 =
+      rawDigits.startsWith("55") ? rawDigits : rawDigits ? `55${rawDigits}` : "";
+
+    const e164 = digits55 ? `+${digits55}` : "";
+
     return {
       id: snapshot.id,
       nome: data.nome ?? "",
       email: data.email ?? "",
-      telefone: data.telefone ?? "",
+
+      // ✅ preserva/expõe todos os formatos
+      telefone: data.telefone ?? "",     // compat visual/legado (opcional)
+      whatsapp: digits55 || "",          // 55…
+      whatsappE164: e164 || "",          // +55…
+
       cidade: data.cidade ?? "",
       estado: data.estado ?? "",
       cpf_cnpj: data.cpf_cnpj ?? data.cpfCnpj ?? "",
@@ -58,10 +84,11 @@ export const usuarioConverter: FirestoreDataConverter<Usuario> = {
       observacoesInternas: data.observacoesInternas ?? "",
       requirePasswordChange: !!data.requirePasswordChange,
       categoryLimit: typeof data.categoryLimit === "number" ? data.categoryLimit : null,
-    };
+    } as Usuario;
   },
 };
 
+// (demandaConverter permanece igual)
 export const demandaConverter: FirestoreDataConverter<Demanda> = {
   toFirestore(d: Demanda) {
     return d as any;
