@@ -331,7 +331,7 @@ function scoreCategoria(
   return { score, faltas: Array.from(new Set(faltas)) };
 }
 
-export function gerarInteligenciaCategoria(
+function gerarInteligenciaCategoria(
   categoria: string,
   vendaProdutosAtivo: boolean, vendaProdutosObs: string,
   vendaPecasAtivo: boolean, vendaPecasObs: string,
