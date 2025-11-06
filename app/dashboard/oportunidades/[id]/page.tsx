@@ -349,26 +349,25 @@ export default function OportunidadeDetalhePage() {
     }
   }, [searchParams]);
 
-  // após pagamento, tenta liberar
-  useEffect(() => {
-    const s1 = searchParams.get("status");
-    const s2 = searchParams.get("collection_status");
-    if (
-      (s1 === "approved" || s2 === "approved" || s1 === "success") &&
-      uid &&
-      id
-    ) {
-      (async () => {
-        try {
-          await fetch("/api/mp/unlock", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ demandId: String(id), userId: uid }),
-          });
-        } catch {}
-      })();
-    }
-  }, [searchParams, uid, id]);
+// após pagamento, tenta liberar (fallback ao webhook)
+useEffect(() => {
+  const s1 = searchParams.get("status");
+  const s2 = searchParams.get("collection_status");
+  if ((s1 === "approved" || s2 === "approved" || s1 === "success") && uid && id) {
+    (async () => {
+      try {
+        await fetch("/api/mercadopago/unlock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ demandId: String(id), userId: uid }),
+        });
+      } catch (e) {
+        console.warn("unlock pós-checkout falhou (provável porque o webhook já liberou).", e);
+      }
+    })();
+  }
+}, [searchParams, uid, id]);
+
 
   // Meta
   const adminPriceCents = Number(
@@ -581,28 +580,58 @@ export default function OportunidadeDetalhePage() {
   }
 
   async function atender() {
-    if (!uid) return;
-    setPaying(true);
-    setMsg(null);
-    try {
-      await ensureAssignmentDoc();
-      const res = await fetch("/api/mp/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ demandId: String(id), supplierId: uid }),
-      });
-      const data = await res.json();
-      if (data?.init_point) {
-        window.location.href = data.init_point;
-        return;
-      }
-      setMsg(data?.error || "Falha ao iniciar pagamento.");
-    } catch (e: any) {
-      setMsg(e?.message || "Erro ao iniciar pagamento.");
-    } finally {
-      setPaying(false);
+  if (!uid) return;
+  setPaying(true);
+  setMsg(null);
+  try {
+    // garante/atualiza o assignment com o preço vigente
+    await ensureAssignmentDoc();
+
+    const adminPriceCents = Number(
+      demanda?.priceCents ??
+      demanda?.pricingDefault?.amount ??
+      DEFAULT_PRICE_CENTS
+    );
+
+    const title = demanda?.titulo || "Oportunidade";
+    const assignmentId = `${id}_${uid}`;
+
+    const resp = await fetch("/api/mercadopago/create-preference", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        kind: "lead",
+        refId: String(id),
+        title: `Desbloqueio de contato — ${title}`,
+        unitPriceCents: adminPriceCents > 0 ? Math.round(adminPriceCents) : DEFAULT_PRICE_CENTS,
+        quantity: 1,
+        userId: uid,
+        metadata: {
+          assignmentId,
+          supplierId: uid,
+        },
+      }),
+    });
+
+    if (!resp.ok) {
+      const j = await resp.json().catch(() => ({}));
+      throw new Error(j?.error || "Falha ao iniciar o pagamento.");
     }
+
+    const data = await resp.json();
+    const url = data.init_point || data.sandbox_init_point;
+    if (!url) throw new Error("Não foi possível obter a URL de pagamento.");
+
+    // redireciona para o Checkout Pro
+    window.location.href = url;
+  } catch (e: any) {
+    console.error(e);
+    setMsg(e?.message || "Erro ao iniciar pagamento.");
+  } finally {
+    setPaying(false);
   }
+}
+
 
   function copy(text?: string) {
     if (!text) return;

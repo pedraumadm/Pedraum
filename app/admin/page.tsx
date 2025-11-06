@@ -695,12 +695,7 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                 >
                   Usuários
                 </Link>
-                <Link
-                  href="/admin/parceiros"
-                  style={quickBtn("#14b8a6", "#fff")}
-                >
-                  Parceiros
-                </Link>
+                
               </div>
             </div>
 

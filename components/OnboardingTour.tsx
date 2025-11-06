@@ -6,23 +6,36 @@ import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /* ============================================================
- * >>> Núcleo sênior: progressão global sem repetição v2.1 <<<
+ *  >>> Onboarding sênior Pedraum — build "inquebrável" v2.2 <<<
+ *  - Layout-stable start
+ *  - IDs de passo imunes a mudança de texto
+ *  - Grupo marcado como concluído SEM depender do DOM
+ *  - Respeita quem já fez (não reaparece)
+ *  - Mobile realmente robusto (hambúrguer, overlay seguro)
+ *  - Auto-discovery por data-attributes (data-tour-step)
+ *  - API global: window.pedraumTour.{start,reset,expose}
  * ============================================================ */
 
-const TOUR_VERSION = "v2.1";
+const TOUR_VERSION = "v2.2";
 
-/* storage keys */
+/* ---------- Storage keys ---------- */
 const KEY_SEEN = `pedraum_tour_seen:${TOUR_VERSION}`; // JSON: string[]
 const KEY_GROUP_DONE = (g: string) => `pedraum_tour_done_group:${TOUR_VERSION}:${g}`;
 
+/* ---------- Utils básicos ---------- */
 const basePath = (p: string) => (p || "/").split("?")[0].replace(/\/+$/, "") || "/";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const isMobile = () => (typeof window !== "undefined" ? window.innerWidth <= 768 : false);
 
 const q = (sel: string): HTMLElement | null => {
-  try { return document.querySelector(sel) as HTMLElement | null; } catch { return null; }
+  try {
+    return document.querySelector(sel) as HTMLElement | null;
+  } catch {
+    return null;
+  }
 };
+
 const isVisible = (el: HTMLElement | null) => {
   if (!el) return false;
   const cs = window.getComputedStyle(el);
@@ -30,40 +43,61 @@ const isVisible = (el: HTMLElement | null) => {
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0;
 };
-const exists = (sel: string) => { const el = q(sel); return !!el && isVisible(el); };
 
-/* hash id estável por passo */
-function hashStr(s: string) {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = (h * 33) ^ s.charCodeAt(i);
-  return (h >>> 0).toString(36);
-}
-
-/* seen set */
-function getSeenSet(): Set<string> {
-  try { return new Set<string>(JSON.parse(localStorage.getItem(KEY_SEEN) || "[]")); } catch { return new Set(); }
-}
-function saveSeenSet(seen: Set<string>) {
-  try { localStorage.setItem(KEY_SEEN, JSON.stringify(Array.from(seen))); } catch {}
-}
-
-/* grupo concluído */
-const isGroupDone = (g: string) => { try { return !!localStorage.getItem(KEY_GROUP_DONE(g)); } catch { return false; } };
-const markGroupDone = (g: string) => { try { localStorage.setItem(KEY_GROUP_DONE(g), "1"); } catch {} };
-
-/* offset do header fixo */
-const getScrollOffset = () => {
-  try {
-    const header = (document.querySelector("header") as HTMLElement) ||
-                   (document.querySelector('[data-tour="app-header"]') as HTMLElement);
-    const h = header ? header.getBoundingClientRect().height : 0;
-    return Math.min(Math.max(h, 56), 120) + 12;
-  } catch { return 72; }
+const exists = (sel: string) => {
+  const el = q(sel);
+  return !!el && isVisible(el);
 };
 
+/* ---------- Visto/Concluído ---------- */
+function getSeenSet(): Set<string> {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(KEY_SEEN) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+function saveSeenSet(seen: Set<string>) {
+  try {
+    localStorage.setItem(KEY_SEEN, JSON.stringify(Array.from(seen)));
+  } catch {}
+}
+const isGroupDone = (g: string) => {
+  try {
+    return !!localStorage.getItem(KEY_GROUP_DONE(g));
+  } catch {
+    return false;
+  }
+};
+const markGroupDone = (g: string) => {
+  try {
+    localStorage.setItem(KEY_GROUP_DONE(g), "1");
+  } catch {}
+};
+
+/* ---------- Offset do header fixo ---------- */
+const getScrollOffset = () => {
+  try {
+    const header =
+      (document.querySelector("header") as HTMLElement) ||
+      (document.querySelector('[data-tour="app-header"]') as HTMLElement);
+    const h = header ? header.getBoundingClientRect().height : 0;
+    return Math.min(Math.max(h, 56), 120) + 12;
+  } catch {
+    return 72;
+  }
+};
+
+/* ---------- Placement seguro ---------- */
 const safePlacement = (p?: Step["placement"]) => (isMobile() ? "bottom" : p || "auto");
 
-/* util duplicados por target */
+/* ---------- IDs de passo: estáveis (group + target) ---------- */
+const stepId = (group: string, s: Step) => {
+  const t = String(s.target || "");
+  return `${group}:${t}`;
+};
+
+/* ---------- Filtro de duplicados por target ---------- */
 function uniqByTarget(steps: Step[]) {
   const seen = new Set<string>();
   return steps.filter((s) => {
@@ -74,7 +108,7 @@ function uniqByTarget(steps: Step[]) {
   });
 }
 
-/* espera targets válidos (existentes + visíveis) */
+/* ---------- Espera elementos válidos ---------- */
 async function waitAndFilterTargets(
   steps: Step[],
   { minOk = 1, retries = 42, gapMs = 120 }: { minOk?: number; retries?: number; gapMs?: number } = {},
@@ -91,7 +125,27 @@ async function waitAndFilterTargets(
   return steps.filter((s) => typeof s.target === "string" && exists(String(s.target)));
 }
 
-/* fallbacks mobile para itens do header dentro do hamburguer */
+/* ---------- Espera layout estabilizar (anti-“quebra ao iniciar”) ---------- */
+async function waitForStableLayout(opts: { retries?: number; gapMs?: number } = {}) {
+  const { retries = 50, gapMs = 80 } = opts;
+  if (typeof window === "undefined") return;
+  let lastH = 0,
+    stableCount = 0,
+    tries = 0;
+  while (tries < retries) {
+    await raf();
+    const h = document.documentElement.scrollHeight;
+    if (h === lastH) stableCount++;
+    else stableCount = 0;
+    lastH = h;
+    // 3 leituras seguidas iguais = estável
+    if (stableCount >= 3) break;
+    await sleep(gapMs);
+    tries++;
+  }
+}
+
+/* ---------- Mobile/hambúrguer fallbacks ---------- */
 function patchStepsForViewport(steps: Step[]): Step[] {
   const mobile = isMobile();
   return steps.map((s) => {
@@ -108,16 +162,16 @@ function patchStepsForViewport(steps: Step[]): Step[] {
       target,
       placement: safePlacement(s.placement),
       disableBeacon: true,
-      offset: mobile ? 8 : 12,
+      offset: mobile ? 10 : 12,
       styles: {
         ...(s.styles || {}),
-        tooltip: { ...(s.styles?.tooltip || {}), maxWidth: mobile ? 260 : 420 },
+        tooltip: { ...(s.styles?.tooltip || {}), maxWidth: mobile ? 280 : 440 },
       },
     };
   });
 }
 
-/* =================== Auto-discovery via data-attributes =================== */
+/* ---------- Auto-discovery via data-attributes ---------- */
 function getDomSelector(el: HTMLElement): string | null {
   if (!el) return null;
   if (el.id) return `#${CSS.escape(el.id)}`;
@@ -125,10 +179,17 @@ function getDomSelector(el: HTMLElement): string | null {
   if (tour) return `[data-tour="${tour}"]`;
   // fallback curto
   const parts: string[] = [];
-  let cur: HTMLElement | null = el, depth = 0;
+  let cur: HTMLElement | null = el,
+    depth = 0;
   while (cur && depth < 3) {
     let sel = cur.tagName.toLowerCase();
-    if (cur.classList.length) sel += "." + Array.from(cur.classList).slice(0, 2).map((c) => CSS.escape(c)).join(".");
+    if (cur.classList.length)
+      sel +=
+        "." +
+        Array.from(cur.classList)
+          .slice(0, 2)
+          .map((c) => CSS.escape(c))
+          .join(".");
     parts.unshift(sel);
     cur = cur.parentElement;
     depth++;
@@ -156,57 +217,70 @@ function autoStepsFromDOM(): Step[] {
   return uniqByTarget(patchStepsForViewport(parsed.sort((a, b) => a.order - b.order).map((x) => x.step)));
 }
 
-/* =================== Fallbacks por rota (prefix matching) =================== */
+/* ---------- Fallbacks por rota ---------- */
 const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
   {
     pattern: "/",
     steps: [
-      { target: ".home-hero-section, [data-tour='home.hero']", content: "Bem-vindo! Destaque principal da Pedraum.", disableBeacon: true },
-      { target: ".home-hero-cta, [data-tour='home.cta']", content: "Atalho para começar: crie uma demanda ou anuncie." },
-      { target: ".demandas-section, [data-tour='home.demandas']", content: "Demandas recentes do mercado." },
-      { target: ".machines-section, [data-tour='home.vitrine']", content: "Vitrine de máquinas/produtos." },
+      {
+        target: ".home-hero-section, [data-tour='home.hero']",
+        content: "Bem-vindo à Pedraum: o hub de negócios da mineração e construção.",
+        disableBeacon: true,
+      },
+      {
+        target: ".home-hero-cta, [data-tour='home.cta']",
+        content: "Comece agora: publique um produto/serviço ou crie uma demanda.",
+      },
+      {
+        target: ".demandas-section, [data-tour='home.demandas']",
+        content: "Veja quem está comprando agora e gere leads qualificados.",
+      },
+      {
+        target: ".machines-section, [data-tour='home.vitrine']",
+        content: "Destaques da vitrine — entre e negocie direto.",
+      },
     ],
   },
   {
     pattern: "/vitrine",
     steps: [
-      { target: '[data-tour="vitrine.filtros"], .vitrine-filtros', content: "Refine sua busca pelos filtros." },
-      { target: '[data-tour="vitrine.filtro-busca"], .vitrine-busca', content: "Pesquise por nome, categoria ou descrição." },
-      { target: '[data-tour="vitrine.grid"], .vitrine-grid', content: "Resultados da vitrine." },
-      { target: '[data-tour="vitrine.cta-novo-produto"], .vitrine-cta-produto', content: "Publique um novo produto/máquina." },
-      { target: '[data-tour="vitrine.cta-novo-servico"], .vitrine-cta-servico', content: "Ou publique um serviço." },
+      { target: '[data-tour="vitrine.filtros"], .vitrine-filtros', content: "Refine por categoria, estado, cidade e mais." },
+      { target: '[data-tour="vitrine.filtro-busca"], .vitrine-busca', content: "Pesquise por nome, marca ou palavra-chave." },
+      { target: '[data-tour="vitrine.grid"], .vitrine-grid', content: "Resultados disponíveis. Clique para ver detalhes e falar no WhatsApp." },
+      { target: '[data-tour="vitrine.cta-novo-produto"], .vitrine-cta-produto', content: "Anuncie um produto ou máquina em minutos." },
+      { target: '[data-tour="vitrine.cta-novo-servico"], .vitrine-cta-servico', content: "Ofereça seu serviço e seja encontrado." },
     ],
   },
   {
     pattern: "/demandas",
     steps: [
-      { target: '[data-tour="demandas.filtros"], .demandas-filtros', content: "Use os filtros para refinar os pedidos." },
-      { target: '[data-tour="demandas.lista"], .demandas-lista', content: "Lista de demandas disponíveis." },
-      { target: '[data-tour="demandas.cta-criar"], .demandas-cta', content: "Crie uma nova demanda." },
+      { target: '[data-tour="demandas.filtros"], .demandas-filtros', content: "Selecione região, categoria e status para achar pedidos certos." },
+      { target: '[data-tour="demandas.lista"], .demandas-lista', content: "Escolha a demanda e apresente sua proposta." },
+      { target: '[data-tour="demandas.cta-criar"], .demandas-cta', content: "Precisa de algo? Crie um pedido e receba contatos." },
     ],
   },
   {
     pattern: "/painel",
     steps: [
-      { target: ".painel-oportunidades, [data-tour='tile-oportunidades']", content: "Oportunidades direcionadas para você." },
-      { target: ".painel-minhas-demandas, [data-tour='tile-minhas-demandas']", content: "Minhas Demandas publicadas." },
-      { target: ".painel-produtos, [data-tour='tile-produtos']", content: "Meus produtos/máquinas." },
-      { target: ".painel-servicos, [data-tour='tile-servicos']", content: "Meus serviços oferecidos." },
-      { target: ".painel-notificacoes, [data-tour='tile-notificacoes']", content: "Notificações e avisos." },
+      { target: ".painel-oportunidades, [data-tour='tile-oportunidades']", content: "Alertas que combinam com seu perfil e atuação." },
+      { target: ".painel-minhas-demandas, [data-tour='tile-minhas-demandas']", content: "Edite, pause e acompanhe respostas." },
+      { target: ".painel-produtos, [data-tour='tile-produtos']", content: "Gerencie anúncios, estoque e visibilidade." },
+      { target: ".painel-servicos, [data-tour='tile-servicos']", content: "Mostre o que você faz e feche contratos." },
+      { target: ".painel-notificacoes, [data-tour='tile-notificacoes']", content: "Mensagens, avisos e atualizações da plataforma." },
     ],
   },
   {
     pattern: "/perfil",
     steps: [
-      { target: "[data-tour='perfil.avatar'], .perfil-avatar", content: "Foto e dados básicos do perfil." },
-      { target: "[data-tour='perfil.atuacao'], .perfil-atuacao", content: "Atuação por categoria: marque o que você faz." },
-      { target: "[data-tour='perfil.portfolio'], .perfil-documentos-section", content: "Portfólio: imagens e PDF." },
-      { target: "[data-tour='perfil.salvar'], .perfil-salvar", content: "Salvar suas alterações." },
+      { target: "[data-tour='perfil.avatar'], .perfil-avatar", content: "Complete seu perfil para aumentar a confiança nas negociações." },
+      { target: "[data-tour='perfil.atuacao'], .perfil-atuacao", content: "Marque sua atuação por categoria — isso melhora as indicações." },
+      { target: "[data-tour='perfil.portfolio'], .perfil-documentos-section", content: "Anexe provas do seu trabalho e ganhe destaque." },
+      { target: "[data-tour='perfil.salvar'], .perfil-salvar", content: "Guarde as alterações para manter tudo atualizado." },
     ],
   },
 ];
 
-/* =================== Header (uma vez global) =================== */
+/* ---------- Header (uma vez global) ---------- */
 function buildHeaderSteps(): Step[] {
   const hasRegister = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-register"]');
   const hasLogin = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-login"]');
@@ -221,7 +295,7 @@ function buildHeaderSteps(): Step[] {
     {
       target: firstTarget,
       content: hasRegister
-        ? "Crie sua conta para publicar, responder demandas e falar com compradores."
+        ? "Entre para publicar, responder demandas e falar com compradores."
         : hasLogin
         ? "Entre no seu perfil para gerenciar suas publicações e contatos."
         : "Aqui você volta sempre para o início.",
@@ -230,27 +304,24 @@ function buildHeaderSteps(): Step[] {
     },
     { target: '[data-tour="header-logo"]', content: "Clique no logo para voltar ao início.", placement: "bottom" },
     { target: '[data-tour="header-nav-produtos"]', content: "Vitrine: máquinas, peças e serviços." },
-    { target: '[data-tour="header-nav-demandas"]', content: "Feed de Demandas: veja pedidos e ofereça soluções." },
+    { target: '[data-tour="header-nav-demandas"]', content: "Pedidos reais do mercado — ofereça sua solução." },
     { target: '[data-tour="header-nav-painel"]', content: "Painel: gerencie suas publicações e contatos." },
   ];
   return uniqByTarget(patchStepsForViewport(raw));
 }
 
-/* =================== IDs / grupos =================== */
+/* ---------- Rota / Grupos ---------- */
 const routeGroupFrom = (pathname: string) => (pathname || "/").split("/")[1] || "home";
 const matchRouteSteps = (pathname: string): Step[] => {
-  const c = ROUTE_STEPS.filter((r) => pathname === r.pattern || pathname.startsWith(r.pattern))
-                       .sort((a, b) => b.pattern.length - a.pattern.length);
+  const c = ROUTE_STEPS.filter((r) => pathname === r.pattern || pathname.startsWith(r.pattern)).sort(
+    (a, b) => b.pattern.length - a.pattern.length,
+  );
   return c[0]?.steps ?? [];
 };
-const stepId = (group: string, s: Step) => {
-  const t = String(s.target || "");
-  const c = typeof s.content === "string" ? s.content : JSON.stringify(s.content);
-  const p = String(s.placement || "");
-  return `${group}:${hashStr(`${t}|${c}|${p}`)}`;
-};
 
-/* =================== Componente interno =================== */
+/* ============================================================
+ *                       Componente interno
+ * ============================================================ */
 function OnboardingInner() {
   const pathnameRaw = usePathname() || "/";
   const pathname = basePath(pathnameRaw);
@@ -259,30 +330,36 @@ function OnboardingInner() {
   const [run, setRun] = useState(false);
   const [steps, setSteps] = useState<Step[]>([]);
   const [validNow, setValidNow] = useState(false);
-  const [firstReady, setFirstReady] = useState(false);
 
   const startedRef = useRef(false);
-  const runningRef = useRef(false); // <- evita invalidar enquanto está rodando
+  const runningRef = useRef(false);
   const resizeTimer = useRef<number | null>(null);
   const mutationObs = useRef<MutationObserver | null>(null);
   const firstObserver = useRef<IntersectionObserver | null>(null);
   const registryRef = useRef<Record<string, { order: number; steps: Step[] }>>({});
+  const regsVersion = useRef(0); // evita re-renders infinitos
 
   const forcedGroupParam = (search?.get("tour") || "").toLowerCase();
   const inferredGroup = routeGroupFrom(pathname);
   const activeGroup =
-    forcedGroupParam && !["1", "true", "on"].includes(forcedGroupParam) ? forcedGroupParam : inferredGroup;
+    forcedGroupParam && !["1", "true", "on", "reset"].includes(forcedGroupParam)
+      ? forcedGroupParam
+      : inferredGroup;
 
-  /* API global */
+  /* ---------- API global ---------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
     (window as any).pedraumTour = {
-      expose: (key: string, el: HTMLElement | null) => { if (key && el) el.setAttribute("data-tour-key", key); },
-      start: (flow: string) => {
-        try { localStorage.removeItem(KEY_GROUP_DONE(flow || activeGroup)); } catch {}
-        const url = new URL(window.location.href);
-        url.searchParams.set("tour", flow || "on");
-        window.history.replaceState({}, "", url.toString());
+      expose: (key: string, el: HTMLElement | null) => {
+        if (key && el) el.setAttribute("data-tour-key", key);
+      },
+      start: (flow?: string) => {
+        try {
+          if (flow) localStorage.removeItem(KEY_GROUP_DONE(flow));
+          const url = new URL(window.location.href);
+          url.searchParams.set("tour", flow || "on");
+          window.history.replaceState({}, "", url.toString());
+        } catch {}
         startedRef.current = false;
         setRun(false);
         setSteps((s) => s);
@@ -292,15 +369,20 @@ function OnboardingInner() {
           if (flow) localStorage.removeItem(KEY_GROUP_DONE(flow));
           else {
             localStorage.removeItem(KEY_SEEN);
-            ["home","vitrine","demandas","painel","perfil","admin","header"].forEach((g)=>localStorage.removeItem(KEY_GROUP_DONE(g)));
+            ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach((g) =>
+              localStorage.removeItem(KEY_GROUP_DONE(g)),
+            );
           }
         } catch {}
       },
     };
-    return () => { delete (window as any).pedraumTour; };
+    return () => {
+      // @ts-ignore
+      delete window.pedraumTour;
+    };
   }, [activeGroup]);
 
-  /* Registro externo */
+  /* ---------- Registro externo de passos (opcional) ---------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handler = (e: any) => {
@@ -312,30 +394,31 @@ function OnboardingInner() {
         .map((s) => (s?.target ? s : s?.selector ? { ...s, target: s.selector } : null))
         .filter(Boolean) as Step[];
       registryRef.current[group] = { order, steps: uniqByTarget(patchStepsForViewport(norm)) };
-      setSteps((s) => s);
+      regsVersion.current++;
+      setSteps((s) => s); // força recompute
     };
     window.addEventListener("pedraum:tour-register", handler);
     return () => window.removeEventListener("pedraum:tour-register", handler);
   }, [inferredGroup]);
 
-  /* Merge final: header (0) -> auto (1) -> registrados (2) -> route fallback (3) */
-  const computed = useMemo(() => {
+  /* ---------- Merge final: header (0) -> auto (1) -> registrados (2) -> rota (3) ---------- */
+  const computedTagged = useMemo(() => {
     const header = buildHeaderSteps();
     const auto = autoStepsFromDOM();
     const regs = registryRef.current[activeGroup]?.steps ?? [];
     const route = matchRouteSteps(pathname);
 
     const tagged: Array<{ order: number; group: string; steps: Step[] }> = [
-      { order: 0, group: "header",      steps: header },
-      { order: 1, group: activeGroup,   steps: auto   },
-      { order: 2, group: activeGroup,   steps: regs   },
-      { order: 3, group: activeGroup,   steps: route  },
+      { order: 0, group: "header", steps: header },
+      { order: 1, group: activeGroup, steps: auto },
+      { order: 2, group: activeGroup, steps: regs },
+      { order: 3, group: activeGroup, steps: route },
     ];
+    return tagged.sort((a, b) => a.order - b.order).flatMap((t) => t.steps.map((s) => ({ group: t.group, step: s })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, activeGroup, regsVersion.current]);
 
-    return tagged.sort((a,b)=>a.order-b.order).flatMap(t => t.steps.map(s => ({group:t.group, step:s})));
-  }, [pathname, activeGroup, registryRef.current]);
-
-  /* Monta + filtra por steps ainda não vistos */
+  /* ---------- Montagem e filtro por "ainda não vistos" ---------- */
   useEffect(() => {
     let alive = true;
     startedRef.current = false;
@@ -343,25 +426,36 @@ function OnboardingInner() {
     setRun(false);
     setSteps([]);
     setValidNow(false);
-    setFirstReady(false);
 
     (async () => {
       await sleep(80);
 
-      const seen = getSeenSet();
-      const fresh = computed.filter(({group, step}) => !seen.has(stepId(group, step)));
+      const tourParam = (search?.get("tour") || "").toLowerCase();
+      const forcing = !!tourParam && !["reset"].includes(tourParam);
 
-      const hasHeaderFresh = fresh.some((x)=>x.group==="header");
-      if (isGroupDone(activeGroup) && !hasHeaderFresh) {
-        setSteps([]); setValidNow(false);
+      // Se o grupo já foi concluído e não está forçando, não roda
+      if (isGroupDone(activeGroup) && !forcing) {
+        setSteps([]);
+        setValidNow(false);
         return;
       }
 
-      const onlySteps = fresh.map((x)=>x.step);
-      const safe = await waitAndFilterTargets(
-        uniqByTarget(patchStepsForViewport(onlySteps)),
-        { minOk: 1, retries: 48, gapMs: 120 },
-      );
+      const seen = getSeenSet();
+      const fresh = computedTagged.filter(({ group, step }) => !seen.has(stepId(group, step)));
+
+      // Se não tiver nada novo pra ver, encerra
+      if (!fresh.length) {
+        setSteps([]);
+        setValidNow(false);
+        return;
+      }
+
+      const onlySteps = fresh.map((x) => x.step);
+      const safe = await waitAndFilterTargets(uniqByTarget(patchStepsForViewport(onlySteps)), {
+        minOk: 1,
+        retries: 48,
+        gapMs: 120,
+      });
 
       if (!alive) return;
 
@@ -369,6 +463,7 @@ function OnboardingInner() {
       const ok = safe.every((s) => typeof s.target === "string" && exists(String(s.target)));
       setValidNow(ok);
 
+      // Observa o primeiro para liberar autoscroll do Joyride
       const first = safe.find((s) => typeof s.target === "string" && q(String(s.target)));
       if (first) {
         const el = q(String(first.target));
@@ -378,27 +473,34 @@ function OnboardingInner() {
             (entries) => {
               const e = entries[0];
               const inView = !!e?.isIntersecting;
-              setFirstReady(inView);
+              // não precisamos travar; Joyride vai dar scroll. Mantemos por compat.
+              if (!inView) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }
             },
-            { threshold: 0.15 }
+            { threshold: 0.15 },
           );
           firstObserver.current.observe(el);
-          setFirstReady(true); // deixa o Joyride rolar e ele mesmo faz scroll
         }
       }
       await raf();
     })();
 
-    return () => { alive = false; firstObserver.current?.disconnect(); };
-  }, [computed, pathname, activeGroup]);
+    return () => {
+      alive = false;
+      firstObserver.current?.disconnect();
+    };
+  }, [computedTagged, pathname, activeGroup, search]);
 
-  /* Autostart + força via query */
+  /* ---------- Autostart com layout estável ---------- */
   useEffect(() => {
     const tourParam = (search?.get("tour") || "").toLowerCase();
     if (tourParam === "reset") {
       try {
         localStorage.removeItem(KEY_SEEN);
-        ["home","vitrine","demandas","painel","perfil","admin","header"].forEach((g)=>localStorage.removeItem(KEY_GROUP_DONE(g)));
+        ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach((g) =>
+          localStorage.removeItem(KEY_GROUP_DONE(g)),
+        );
       } catch {}
       return;
     }
@@ -408,12 +510,18 @@ function OnboardingInner() {
 
     if (ready && (force || !startedRef.current)) {
       startedRef.current = true;
-      const t = setTimeout(() => { setRun(true); runningRef.current = true; }, 120);
-      return () => clearTimeout(t);
+      (async () => {
+        await waitForStableLayout({ retries: 50, gapMs: 80 });
+        const t = window.setTimeout(() => {
+          setRun(true);
+          runningRef.current = true;
+        }, 80);
+        return () => window.clearTimeout(t);
+      })();
     }
   }, [steps, validNow, search]);
 
-  /* Revalidação dinâmica — NÃO derruba o tour enquanto estiver rodando */
+  /* ---------- Revalidação dinâmica (sem derrubar no meio) ---------- */
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -423,7 +531,10 @@ function OnboardingInner() {
         if (runningRef.current) return; // não invalida no meio do tour
         const ok = steps.every((s) => typeof s.target === "string" && exists(String(s.target)));
         setValidNow(ok);
-        if (!ok) { setRun(false); startedRef.current = false; }
+        if (!ok) {
+          setRun(false);
+          startedRef.current = false;
+        }
       }, 140);
     };
 
@@ -449,9 +560,11 @@ function OnboardingInner() {
     };
   }, [steps]);
 
-  /* Callback: marca vistos + encerra grupo se acabou */
+  /* ---------- Callback: marca vistos e conclui grupo ---------- */
   const onCb = (data: CallBackProps) => {
     const { status } = data;
+
+    // marca todos como vistos
     if (typeof window !== "undefined" && steps.length) {
       const seen = getSeenSet();
       steps.forEach((s) => {
@@ -462,29 +575,28 @@ function OnboardingInner() {
       saveSeenSet(seen);
     }
 
+    // conclui grupo SEM depender do DOM
     const finished = status === STATUS.FINISHED || status === STATUS.SKIPPED;
     if (finished) {
       try {
-        const all = [
-          ...matchRouteSteps(pathname),
-          ...autoStepsFromDOM(),
-          ...(registryRef.current[activeGroup]?.steps ?? []),
-        ];
-        const seen = getSeenSet();
-        const remaining = all.filter((s) => !seen.has(stepId(activeGroup, s)));
-        if (remaining.length === 0) markGroupDone(activeGroup);
+        markGroupDone(activeGroup);
+        if ((steps || []).some((s) => String(s.target).includes("header-"))) {
+          markGroupDone("header");
+        }
       } catch {}
-
       setRun(false);
       runningRef.current = false;
       startedRef.current = false;
     }
   };
 
+  // Nada para exibir
   if (!steps.length || !validNow) return null;
 
+  // Config mobile
   const mobile = isMobile();
-  const spotlightPadding = mobile ? 8 : 12;
+  const spotlightPadding = mobile ? 10 : 12;
+  const disableOverlay = mobile && (typeof window !== "undefined" ? window.innerHeight < 620 : false);
 
   return (
     <Joyride
@@ -494,18 +606,17 @@ function OnboardingInner() {
       continuous
       showSkipButton
       showProgress
-      /* Auto-scroll confiável (resolve “começa e pára”) */
       scrollToFirstStep
       scrollOffset={getScrollOffset()}
       disableScrolling={false}
       spotlightClicks
       callback={onCb}
       locale={{ back: "Voltar", close: "Fechar", last: "Concluir", next: "Próximo", skip: "Pular" }}
-      disableOverlay={false}
-      floaterProps={{ disableAnimation: false, hideArrow: false, offset: mobile ? 6 : 10 }}
+      disableOverlay={disableOverlay}
+      floaterProps={{ disableAnimation: false, hideArrow: false, offset: mobile ? 8 : 10 }}
       styles={{
         options: {
-          primaryColor: "#f97316",
+          primaryColor: "#f97316", // laranja Pedraum
           backgroundColor: "#ffffff",
           textColor: "#0f172a",
           arrowColor: "#ffffff",
@@ -514,7 +625,7 @@ function OnboardingInner() {
         tooltip: {
           borderRadius: 14,
           padding: mobile ? "14px 14px" : "16px 18px",
-          maxWidth: mobile ? 260 : 420,
+          maxWidth: mobile ? 280 : 440,
           boxShadow: "0 10px 25px rgba(2,6,23,.18), 0 2px 8px rgba(2,6,23,.08)",
         },
         buttonNext: { borderRadius: 10, fontWeight: 700 },
@@ -530,7 +641,7 @@ function OnboardingInner() {
   );
 }
 
-/* =================== Export com Suspense =================== */
+/* ---------- Export com Suspense ---------- */
 export default function OnboardingTour() {
   return (
     <Suspense fallback={null}>

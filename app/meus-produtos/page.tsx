@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { db, auth } from "@/firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import Link from "next/link";
 import {
   Loader2,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   FileText,
   BadgeCheck,
+  Trash2,
 } from "lucide-react";
 
 /* ================= Helpers ================= */
@@ -19,11 +20,11 @@ type Produto = {
   id: string;
   nome: string;
   descricao?: string;
-  status?: string; // "ativo", "inativo", etc
-  imagens?: string[]; // << preferir esse campo
-  imagem?: string; // legado (fallback)
+  status?: string;
+  imagens?: string[];
+  imagem?: string;
   preco?: number | string | null;
-  condicao?: string; // "Novo com garantia", "Reformado...", etc
+  condicao?: string;
   hasWarranty?: boolean | null;
   warrantyMonths?: number | null;
   pdfUrl?: string | null;
@@ -79,31 +80,41 @@ export default function MeusProdutosPage() {
     return () => unsub();
   }, []);
 
-  // fetch
+  // fetch produtos
+  async function fetchProdutos() {
+    if (!userId) return;
+    setLoading(true);
+    const q = query(collection(db, "produtos"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    const data: Produto[] = [];
+    querySnapshot.forEach((d) => data.push({ id: d.id, ...(d.data() as any) }));
+    data.sort(
+      (a, b) =>
+        (getDateFromTs(b.createdAt)?.getTime() || 0) -
+        (getDateFromTs(a.createdAt)?.getTime() || 0),
+    );
+    setProdutos(data);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function fetchProdutos() {
-      if (!userId) return;
-      setLoading(true);
-      const q = query(
-        collection(db, "produtos"),
-        where("userId", "==", userId),
-      );
-      const querySnapshot = await getDocs(q);
-      const data: Produto[] = [];
-      querySnapshot.forEach((d) =>
-        data.push({ id: d.id, ...(d.data() as any) }),
-      );
-      // ordena aqui por createdAt desc
-      data.sort(
-        (a, b) =>
-          (getDateFromTs(b.createdAt)?.getTime() || 0) -
-          (getDateFromTs(a.createdAt)?.getTime() || 0),
-      );
-      setProdutos(data);
-      setLoading(false);
-    }
     fetchProdutos();
   }, [userId]);
+
+  // excluir produto
+  async function handleDelete(id: string, nome?: string) {
+    const ok = confirm(`Deseja realmente excluir o produto "${nome || id}"?`);
+    if (!ok) return;
+
+    try {
+      await deleteDoc(doc(db, "produtos", id));
+      alert("Produto excluído com sucesso!");
+      setProdutos((prev) => prev.filter((p) => p.id !== id));
+    } catch (error) {
+      console.error("Erro ao excluir produto:", error);
+      alert("Erro ao excluir produto. Tente novamente.");
+    }
+  }
 
   const totalAtivos = useMemo(
     () => produtos.filter((p) => !isExpired(p.createdAt, p.expiraEm)).length,
@@ -195,31 +206,8 @@ export default function MeusProdutosPage() {
 
       {/* listagem */}
       {loading ? (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 18,
-            marginTop: 14,
-          }}
-        >
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                borderRadius: 16,
-                background: "#fff",
-                border: "1.5px solid #eef2f6",
-                padding: 16,
-              }}
-            >
-              <div className="skel-banner" />
-              <div style={{ height: 12 }} />
-              <div className="skel-line w70" />
-              <div style={{ height: 8 }} />
-              <div className="skel-line w45" />
-            </div>
-          ))}
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <Loader2 className="animate-spin inline-block" size={32} /> Carregando...
         </div>
       ) : produtos.length === 0 ? (
         <div
@@ -300,15 +288,7 @@ export default function MeusProdutosPage() {
                   flexDirection: "column",
                 }}
               >
-                {/* capa */}
-                <div
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    height: 180,
-                    background: "#f3f6fa",
-                  }}
-                >
+                <div style={{ position: "relative", width: "100%", height: 180, background: "#f3f6fa" }}>
                   <img
                     src={capa}
                     alt={p.nome}
@@ -322,7 +302,6 @@ export default function MeusProdutosPage() {
                       objectFit: "cover",
                     }}
                   />
-                  {/* badges */}
                   <div
                     style={{
                       position: "absolute",
@@ -333,9 +312,7 @@ export default function MeusProdutosPage() {
                       flexWrap: "wrap",
                     }}
                   >
-                    {expired && (
-                      <span className="chip chip-gray">EXPIRADO</span>
-                    )}
+                    {expired && <span className="chip chip-gray">EXPIRADO</span>}
                     {!expired && <span className="chip chip-green">ATIVO</span>}
                     {p.pdfUrl && (
                       <span className="chip chip-red">
@@ -345,7 +322,6 @@ export default function MeusProdutosPage() {
                   </div>
                 </div>
 
-                {/* corpo */}
                 <div
                   style={{
                     padding: "12px 14px 14px 14px",
@@ -425,6 +401,7 @@ export default function MeusProdutosPage() {
                       justifyContent: "flex-end",
                       gap: 10,
                       marginTop: 6,
+                      flexWrap: "wrap",
                     }}
                   >
                     <Link
@@ -454,6 +431,21 @@ export default function MeusProdutosPage() {
                     >
                       <Eye size={18} /> Ver
                     </Link>
+                    <button
+                      onClick={() => handleDelete(p.id, p.nome)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        color: "#dc2626",
+                        fontWeight: 800,
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Trash2 size={18} /> Excluir
+                    </button>
                   </div>
                 </div>
               </div>
@@ -472,11 +464,7 @@ export default function MeusProdutosPage() {
           border-radius: 999px;
           font-size: 12px;
           font-weight: 900;
-          letter-spacing: 0.2px;
           border: 1px solid #e5e7eb;
-          background: #fff;
-          color: #0f172a;
-          box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
         }
         .chip-green {
           background: #10b981;

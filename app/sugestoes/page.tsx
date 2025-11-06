@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { db, auth } from "@/firebaseConfig";
 import {
@@ -14,6 +15,7 @@ import {
 } from "firebase/firestore";
 import { Lightbulb, Send, Loader, ChevronLeft, ThumbsUp } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Sugestao = {
   id: string;
@@ -24,6 +26,8 @@ type Sugestao = {
 };
 
 export default function SugestoesPage() {
+  const router = useRouter();
+
   const [userEmail, setUserEmail] = useState("");
   const [sugestao, setSugestao] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -31,6 +35,7 @@ export default function SugestoesPage() {
   const [ultimas, setUltimas] = useState<Sugestao[]>([]);
   const [loading, setLoading] = useState(true);
   const [votando, setVotando] = useState<string | null>(null);
+  const [limite] = useState(400);
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged((user) => {
@@ -39,64 +44,85 @@ export default function SugestoesPage() {
     return () => unsub();
   }, []);
 
+  async function fetchSugestoes() {
+    setLoading(true);
+    const q = query(
+      collection(db, "sugestoes"),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+    const snap = await getDocs(q);
+    const data: Sugestao[] = [];
+    snap.forEach((docu) => {
+      data.push({ id: docu.id, ...(docu.data() as any) } as Sugestao);
+    });
+    setUltimas(data);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function fetchSugestoes() {
-      setLoading(true);
-      const q = query(
-        collection(db, "sugestoes"),
-        orderBy("createdAt", "desc"),
-        limit(10),
-      );
-      const snap = await getDocs(q);
-      const data: Sugestao[] = [];
-      snap.forEach((docu) => {
-        data.push({ id: docu.id, ...docu.data() } as Sugestao);
-      });
-      setUltimas(data);
-      setLoading(false);
-    }
     fetchSugestoes();
-  }, [msg, votando]);
+  }, []);
 
   async function enviarSugestao(e: React.FormEvent) {
     e.preventDefault();
-    if (!sugestao.trim()) return;
+    const texto = sugestao.trim();
+    if (!texto) return;
     setEnviando(true);
     setMsg("");
+
     try {
       await addDoc(collection(db, "sugestoes"), {
-        sugestao,
-        userEmail,
+        sugestao: texto,
+        userEmail: userEmail || "anônimo",
         createdAt: Timestamp.now(),
         votos: [],
       });
       setSugestao("");
       setMsg("Sugestão enviada com sucesso! Obrigado por contribuir.");
+      await fetchSugestoes();
+      // pequeno delay para o usuário ver a confirmação
+      setTimeout(() => router.push("/painel"), 900);
     } catch (e) {
+      console.error(e);
       setMsg("Erro ao enviar sugestão.");
+    } finally {
+      setEnviando(false);
     }
-    setEnviando(false);
   }
 
   async function votarSugestao(s: Sugestao) {
     if (!userEmail || !s.id) return;
-    setVotando(s.id);
     const votos = s.votos || [];
-    if (votos.includes(userEmail)) return; // já votou, nada faz
+    // impede voto duplo
+    if (votos.includes(userEmail)) return;
+
+    setVotando(s.id);
     try {
       await updateDoc(doc(db, "sugestoes", s.id), {
         votos: [...votos, userEmail],
       });
-    } catch (e) {}
-    setVotando(null);
+      // otimista na UI
+      setUltimas((prev) =>
+        prev.map((it) =>
+          it.id === s.id ? { ...it, votos: [...(it.votos || []), userEmail] } : it
+        )
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setVotando(null);
+    }
   }
+
+  const restantes = limite - sugestao.length;
 
   return (
     <section
       style={{ maxWidth: 700, margin: "0 auto", padding: "42px 4vw 60px 4vw" }}
     >
       <Link
-        href="/painel-vendedor"
+        href="/painel"
         style={{
           display: "flex",
           alignItems: "center",
@@ -104,10 +130,13 @@ export default function SugestoesPage() {
           color: "#2563eb",
           fontWeight: 700,
           fontSize: 16,
+          gap: 6,
+          textDecoration: "none",
         }}
       >
         <ChevronLeft size={19} /> Voltar ao Painel
       </Link>
+
       <h1
         style={{
           fontSize: "2.2rem",
@@ -137,6 +166,21 @@ export default function SugestoesPage() {
         <Lightbulb size={34} color="#FB8500" style={{ marginLeft: 10 }} />
       </h1>
 
+      {/* Info do usuário logado (opcional) */}
+      {userEmail && (
+        <div
+          className="mb-3"
+          style={{
+            fontSize: 14,
+            color: "#64748b",
+            fontWeight: 600,
+            marginBottom: 12,
+          }}
+        >
+          Enviando como: <span style={{ color: "#0f172a" }}>{userEmail}</span>
+        </div>
+      )}
+
       <form
         className="bg-white rounded-2xl shadow-xl p-7 flex flex-col gap-5 mb-8"
         onSubmit={enviarSugestao}
@@ -144,32 +188,50 @@ export default function SugestoesPage() {
         <label className="font-semibold text-[#023047] text-lg mb-2">
           Tem uma ideia ou sugestão para melhorar a plataforma?
         </label>
+
         <textarea
           className="block w-full px-4 py-3 border border-[#e4e8ef] rounded-lg bg-[#f7fafd] font-medium text-base outline-none"
           value={sugestao}
           onChange={(e) => setSugestao(e.target.value)}
           rows={4}
-          maxLength={400}
+          maxLength={limite}
           required
           placeholder="Descreva sua sugestão ou ideia..."
         />
-        <button
-          type="submit"
-          disabled={enviando || !sugestao.trim()}
-          className="bg-[#FB8500] flex items-center justify-center gap-2 text-white text-lg font-bold rounded-xl py-3 mt-2 shadow-md hover:opacity-90 transition"
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+          }}
         >
-          {enviando ? (
-            <Loader className="animate-spin" size={22} />
-          ) : (
-            <Send size={20} />
-          )}
-          {enviando ? "Enviando..." : "Enviar Sugestão"}
-        </button>
+          <span
+            style={{
+              fontSize: 13,
+              color: restantes < 30 ? "#ef4444" : "#64748b",
+              fontWeight: 700,
+            }}
+          >
+            {restantes} caracteres restantes
+          </span>
+
+          <button
+            type="submit"
+            disabled={enviando || !sugestao.trim()}
+            className="bg-[#FB8500] flex items-center justify-center gap-2 text-white text-lg font-bold rounded-xl py-3 px-5 shadow-md hover:opacity-90 transition disabled:opacity-60"
+          >
+            {enviando ? <Loader className="animate-spin" size={22} /> : <Send size={20} />}
+            {enviando ? "Enviando..." : "Enviar Sugestão"}
+          </button>
+        </div>
+
         {msg && (
           <div
-            className="text-center mt-2 font-semibold"
+            className="text-center mt-1 font-semibold"
             style={{
-              color: msg.includes("sucesso") ? "#18B56D" : "#E85D04",
+              color: msg.toLowerCase().includes("sucesso") ? "#18B56D" : "#E85D04",
               fontSize: 16,
             }}
           >
@@ -179,7 +241,7 @@ export default function SugestoesPage() {
       </form>
 
       <h2
-        className="text-xl font-bold text-[#023047] mb-2"
+        className="text-xl font-bold text-[#023047]"
         style={{ marginBottom: 12 }}
       >
         Últimas sugestões enviadas
@@ -200,7 +262,9 @@ export default function SugestoesPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {ultimas.map((s) => {
-              const jaVotou = (s.votos || []).includes(userEmail);
+              const votos = s.votos || [];
+              const jaVotou = userEmail ? votos.includes(userEmail) : false;
+
               return (
                 <div
                   key={s.id}
@@ -217,6 +281,7 @@ export default function SugestoesPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
+                      gap: 10,
                     }}
                   >
                     <div
@@ -227,47 +292,58 @@ export default function SugestoesPage() {
                         display: "flex",
                         alignItems: "center",
                         gap: 6,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        maxWidth: "70%",
                       }}
+                      title={s.userEmail}
                     >
                       <Lightbulb size={18} /> {s.userEmail}
                     </div>
+
                     <button
                       onClick={() => votarSugestao(s)}
-                      disabled={jaVotou || votando === s.id}
+                      disabled={jaVotou || votando === s.id || !userEmail}
                       className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm font-bold transition 
                         ${jaVotou ? "bg-[#FB8500] text-white opacity-90" : "bg-[#f7fafd] text-[#FB8500] hover:bg-[#ffe5bb]"}
                         ${votando === s.id ? "opacity-60" : ""}`}
                       style={{
                         cursor: jaVotou ? "not-allowed" : "pointer",
                         border: "none",
-                        minWidth: 55,
+                        minWidth: 60,
                         justifyContent: "center",
                       }}
                       title={
-                        jaVotou ? "Você já votou!" : "Curtir esta sugestão"
+                        !userEmail
+                          ? "Faça login para votar"
+                          : jaVotou
+                          ? "Você já votou!"
+                          : "Curtir esta sugestão"
                       }
                       type="button"
                     >
                       <ThumbsUp size={16} style={{ marginRight: 4 }} />
-                      {s.votos?.length || 0}
+                      {votos.length}
                     </button>
                   </div>
+
                   <div
                     style={{
                       color: "#023047",
                       fontSize: 16,
                       fontWeight: 500,
                       marginBottom: 3,
-                      marginTop: 4,
+                      marginTop: 6,
+                      whiteSpace: "pre-wrap",
                     }}
                   >
                     {s.sugestao}
                   </div>
+
                   <div style={{ color: "#8d9297", fontSize: 13 }}>
                     {s.createdAt?.seconds
-                      ? new Date(s.createdAt.seconds * 1000).toLocaleString(
-                          "pt-BR",
-                        )
+                      ? new Date(s.createdAt.seconds * 1000).toLocaleString("pt-BR")
                       : ""}
                   </div>
                 </div>

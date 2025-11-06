@@ -29,6 +29,7 @@ import {
   Sparkles,
   FileText,
   Image as ImageIcon,
+  Check,
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
@@ -43,34 +44,15 @@ const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
 /* ================== Constantes ================== */
 const estados = [
   "BRASIL",
-  "AC",
-  "AL",
-  "AP",
-  "AM",
-  "BA",
-  "CE",
-  "DF",
-  "ES",
-  "GO",
-  "MA",
-  "MT",
-  "MS",
-  "MG",
-  "PA",
-  "PB",
-  "PR",
-  "PE",
-  "PI",
-  "RJ",
-  "RN",
-  "RS",
-  "RO",
-  "RR",
-  "SC",
-  "SP",
-  "SE",
-  "TO",
+  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB",
+  "PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ] as const;
+
+const UFS = [
+  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB",
+  "PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+] as const;
+const UFS_SET = new Set<string>(UFS);
 
 const disponibilidades = [
   "Manhã",
@@ -81,7 +63,8 @@ const disponibilidades = [
   "Sob consulta",
 ] as const;
 
-const RASCUNHO_KEY = "pedraum:create-service:draft_v4";
+/** Bump de draft: v6 inclui atendeBrasil/ufsAtendidas */
+const RASCUNHO_KEY = "pedraum:create-service:draft_v6";
 
 /* ================== Helpers ================== */
 function normalize(s: string) {
@@ -94,48 +77,24 @@ function normalize(s: string) {
     .toLowerCase();
 }
 
-/** Tipos locais apenas para percorrer a taxonomia */
+/** Tipos mínimos para carregar categorias de nível 1 */
 type SubAny = { nome: string; slug?: string; subcategorias?: SubAny[] };
-
-/** Constrói índice de folhas (caminhos completos até o item final) */
-function buildLeafIndex(cats: SubAny[]) {
-  const out: { path: string[]; label: string; hay: string }[] = [];
-
-  function dfs(node: SubAny, path: string[]) {
-    const nextPath = [...path, node.nome];
-    const subs = Array.isArray(node.subcategorias) ? node.subcategorias : [];
-    if (subs.length === 0) {
-      const label = nextPath.join(" > ");
-      out.push({ path: nextPath, label, hay: normalize(label) });
-    } else {
-      subs.forEach((sn) => dfs(sn, nextPath));
-    }
-  }
-
-  (cats || []).forEach((c) => dfs(c, []));
-  return out;
-}
-
-/** Busca por termo nas folhas (caminho completo) */
-function searchLeaves(index: ReturnType<typeof buildLeafIndex>, q: string) {
-  const nq = normalize(q);
-  if (!nq) return [];
-  return index.filter((x) => x.hay.includes(nq)).slice(0, 12);
-}
 
 /* ================== Form types ================== */
 type FormState = {
   titulo: string;
   descricao: string;
 
-  categoria: string; // nível 1
-  subcategoria: string; // nível 2
-  itemFinal: string; // nível 3
+  categoria: string; // nível 1 selecionado
   outrosCategoriaTexto: string; // se categoria == "Outros"
 
   preco: string; // string; vira number | "Sob consulta" no submit
   estado: string;
-  abrangencia: string;
+
+  /** Cobertura no padrão do Perfil */
+  atendeBrasil: boolean;
+  ufsAtendidas: string[]; // lista de UFs quando não atendeBrasil
+
   disponibilidade: string;
 
   prestadorNome: string;
@@ -152,9 +111,6 @@ export default function CreateServicePage() {
     loading: boolean;
   };
 
-  // Índice de folhas (A > B > C)
-  const leafIndex = useMemo(() => buildLeafIndex(taxCats), [taxCats]);
-
   // mídia
   const [imagens, setImagens] = useState<string[]>([]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -163,13 +119,14 @@ export default function CreateServicePage() {
     titulo: "",
     descricao: "",
     categoria: "",
-    subcategoria: "",
-    itemFinal: "",
     outrosCategoriaTexto: "",
 
     preco: "",
     estado: "",
-    abrangencia: "",
+
+    atendeBrasil: false,
+    ufsAtendidas: [],
+
     disponibilidade: "",
 
     prestadorNome: "",
@@ -182,66 +139,15 @@ export default function CreateServicePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // ===== Busca rápida por item/caminho =====
-  const [searchTerm, setSearchTerm] = useState("");
-  const [results, setResults] = useState<{ path: string[]; label: string }[]>(
-    [],
-  );
-  const [showResults, setShowResults] = useState(false);
-  const [highlight, setHighlight] = useState(0);
-
-  useEffect(() => {
-    if (!searchTerm.trim()) {
-      setResults([]);
-      setShowResults(false);
-      return;
-    }
-    const r = searchLeaves(leafIndex, searchTerm).map(({ path, label }) => ({
-      path,
-      label,
-    }));
-    setResults(r);
-    setShowResults(true);
-    setHighlight(0);
-  }, [searchTerm, leafIndex]);
-
-  function applyPath(path: string[]) {
-    const [c1, c2, c3] = path;
-    setForm((prev) => ({
-      ...prev,
-      categoria: c1 || "",
-      subcategoria: c2 || "",
-      itemFinal: c3 || c2 || "",
-      outrosCategoriaTexto: "",
-    }));
-    setSearchTerm("");
-    setShowResults(false);
-  }
-
-  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!showResults || results.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlight((h) => Math.min(h + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlight((h) => Math.max(h - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const chosen = results[highlight];
-      if (chosen) applyPath(chosen.path);
-    } else if (e.key === "Escape") {
-      setShowResults(false);
-    }
-  }
-
   /* ---------- Autosave local ---------- */
   useEffect(() => {
     const raw = localStorage.getItem(RASCUNHO_KEY);
     if (raw) {
       try {
         const p = JSON.parse(raw);
-        if (p?.form) setForm((prev) => ({ ...prev, ...p.form }));
+        if (p?.form) {
+          setForm((prev) => ({ ...prev, ...p.form }));
+        }
         if (Array.isArray(p?.imagens)) setImagens(p.imagens);
         if (typeof p?.pdfUrl === "string" || p?.pdfUrl === null)
           setPdfUrl(p.pdfUrl);
@@ -299,10 +205,7 @@ export default function CreateServicePage() {
     setForm((prev) => ({
       ...prev,
       [name]: value,
-      ...(name === "categoria"
-        ? { subcategoria: "", itemFinal: "", outrosCategoriaTexto: "" }
-        : null),
-      ...(name === "subcategoria" ? { itemFinal: "" } : null),
+      ...(name === "categoria" ? { outrosCategoriaTexto: "" } : null),
     }));
   }
 
@@ -316,15 +219,42 @@ export default function CreateServicePage() {
     })}`;
   }, [form.preco]);
 
-  /* ---------- Derivados da taxonomia ---------- */
-  const subcatsLvl2: SubAny[] = (taxCats.find((c) => c.nome === form.categoria)
-    ?.subcategorias ?? []) as SubAny[];
-
-  const itemsLvl3: SubAny[] = (subcatsLvl2.find(
-    (s) => s.nome === form.subcategoria,
-  )?.subcategorias ?? []) as SubAny[];
-
+  /* ---------- Derivados ---------- */
   const isOutros = form.categoria === "Outros";
+  const subcategoriaFixa = "Serviços";
+
+  function toggleUfAtendida(uf: string) {
+    if (uf === "BRASIL") {
+      setForm((f) => ({
+        ...f,
+        atendeBrasil: !f.atendeBrasil,
+        ufsAtendidas: !f.atendeBrasil ? ["BRASIL"] : [],
+      }));
+      return;
+    }
+    const val = String(uf).trim().toUpperCase();
+    if (!UFS_SET.has(val)) return;
+
+    if (form.atendeBrasil) {
+      setForm((f) => ({ ...f, atendeBrasil: false, ufsAtendidas: [val] }));
+      return;
+    }
+
+    const has = form.ufsAtendidas.includes(val);
+    setForm((f) => ({
+      ...f,
+      ufsAtendidas: has ? f.ufsAtendidas.filter((u) => u !== val) : [...f.ufsAtendidas, val],
+    }));
+  }
+
+  function buildAbrangenciaLabel(atendeBrasil: boolean, ufs: string[]) {
+    if (atendeBrasil) return "Brasil inteiro";
+    const list = (ufs || []).filter((u) => u !== "BRASIL");
+    if (list.length === 0) return "";
+    if (list.length === 1) return list[0];
+    if (list.length <= 4) return list.join(", ");
+    return `${list.length} UFs`;
+  }
 
   /* ---------- Submit ---------- */
   async function handleSubmit(e: React.FormEvent) {
@@ -340,34 +270,10 @@ export default function CreateServicePage() {
       return;
     }
 
-    const subOk = isOutros
-      ? !!form.outrosCategoriaTexto.trim()
-      : !!form.subcategoria;
-    const itemOk = isOutros ? true : !!form.itemFinal;
+    // Validações
+    const coberturaOk = form.atendeBrasil || form.ufsAtendidas.length > 0;
 
-    if (
-      !form.titulo ||
-      !form.descricao ||
-      !form.categoria ||
-      !subOk ||
-      !itemOk ||
-      !form.estado ||
-      !form.abrangencia ||
-      !form.disponibilidade ||
-      !form.prestadorNome ||
-      !form.prestadorEmail
-    ) {
-      setError("Preencha todos os campos obrigatórios (*).");
-      setLoading(false);
-      return;
-    }
-
-    if (imagens.length === 0) {
-      setError("Envie pelo menos uma imagem do serviço.");
-      setLoading(false);
-      return;
-    }
-
+    
     try {
       // preço: número ou "Sob consulta"
       let preco: number | string = "Sob consulta";
@@ -382,11 +288,14 @@ export default function CreateServicePage() {
 
       const finalCategoria = isOutros ? "Outros (livre)" : form.categoria;
 
+      // Caminho padronizado: [Categoria, "Serviços"] (ou com texto livre em Outros)
       const categoriaPath = isOutros
-        ? ["Outros", form.outrosCategoriaTexto.trim()]
-        : [form.categoria, form.subcategoria, form.itemFinal].filter(Boolean);
+        ? ["Outros", "Serviços", form.outrosCategoriaTexto.trim()].filter(Boolean)
+        : [form.categoria, subcategoriaFixa];
 
       const categoriaPathLabel = categoriaPath.join(" > ");
+
+      const abrangenciaLabel = buildAbrangenciaLabel(form.atendeBrasil, form.ufsAtendidas);
 
       // keywords para busca
       const searchBase = normalize(
@@ -395,7 +304,7 @@ export default function CreateServicePage() {
           form.descricao,
           categoriaPathLabel,
           form.estado,
-          form.abrangencia,
+          abrangenciaLabel,
           form.disponibilidade,
           form.prestadorNome,
         ]
@@ -409,15 +318,25 @@ export default function CreateServicePage() {
         descricao: form.descricao,
 
         categoria: finalCategoria,
-        subcategoria: isOutros ? "" : form.subcategoria,
-        itemFinal: isOutros ? form.outrosCategoriaTexto.trim() : form.itemFinal,
+        subcategoria: subcategoriaFixa, // fixa
+        itemFinal: isOutros ? form.outrosCategoriaTexto.trim() : "",
 
         categoriaPath,
         categoriaPathLabel,
 
         preco,
         estado: form.estado,
-        abrangencia: form.abrangencia,
+
+        // Cobertura (novo padrão, igual Perfil)
+        atendeBrasil: !!form.atendeBrasil,
+        ufsAtendidas: form.atendeBrasil
+          ? ["BRASIL"]
+          : Array.from(new Set((form.ufsAtendidas || []).map((u) => String(u).trim().toUpperCase()))),
+
+        // Compatibilidade antiga (string amigável)
+        abrangencia: abrangenciaLabel,
+        abrangenciaLabel,
+
         disponibilidade: form.disponibilidade,
 
         // mídia
@@ -446,7 +365,7 @@ export default function CreateServicePage() {
       await addDoc(collection(db, "services"), payload);
       localStorage.removeItem(RASCUNHO_KEY);
       setSuccess("Serviço cadastrado com sucesso!");
-      setTimeout(() => router.push("/services"), 900);
+      setTimeout(() => router.push("/vitrine"), 900);
     } catch (err) {
       console.error(err);
       setError("Erro ao cadastrar serviço. Tente novamente.");
@@ -643,77 +562,7 @@ export default function CreateServicePage() {
                 </div>
               </div>
 
-              {/* ===== Busca rápida por item/caminho ===== */}
-              <div
-                className="rounded-2xl border p-4 mb-4"
-                style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
-              >
-                <h3 className="text-slate-800 font-black tracking-tight mb-2 flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-orange-500" /> Buscar por nome
-                  do item (atalho)
-                </h3>
-                <div className="relative">
-                  <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onFocus={() => searchTerm && setShowResults(true)}
-                    onKeyDown={onSearchKeyDown}
-                    onBlur={() => setTimeout(() => setShowResults(false), 120)}
-                    style={inputStyle}
-                    placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
-                    disabled={taxLoading}
-                  />
-                  {showResults && results.length > 0 && (
-                    <ul
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 6px)",
-                        left: 0,
-                        right: 0,
-                        background: "#fff",
-                        border: "1px solid #e5e7eb",
-                        boxShadow: "0 12px 30px rgba(2,48,71,0.08)",
-                        borderRadius: 12,
-                        zIndex: 50,
-                        maxHeight: 280,
-                        overflowY: "auto",
-                        padding: "6px 0",
-                      }}
-                    >
-                      {results.map(({ label, path }, i) => (
-                        <li
-                          key={label + i}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => applyPath(path)}
-                          style={{
-                            padding: "10px 12px",
-                            cursor: "pointer",
-                            color: "#0f172a",
-                            fontWeight: 700,
-                            background:
-                              i === highlight
-                                ? "rgba(251,133,0,0.12)"
-                                : "transparent",
-                            whiteSpace: "nowrap",
-                            textOverflow: "ellipsis",
-                            overflow: "hidden",
-                          }}
-                          title={label}
-                        >
-                          {label}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-                {results.length === 0 && searchTerm.trim() && (
-                  <div className="text-xs text-slate-500 mt-2">
-                    Nada encontrado. Tente “mandíbulas”, “vibratória”, “CLP”,
-                    etc.
-                  </div>
-                )}
-              </div>
-              {/* Categoria / Subcategoria / Item final */}
+              {/* Categoria (único campo de taxonomia visível) */}
               <div>
                 <label style={labelStyle}>
                   <Layers size={15} /> Categoria *
@@ -734,70 +583,32 @@ export default function CreateServicePage() {
                     </option>
                   ))}
                 </select>
+                <div className="text-xs text-slate-500 mt-1">
+                  Subcategoria aplicada automaticamente: <b>Serviços</b>
+                </div>
               </div>
 
-              <div>
-                <label style={labelStyle}>Subcategoria *</label>
-                {isOutros ? (
+              {/* Se Categoria = Outros, abre um campo livre para especificar */}
+              {isOutros && (
+                <div>
+                  <label style={labelStyle}>
+                    Detalhe a categoria (livre) *
+                  </label>
                   <input
                     name="outrosCategoriaTexto"
                     value={form.outrosCategoriaTexto}
                     onChange={handleChange}
                     style={inputStyle}
-                    placeholder="Descreva sua necessidade"
+                    placeholder="Descreva sua categoria"
                     required
                   />
-                ) : (
-                  <select
-                    name="subcategoria"
-                    value={form.subcategoria}
-                    onChange={handleChange}
-                    style={inputStyle}
-                    required
-                    disabled={!form.categoria}
-                  >
-                    <option value="">
-                      {form.categoria
-                        ? "Selecione"
-                        : "Selecione a categoria primeiro"}
-                    </option>
-                    {subcatsLvl2.map((s) => (
-                      <option key={s.nome} value={s.nome}>
-                        {s.nome}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {!isOutros && (
-                <div className="md:col-span-2">
-                  <label style={labelStyle}>Item final *</label>
-                  <select
-                    name="itemFinal"
-                    value={form.itemFinal}
-                    onChange={handleChange}
-                    style={inputStyle}
-                    required
-                    disabled={!form.subcategoria}
-                  >
-                    <option value="">
-                      {form.subcategoria
-                        ? "Selecione"
-                        : "Selecione a subcategoria primeiro"}
-                    </option>
-                    {itemsLvl3.map((it) => (
-                      <option key={it.nome} value={it.nome}>
-                        {it.nome}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               )}
 
+              {/* Estado base (local do prestador) */}
               <div>
                 <label style={labelStyle}>
-                  <MapPin size={15} /> Estado (UF) *
+                  <MapPin size={15} /> Estado (UF) Sua Localização*
                 </label>
                 <select
                   name="estado"
@@ -815,22 +626,7 @@ export default function CreateServicePage() {
                 </select>
               </div>
 
-              <div>
-                <label style={labelStyle}>
-                  <Globe size={15} /> Abrangência *
-                </label>
-                <input
-                  name="abrangencia"
-                  value={form.abrangencia}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="Ex: Minas Gerais, Sudeste, Brasil inteiro..."
-                  maxLength={60}
-                  required
-                  autoComplete="off"
-                />
-              </div>
-
+              {/* Disponibilidade */}
               <div>
                 <label style={labelStyle}>
                   <CalendarClock size={15} /> Disponibilidade *
@@ -850,6 +646,54 @@ export default function CreateServicePage() {
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* ===== Cobertura / Abrangência (igual Perfil) ===== */}
+            <div className="card">
+  <div className="card-title">Cobertura / Abrangencia </div>
+
+  <label className="checkbox" style={{ marginBottom: 10 }}>
+    <input
+      type="checkbox"
+      checked={form.atendeBrasil}
+      onChange={() => toggleUfAtendida("BRASIL")}
+    />
+    <span>Atendo o Brasil inteiro</span>
+  </label>
+
+  {!form.atendeBrasil && (
+    <>
+      <div className="label" style={{ marginTop: 8 }}>Selecione UFs</div>
+      <div className="grid grid-cols-8 gap-2 max-sm:grid-cols-4">
+        {UFS.map((uf) => {
+          const checked = form.ufsAtendidas.includes(uf);
+          return (
+            <button
+              key={uf}
+              type="button"
+              onClick={() => toggleUfAtendida(uf)}
+              className="pill"
+              style={{
+                background: checked ? "#219EBC" : "#f3f6fa",
+                color: checked ? "#fff" : "#023047",
+                borderColor: checked ? "#1a7a93" : "#e6e9ef",
+              }}
+              title={checked ? "Selecionado" : "Clique para selecionar"}
+            >
+              {checked && <Check size={12} />}
+              {uf}
+            </button>
+          );
+        })}
+                  </div>
+                 {form.ufsAtendidas.length === 0 && (
+  <div className="hint">
+    Dica: selecione pelo menos 1 UF ou marque “Brasil inteiro”.
+  </div>
+)}
+
+                </>
+              )}
             </div>
 
             {/* Descrição */}
@@ -992,6 +836,56 @@ export default function CreateServicePage() {
                 : "Rascunho salvo automaticamente"}
             </div>
           </form>
+          <style jsx>{`
+  /* === mesmo visual do Perfil === */
+  .card {
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 4px 28px #0001;
+    padding: 24px 22px;
+    border: 1px solid #e6ebf2;
+  }
+  .card-title {
+    font-weight: 900;
+    color: #023047;
+    font-size: 1.2rem;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .label {
+    font-weight: 800;
+    color: #023047;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    color: #023047;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #e6e9ef;
+    border-radius: 999px;
+    padding: 8px 12px;
+    font-weight: 800;
+    font-size: 0.95rem;
+    transition: transform .02s, filter .15s;
+  }
+  .pill:active { transform: translateY(1px); }
+  .hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #64748b;
+  }
+`}</style>
+
         </section>
       </main>
     </Suspense>
