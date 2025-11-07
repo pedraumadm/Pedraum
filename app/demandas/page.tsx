@@ -860,33 +860,6 @@ export default function VitrineDemandas() {
                       </span>
                     )}
 
-                    {/* Chip de status */}
-                    {!fechada &&
-                      statusStr &&
-                      statusStr !== "pending" &&
-                      statusStr !== "rejected" && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 14,
-                            left: 14,
-                            background:
-                              statusStr === "em_andamento" ? "#E0F2FE" : "#ECFDF5",
-                            color: statusStr === "em_andamento" ? "#0369A1" : "#166534",
-                            fontWeight: 900,
-                            fontSize: 12.5,
-                            padding: "3px 12px",
-                            borderRadius: 10,
-                            zIndex: 2,
-                            letterSpacing: ".03em",
-                            border: "1px solid #e5e7eb",
-                          }}
-                          title={`Status: ${String(item.status).toUpperCase()}`}
-                        >
-                          {String(item.status).toUpperCase()}
-                        </span>
-                      )}
-
                     {isPatrocinador && (
                       <span
                         style={{

@@ -87,13 +87,7 @@ const CARDS = [
     link: "/admin/sugestoes",
     color: "#fbbf24",
   },
-  {
-    label: "Parceiros",
-    icon: Building2,
-    key: "parceiros",
-    link: "/admin/parceiros",
-    color: "#14b8a6",
-  },
+
   {
     label: "Blog",
     icon: Newspaper,
