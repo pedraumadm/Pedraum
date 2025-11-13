@@ -6,27 +6,29 @@ import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /* ============================================================
- *  >>> Onboarding sênior Pedraum — build "inquebrável" v2.2 <<<
- *  - Layout-stable start
- *  - IDs de passo imunes a mudança de texto
- *  - Grupo marcado como concluído SEM depender do DOM
- *  - Respeita quem já fez (não reaparece)
- *  - Mobile realmente robusto (hambúrguer, overlay seguro)
+ *  >>> Onboarding sênior Pedraum — build estável v2.3 <<<
+ *  - Sem scroll automático chato
+ *  - Tour ativo em desktop e mobile
+ *  - IDs de passo estáveis (group + target)
+ *  - Grupos marcados como concluídos via localStorage
  *  - Auto-discovery por data-attributes (data-tour-step)
  *  - API global: window.pedraumTour.{start,reset,expose}
  * ============================================================ */
 
-const TOUR_VERSION = "v2.2";
+const TOUR_VERSION = "v2.3";
 
 /* ---------- Storage keys ---------- */
 const KEY_SEEN = `pedraum_tour_seen:${TOUR_VERSION}`; // JSON: string[]
-const KEY_GROUP_DONE = (g: string) => `pedraum_tour_done_group:${TOUR_VERSION}:${g}`;
+const KEY_GROUP_DONE = (g: string) =>
+  `pedraum_tour_done_group:${TOUR_VERSION}:${g}`;
 
 /* ---------- Utils básicos ---------- */
-const basePath = (p: string) => (p || "/").split("?")[0].replace(/\/+$/, "") || "/";
+const basePath = (p: string) =>
+  (p || "/").split("?")[0].replace(/\/+$/, "") || "/";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
-const isMobile = () => (typeof window !== "undefined" ? window.innerWidth <= 768 : false);
+const isMobile = () =>
+  typeof window !== "undefined" ? window.innerWidth <= 768 : false;
 
 const q = (sel: string): HTMLElement | null => {
   try {
@@ -39,7 +41,12 @@ const q = (sel: string): HTMLElement | null => {
 const isVisible = (el: HTMLElement | null) => {
   if (!el) return false;
   const cs = window.getComputedStyle(el);
-  if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) return false;
+  if (
+    cs.visibility === "hidden" ||
+    cs.display === "none" ||
+    Number(cs.opacity) === 0
+  )
+    return false;
   const r = el.getBoundingClientRect();
   return r.width > 0 && r.height > 0;
 };
@@ -75,19 +82,6 @@ const markGroupDone = (g: string) => {
   } catch {}
 };
 
-/* ---------- Offset do header fixo ---------- */
-const getScrollOffset = () => {
-  try {
-    const header =
-      (document.querySelector("header") as HTMLElement) ||
-      (document.querySelector('[data-tour="app-header"]') as HTMLElement);
-    const h = header ? header.getBoundingClientRect().height : 0;
-    return Math.min(Math.max(h, 56), 120) + 12;
-  } catch {
-    return 72;
-  }
-};
-
 /* ---------- Placement seguro ---------- */
 const safePlacement = (p?: Step["placement"]) => (isMobile() ? "bottom" : p || "auto");
 
@@ -111,21 +105,29 @@ function uniqByTarget(steps: Step[]) {
 /* ---------- Espera elementos válidos ---------- */
 async function waitAndFilterTargets(
   steps: Step[],
-  { minOk = 1, retries = 42, gapMs = 120 }: { minOk?: number; retries?: number; gapMs?: number } = {},
+  {
+    minOk = 1,
+    retries = 42,
+    gapMs = 120,
+  }: { minOk?: number; retries?: number; gapMs?: number } = {},
 ) {
   if (typeof window === "undefined") return [];
   let tries = 0;
   while (tries < retries) {
-    const ok = steps.filter((s) => typeof s.target === "string" && exists(String(s.target)));
+    const ok = steps.filter(
+      (s) => typeof s.target === "string" && exists(String(s.target)),
+    );
     if (ok.length >= minOk) return ok;
     tries++;
     await sleep(gapMs);
     await raf();
   }
-  return steps.filter((s) => typeof s.target === "string" && exists(String(s.target)));
+  return steps.filter(
+    (s) => typeof s.target === "string" && exists(String(s.target)),
+  );
 }
 
-/* ---------- Espera layout estabilizar (anti-“quebra ao iniciar”) ---------- */
+/* ---------- Espera layout estabilizar (anti-quebra ao iniciar) ---------- */
 async function waitForStableLayout(opts: { retries?: number; gapMs?: number } = {}) {
   const { retries = 50, gapMs = 80 } = opts;
   if (typeof window === "undefined") return;
@@ -156,7 +158,8 @@ function patchStepsForViewport(steps: Step[]): Step[] {
       '[data-tour="header-nav-demandas"]': '[data-tour="header-hamburger"]',
       '[data-tour="header-nav-painel"]': '[data-tour="header-hamburger"]',
     };
-    if (mobile && fallback[t] && !exists(t) && exists(fallback[t])) target = fallback[t];
+    if (mobile && fallback[t] && !exists(t) && exists(fallback[t]))
+      target = fallback[t];
     return {
       ...s,
       target,
@@ -165,7 +168,10 @@ function patchStepsForViewport(steps: Step[]): Step[] {
       offset: mobile ? 10 : 12,
       styles: {
         ...(s.styles || {}),
-        tooltip: { ...(s.styles?.tooltip || {}), maxWidth: mobile ? 280 : 440 },
+        tooltip: {
+          ...(s.styles?.tooltip || {}),
+          maxWidth: mobile ? 280 : 440,
+        },
       },
     };
   });
@@ -199,22 +205,38 @@ function getDomSelector(el: HTMLElement): string | null {
 
 function autoStepsFromDOM(): Step[] {
   if (typeof window === "undefined") return [];
-  const nodes = Array.from(document.querySelectorAll<HTMLElement>("[data-tour-step]"));
+  const nodes = Array.from(
+    document.querySelectorAll<HTMLElement>("[data-tour-step]"),
+  );
   const parsed = nodes
     .map((el) => {
       const order = Number(el.getAttribute("data-tour-step") || "0");
       const content = el.getAttribute("data-tour-content") || "";
-      const placement = el.getAttribute("data-tour-placement") as Step["placement"] | null;
+      const placement = el.getAttribute(
+        "data-tour-placement",
+      ) as Step["placement"] | null;
       const explicitTarget = el.getAttribute("data-tour-target");
-      const target = explicitTarget && explicitTarget.trim().length > 0 ? explicitTarget : getDomSelector(el);
+      const target =
+        explicitTarget && explicitTarget.trim().length > 0
+          ? explicitTarget
+          : getDomSelector(el);
       if (!content || !target) return null;
       return {
         order: isNaN(order) ? 0 : order,
-        step: { target, content, placement: placement || undefined, disableBeacon: true } as Step,
+        step: {
+          target,
+          content,
+          placement: placement || undefined,
+          disableBeacon: true,
+        } as Step,
       };
     })
     .filter(Boolean) as { order: number; step: Step }[];
-  return uniqByTarget(patchStepsForViewport(parsed.sort((a, b) => a.order - b.order).map((x) => x.step)));
+  return uniqByTarget(
+    patchStepsForViewport(
+      parsed.sort((a, b) => a.order - b.order).map((x) => x.step),
+    ),
+  );
 }
 
 /* ---------- Fallbacks por rota ---------- */
@@ -224,12 +246,14 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
     steps: [
       {
         target: ".home-hero-section, [data-tour='home.hero']",
-        content: "Bem-vindo à Pedraum: o hub de negócios da mineração e construção.",
+        content:
+          "Bem-vindo à Pedraum: o hub de negócios da mineração e construção.",
         disableBeacon: true,
       },
       {
         target: ".home-hero-cta, [data-tour='home.cta']",
-        content: "Comece agora: publique um produto/serviço ou crie uma demanda.",
+        content:
+          "Comece agora: publique um produto/serviço ou crie uma demanda.",
       },
       {
         target: ".demandas-section, [data-tour='home.demandas']",
@@ -244,46 +268,109 @@ const ROUTE_STEPS: Array<{ pattern: string; steps: Step[] }> = [
   {
     pattern: "/vitrine",
     steps: [
-      { target: '[data-tour="vitrine.filtros"], .vitrine-filtros', content: "Refine por categoria, estado, cidade e mais." },
-      { target: '[data-tour="vitrine.filtro-busca"], .vitrine-busca', content: "Pesquise por nome, marca ou palavra-chave." },
-      { target: '[data-tour="vitrine.grid"], .vitrine-grid', content: "Resultados disponíveis. Clique para ver detalhes e falar no WhatsApp." },
-      { target: '[data-tour="vitrine.cta-novo-produto"], .vitrine-cta-produto', content: "Anuncie um produto ou máquina em minutos." },
-      { target: '[data-tour="vitrine.cta-novo-servico"], .vitrine-cta-servico', content: "Ofereça seu serviço e seja encontrado." },
+      {
+        target: '[data-tour="vitrine.filtros"], .vitrine-filtros',
+        content: "Refine por categoria, estado, cidade e mais.",
+      },
+      {
+        target: '[data-tour="vitrine.filtro-busca"], .vitrine-busca',
+        content: "Pesquise por nome, marca ou palavra-chave.",
+      },
+      {
+        target: '[data-tour="vitrine.grid"], .vitrine-grid',
+        content:
+          "Resultados disponíveis. Clique para ver detalhes e falar no WhatsApp.",
+      },
+      {
+        target: '[data-tour="vitrine.cta-novo-produto"], .vitrine-cta-produto',
+        content: "Anuncie um produto ou máquina em minutos.",
+      },
+      {
+        target: '[data-tour="vitrine.cta-novo-servico"], .vitrine-cta-servico',
+        content: "Ofereça seu serviço e seja encontrado.",
+      },
     ],
   },
   {
     pattern: "/demandas",
     steps: [
-      { target: '[data-tour="demandas.filtros"], .demandas-filtros', content: "Selecione região, categoria e status para achar pedidos certos." },
-      { target: '[data-tour="demandas.lista"], .demandas-lista', content: "Escolha a demanda e apresente sua proposta." },
-      { target: '[data-tour="demandas.cta-criar"], .demandas-cta', content: "Precisa de algo? Crie um pedido e receba contatos." },
+      {
+        target: '[data-tour="demandas.filtros"], .demandas-filtros',
+        content:
+          "Selecione região, categoria e status para achar pedidos certos.",
+      },
+      {
+        target: '[data-tour="demandas.lista"], .demandas-lista',
+        content: "Escolha a demanda e apresente sua proposta.",
+      },
+      {
+        target: '[data-tour="demandas.cta-criar"], .demandas-cta',
+        content:
+          "Precisa de algo? Crie um pedido e receba contatos de fornecedores.",
+      },
     ],
   },
   {
     pattern: "/painel",
     steps: [
-      { target: ".painel-oportunidades, [data-tour='tile-oportunidades']", content: "Alertas que combinam com seu perfil e atuação." },
-      { target: ".painel-minhas-demandas, [data-tour='tile-minhas-demandas']", content: "Edite, pause e acompanhe respostas." },
-      { target: ".painel-produtos, [data-tour='tile-produtos']", content: "Gerencie anúncios, estoque e visibilidade." },
-      { target: ".painel-servicos, [data-tour='tile-servicos']", content: "Mostre o que você faz e feche contratos." },
-      { target: ".painel-notificacoes, [data-tour='tile-notificacoes']", content: "Mensagens, avisos e atualizações da plataforma." },
+      {
+        target: ".painel-oportunidades, [data-tour='tile-oportunidades']",
+        content: "Alertas que combinam com seu perfil e atuação.",
+      },
+      {
+        target: ".painel-minhas-demandas, [data-tour='tile-minhas-demandas']",
+        content: "Edite, pause e acompanhe respostas.",
+      },
+      {
+        target: ".painel-produtos, [data-tour='tile-produtos']",
+        content: "Gerencie anúncios, estoque e visibilidade.",
+      },
+      {
+        target: ".painel-servicos, [data-tour='tile-servicos']",
+        content: "Mostre o que você faz e feche contratos.",
+      },
+      {
+        target:
+          ".painel-notificacoes, [data-tour='tile-notificacoes']",
+        content: "Mensagens, avisos e atualizações da plataforma.",
+      },
     ],
   },
   {
     pattern: "/perfil",
     steps: [
-      { target: "[data-tour='perfil.avatar'], .perfil-avatar", content: "Complete seu perfil para aumentar a confiança nas negociações." },
-      { target: "[data-tour='perfil.atuacao'], .perfil-atuacao", content: "Marque sua atuação por categoria — isso melhora as indicações." },
-      { target: "[data-tour='perfil.portfolio'], .perfil-documentos-section", content: "Anexe provas do seu trabalho e ganhe destaque." },
-      { target: "[data-tour='perfil.salvar'], .perfil-salvar", content: "Guarde as alterações para manter tudo atualizado." },
+      {
+        target: "[data-tour='perfil.avatar'], .perfil-avatar",
+        content:
+          "Complete seu perfil para aumentar a confiança nas negociações.",
+      },
+      {
+        target: "[data-tour='perfil.atuacao'], .perfil-atuacao",
+        content:
+          "Marque sua atuação por categoria — isso melhora as indicações.",
+      },
+      {
+        target:
+          "[data-tour='perfil.portfolio'], .perfil-documentos-section",
+        content: "Anexe provas do seu trabalho e ganhe destaque.",
+      },
+      {
+        target: "[data-tour='perfil.salvar'], .perfil-salvar",
+        content:
+          "Guarde as alterações para manter seu cadastro sempre atualizado.",
+      },
     ],
   },
 ];
 
 /* ---------- Header (uma vez global) ---------- */
 function buildHeaderSteps(): Step[] {
-  const hasRegister = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-register"]');
-  const hasLogin = typeof window !== "undefined" && !!document.querySelector('[data-tour="header-login"]');
+  const hasRegister =
+    typeof window !== "undefined" &&
+    !!document.querySelector('[data-tour="header-register"]');
+  const hasLogin =
+    typeof window !== "undefined" &&
+    !!document.querySelector('[data-tour="header-login"]');
 
   const firstTarget = hasRegister
     ? '[data-tour="header-register"]'
@@ -302,20 +389,34 @@ function buildHeaderSteps(): Step[] {
       disableBeacon: true,
       placement: "bottom",
     },
-    { target: '[data-tour="header-logo"]', content: "Clique no logo para voltar ao início.", placement: "bottom" },
-    { target: '[data-tour="header-nav-produtos"]', content: "Vitrine: máquinas, peças e serviços." },
-    { target: '[data-tour="header-nav-demandas"]', content: "Pedidos reais do mercado — ofereça sua solução." },
-    { target: '[data-tour="header-nav-painel"]', content: "Painel: gerencie suas publicações e contatos." },
+    {
+      target: '[data-tour="header-logo"]',
+      content: "Clique no logo para voltar ao início.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="header-nav-produtos"]',
+      content: "Vitrine: máquinas, peças e serviços.",
+    },
+    {
+      target: '[data-tour="header-nav-demandas"]',
+      content: "Pedidos reais do mercado — ofereça sua solução.",
+    },
+    {
+      target: '[data-tour="header-nav-painel"]',
+      content: "Painel: gerencie suas publicações e contatos.",
+    },
   ];
   return uniqByTarget(patchStepsForViewport(raw));
 }
 
 /* ---------- Rota / Grupos ---------- */
-const routeGroupFrom = (pathname: string) => (pathname || "/").split("/")[1] || "home";
+const routeGroupFrom = (pathname: string) =>
+  (pathname || "/").split("/")[1] || "home";
 const matchRouteSteps = (pathname: string): Step[] => {
-  const c = ROUTE_STEPS.filter((r) => pathname === r.pattern || pathname.startsWith(r.pattern)).sort(
-    (a, b) => b.pattern.length - a.pattern.length,
-  );
+  const c = ROUTE_STEPS.filter(
+    (r) => pathname === r.pattern || pathname.startsWith(r.pattern),
+  ).sort((a, b) => b.pattern.length - a.pattern.length);
   return c[0]?.steps ?? [];
 };
 
@@ -335,14 +436,16 @@ function OnboardingInner() {
   const runningRef = useRef(false);
   const resizeTimer = useRef<number | null>(null);
   const mutationObs = useRef<MutationObserver | null>(null);
-  const firstObserver = useRef<IntersectionObserver | null>(null);
-  const registryRef = useRef<Record<string, { order: number; steps: Step[] }>>({});
+  const registryRef = useRef<Record<string, { order: number; steps: Step[] }>>(
+    {},
+  );
   const regsVersion = useRef(0); // evita re-renders infinitos
 
   const forcedGroupParam = (search?.get("tour") || "").toLowerCase();
   const inferredGroup = routeGroupFrom(pathname);
   const activeGroup =
-    forcedGroupParam && !["1", "true", "on", "reset"].includes(forcedGroupParam)
+    forcedGroupParam &&
+    !["1", "true", "on", "reset"].includes(forcedGroupParam)
       ? forcedGroupParam
       : inferredGroup;
 
@@ -369,8 +472,8 @@ function OnboardingInner() {
           if (flow) localStorage.removeItem(KEY_GROUP_DONE(flow));
           else {
             localStorage.removeItem(KEY_SEEN);
-            ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach((g) =>
-              localStorage.removeItem(KEY_GROUP_DONE(g)),
+            ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach(
+              (g) => localStorage.removeItem(KEY_GROUP_DONE(g)),
             );
           }
         } catch {}
@@ -391,9 +494,14 @@ function OnboardingInner() {
       const order = Number(detail.order ?? 2);
       const raw: any[] = Array.isArray(detail.steps) ? detail.steps : [];
       const norm: Step[] = raw
-        .map((s) => (s?.target ? s : s?.selector ? { ...s, target: s.selector } : null))
+        .map((s) =>
+          s?.target ? s : s?.selector ? { ...s, target: s.selector } : null,
+        )
         .filter(Boolean) as Step[];
-      registryRef.current[group] = { order, steps: uniqByTarget(patchStepsForViewport(norm)) };
+      registryRef.current[group] = {
+        order,
+        steps: uniqByTarget(patchStepsForViewport(norm)),
+      };
       regsVersion.current++;
       setSteps((s) => s); // força recompute
     };
@@ -414,7 +522,9 @@ function OnboardingInner() {
       { order: 2, group: activeGroup, steps: regs },
       { order: 3, group: activeGroup, steps: route },
     ];
-    return tagged.sort((a, b) => a.order - b.order).flatMap((t) => t.steps.map((s) => ({ group: t.group, step: s })));
+    return tagged
+      .sort((a, b) => a.order - b.order)
+      .flatMap((t) => t.steps.map((s) => ({ group: t.group, step: s })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, activeGroup, regsVersion.current]);
 
@@ -441,7 +551,9 @@ function OnboardingInner() {
       }
 
       const seen = getSeenSet();
-      const fresh = computedTagged.filter(({ group, step }) => !seen.has(stepId(group, step)));
+      const fresh = computedTagged.filter(
+        ({ group, step }) => !seen.has(stepId(group, step)),
+      );
 
       // Se não tiver nada novo pra ver, encerra
       if (!fresh.length) {
@@ -451,44 +563,27 @@ function OnboardingInner() {
       }
 
       const onlySteps = fresh.map((x) => x.step);
-      const safe = await waitAndFilterTargets(uniqByTarget(patchStepsForViewport(onlySteps)), {
-        minOk: 1,
-        retries: 48,
-        gapMs: 120,
-      });
+      const safe = await waitAndFilterTargets(
+        uniqByTarget(patchStepsForViewport(onlySteps)),
+        {
+          minOk: 1,
+          retries: 48,
+          gapMs: 120,
+        },
+      );
 
       if (!alive) return;
 
       setSteps(safe);
-      const ok = safe.every((s) => typeof s.target === "string" && exists(String(s.target)));
+      const ok = safe.every(
+        (s) => typeof s.target === "string" && exists(String(s.target)),
+      );
       setValidNow(ok);
-
-      // Observa o primeiro para liberar autoscroll do Joyride
-      const first = safe.find((s) => typeof s.target === "string" && q(String(s.target)));
-      if (first) {
-        const el = q(String(first.target));
-        if (el) {
-          if (firstObserver.current) firstObserver.current.disconnect();
-          firstObserver.current = new IntersectionObserver(
-            (entries) => {
-              const e = entries[0];
-              const inView = !!e?.isIntersecting;
-              // não precisamos travar; Joyride vai dar scroll. Mantemos por compat.
-              if (!inView) {
-                el.scrollIntoView({ behavior: "smooth", block: "center" });
-              }
-            },
-            { threshold: 0.15 },
-          );
-          firstObserver.current.observe(el);
-        }
-      }
       await raf();
     })();
 
     return () => {
       alive = false;
-      firstObserver.current?.disconnect();
     };
   }, [computedTagged, pathname, activeGroup, search]);
 
@@ -498,8 +593,8 @@ function OnboardingInner() {
     if (tourParam === "reset") {
       try {
         localStorage.removeItem(KEY_SEEN);
-        ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach((g) =>
-          localStorage.removeItem(KEY_GROUP_DONE(g)),
+        ["home", "vitrine", "demandas", "painel", "perfil", "admin", "header"].forEach(
+          (g) => localStorage.removeItem(KEY_GROUP_DONE(g)),
         );
       } catch {}
       return;
@@ -529,7 +624,9 @@ function OnboardingInner() {
       if (resizeTimer.current) window.clearTimeout(resizeTimer.current);
       resizeTimer.current = window.setTimeout(() => {
         if (runningRef.current) return; // não invalida no meio do tour
-        const ok = steps.every((s) => typeof s.target === "string" && exists(String(s.target)));
+        const ok = steps.every(
+          (s) => typeof s.target === "string" && exists(String(s.target)),
+        );
         setValidNow(ok);
         if (!ok) {
           setRun(false);
@@ -543,7 +640,9 @@ function OnboardingInner() {
     if (!mutationObs.current) {
       mutationObs.current = new MutationObserver(() => {
         if (runningRef.current) return;
-        const ok = steps.every((s) => typeof s.target === "string" && exists(String(s.target)));
+        const ok = steps.every(
+          (s) => typeof s.target === "string" && exists(String(s.target)),
+        );
         setValidNow(ok);
       });
       mutationObs.current.observe(document.body, {
@@ -568,7 +667,9 @@ function OnboardingInner() {
     if (typeof window !== "undefined" && steps.length) {
       const seen = getSeenSet();
       steps.forEach((s) => {
-        const belongsToHeader = typeof s.target === "string" && String(s.target).includes("header-");
+        const belongsToHeader =
+          typeof s.target === "string" &&
+          String(s.target).includes("header-");
         const g = belongsToHeader ? "header" : activeGroup;
         seen.add(stepId(g, s));
       });
@@ -593,10 +694,12 @@ function OnboardingInner() {
   // Nada para exibir
   if (!steps.length || !validNow) return null;
 
-  // Config mobile
   const mobile = isMobile();
   const spotlightPadding = mobile ? 10 : 12;
-  const disableOverlay = mobile && (typeof window !== "undefined" ? window.innerHeight < 620 : false);
+  const disableOverlay =
+    mobile && (typeof window !== "undefined"
+      ? window.innerHeight < 620
+      : false);
 
   return (
     <Joyride
@@ -606,14 +709,25 @@ function OnboardingInner() {
       continuous
       showSkipButton
       showProgress
-      scrollToFirstStep
-      scrollOffset={getScrollOffset()}
-      disableScrolling={false}
+      // ✅ Não deixa Joyride mexer no scroll
+      scrollToFirstStep={false}
+      disableScrolling
+      disableScrollParentFix
       spotlightClicks
       callback={onCb}
-      locale={{ back: "Voltar", close: "Fechar", last: "Concluir", next: "Próximo", skip: "Pular" }}
+      locale={{
+        back: "Voltar",
+        close: "Fechar",
+        last: "Concluir",
+        next: "Próximo",
+        skip: "Pular",
+      }}
       disableOverlay={disableOverlay}
-      floaterProps={{ disableAnimation: false, hideArrow: false, offset: mobile ? 8 : 10 }}
+      floaterProps={{
+        disableAnimation: false,
+        hideArrow: false,
+        offset: mobile ? 8 : 10,
+      }}
       styles={{
         options: {
           primaryColor: "#f97316", // laranja Pedraum
@@ -626,14 +740,16 @@ function OnboardingInner() {
           borderRadius: 14,
           padding: mobile ? "14px 14px" : "16px 18px",
           maxWidth: mobile ? 280 : 440,
-          boxShadow: "0 10px 25px rgba(2,6,23,.18), 0 2px 8px rgba(2,6,23,.08)",
+          boxShadow:
+            "0 10px 25px rgba(2,6,23,.18), 0 2px 8px rgba(2,6,23,.08)",
         },
         buttonNext: { borderRadius: 10, fontWeight: 700 },
         buttonBack: { borderRadius: 10 },
         buttonSkip: { borderRadius: 10 },
         spotlight: {
           borderRadius: 12,
-          boxShadow: "0 0 0 2px rgba(249,115,22,.2), 0 0 0 9999px rgba(15,23,42,.45)",
+          boxShadow:
+            "0 0 0 2px rgba(249,115,22,.2), 0 0 0 9999px rgba(15,23,42,.45)",
         },
       }}
       spotlightPadding={spotlightPadding}

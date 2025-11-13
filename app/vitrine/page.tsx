@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/firebaseConfig";
 import Link from "next/link";
 import { Plus, Zap, Hammer } from "lucide-react";
@@ -91,29 +91,48 @@ export default function VitrineCompleta() {
 
   /* ================= Buscar dados ================= */
   useEffect(() => {
-    async function fetchData() {
-      setCarregando(true);
-      const all: any[] = [];
-      const cols = ["machines", "produtos", "services"] as const;
+  async function fetchData() {
+    setCarregando(true);
+    const all: any[] = [];
+    const cols = ["machines", "produtos", "services"] as const;
 
-      for (const colName of cols) {
-        const snap = await getDocs(collection(db, colName));
+    for (const colName of cols) {
+      try {
+        // Só traz o que pode aparecer na vitrine
+        const q = query(
+          collection(db, colName),
+          where("visivel", "==", true),
+          where("status", "==", "aprovado")
+        );
+        const snap = await getDocs(q);
         snap.forEach((docu) => {
           const data = docu.data();
           all.push({ id: docu.id, ...data, tipo: colName });
         });
+      } catch (e) {
+        // Se alguma coleção ainda não tem esses campos/índices,
+        // ignora silenciosamente para não quebrar a vitrine.
+        // (O console do Firebase vai te dar o link p/ criar o índice)
+        console.warn(`Falha ao ler ${colName}`, e);
       }
-
-      setItens(all);
-
-      const estSet = new Set<string>();
-      all.forEach((x) => x.estado && estSet.add(x.estado));
-      setEstadosDisponiveis(Array.from(estSet).sort());
-
-      setCarregando(false);
     }
-    fetchData();
-  }, []);
+
+    // Cinto e suspensório no client (caso existam docs legados sem campos):
+    const safe = all.filter(
+      (x) => x?.visivel === true && (x?.status === "aprovado" || x?.curadoriaStatus === "aprovado")
+    );
+
+    setItens(safe);
+
+    const estSet = new Set<string>();
+    safe.forEach((x) => x.estado && estSet.add(x.estado));
+    setEstadosDisponiveis(Array.from(estSet).sort());
+
+    setCarregando(false);
+  }
+  fetchData();
+}, []);
+
 
   /* ================= Cidades dependentes ================= */
   useEffect(() => {

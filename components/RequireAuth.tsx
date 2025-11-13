@@ -3,17 +3,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { auth } from "@/firebaseConfig";
+import { auth, db } from "@/firebaseConfig";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
 type Props = {
   children: React.ReactNode;
-  /** rota de login (padrão: /auth/login) */
-  redirectTo?: string;
-  /** título/descrição opcionais para telas que usam o guard como wrapper de página */
+  redirectTo?: string;      // padrão: /auth/login
   title?: string;
   description?: string;
-  /** se true, mantém o conteúdo montado e apenas bloqueia a renderização até autenticar */
   keepMounted?: boolean;
+  adminOnly?: boolean;      // NOVO: exige role=admin
 };
 
 export default function RequireAuth({
@@ -22,40 +21,75 @@ export default function RequireAuth({
   title,
   description,
   keepMounted = false,
+  adminOnly = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
   const [checking, setChecking] = useState(true);
-  const [userExists, setUserExists] = useState<boolean | null>(null);
+  const [allowed, setAllowed] = useState<boolean>(false);
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged((u) => {
-      if (u) {
-        setUserExists(true);
+    const unsubAuth = auth.onAuthStateChanged(async (u) => {
+      if (!u) {
+        setAllowed(false);
         setChecking(false);
-      } else {
-        setUserExists(false);
-        setChecking(false);
-        // preserva a rota que o usuário tentou acessar (para redirecionar após login)
         const next = encodeURIComponent(pathname || "/");
         router.replace(`${redirectTo}?next=${next}`);
+        return;
       }
-    });
-    return () => unsub();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [redirectTo, pathname]);
 
+      // 1) checagem inicial rápida
+      const userRef = doc(db, "usuarios", u.uid);
+      const snap = await getDoc(userRef).catch(() => null);
+      const data = snap?.exists() ? (snap!.data() as any) : {};
+      const role = data?.role || "user";
+      const status = (data?.status as string) || "ativo";
+
+      // gates
+      if (adminOnly && role !== "admin") {
+        router.replace("/"); return;
+      }
+      if (status === "banido") {
+        router.replace("/bloqueado"); return;
+      }
+      if (status === "suspenso") {
+        router.replace("/suspenso"); return;
+      }
+
+      setAllowed(true);
+      setChecking(false);
+
+      // 2) live update: se status/role mudar, aplica na hora
+      const unsubDoc = onSnapshot(userRef, (s) => {
+        const d = s.exists() ? (s.data() as any) : {};
+        const r = d?.role || "user";
+        const st = (d?.status as string) || "ativo";
+
+        if (adminOnly && r !== "admin") { router.replace("/"); return; }
+        if (st === "banido") { router.replace("/bloqueado"); return; }
+        if (st === "suspenso") { router.replace("/suspenso"); return; }
+
+        setAllowed(true);
+      });
+
+      // limpar listener ao trocar de usuário/rota
+      return () => unsubDoc();
+    });
+
+    return () => unsubAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirectTo, pathname, adminOnly]);
+
+  // loading/skeleton
   if (checking) {
-    // skeleton/loading amigável
     return (
       <main
         style={{
           minHeight: "60vh",
           display: "grid",
           placeItems: "center",
-          background:
-            "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
+          background: "linear-gradient(180deg,#f7fafc 0%, #f6f9fa 60%, #f1f5f9 100%)",
           padding: 24,
         }}
       >
@@ -92,15 +126,14 @@ export default function RequireAuth({
     );
   }
 
-  if (!userExists) {
-    // enquanto redireciona, não renderiza children (ou mantém montado se preferir)
+  if (!allowed) {
+    // já redirecionando — opcional manter montado
     return keepMounted ? <>{children}</> : null;
   }
 
-  // autenticado
+  // autenticado + permitido
   if (!title && !description) return <>{children}</>;
 
-  // opcional: envelope com header simples quando usado como “página”
   return (
     <main style={{ minHeight: "100vh", background: "#f7fafc", padding: 16 }}>
       <section

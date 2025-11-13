@@ -1,9 +1,10 @@
+// app/admin/services/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { db } from "@/firebaseConfig";
+import { db, auth } from "@/firebaseConfig";
 import {
   doc,
   getDoc,
@@ -18,7 +19,6 @@ import {
   Save,
   Tag,
   DollarSign,
-  Layers,
   MapPin,
   Globe,
   CalendarClock,
@@ -27,6 +27,56 @@ import {
   IdCard,
   Calendar as CalendarIcon,
 } from "lucide-react";
+
+/* ===================== Curadoria: tipos ===================== */
+type ServiceStatus =
+  | "em_curadoria"
+  | "aprovado"
+  | "recusado"
+  | "ajustes_solicitados"
+  | "pausado"
+  | "ativo"
+  | "inativo"
+  | "expirado";
+
+/* ===================== Curadoria: ações ===================== */
+async function approveAndPublishService(serviceId: string) {
+  const ref = doc(db, "services", serviceId);
+  await updateDoc(ref, {
+    status: "aprovado",
+    visivel: true,
+    curadoriaStatus: "aprovado",
+    curadoriaBy: "admin",
+    curadoriaAt: serverTimestamp(),
+    approvedBy: "admin",
+    approvedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function rejectService(serviceId: string) {
+  const ref = doc(db, "services", serviceId);
+  await updateDoc(ref, {
+    status: "recusado",
+    visivel: false,
+    curadoriaStatus: "recusado",
+    curadoriaBy: "admin",
+    curadoriaAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+async function backToPendingService(serviceId: string) {
+  const ref = doc(db, "services", serviceId);
+  await updateDoc(ref, {
+    status: "em_curadoria",
+    visivel: false,
+    curadoriaStatus: "pendente",
+    curadoriaBy: "admin",
+    curadoriaAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+}
 
 /* ===================== Tipos ===================== */
 type ServiceDoc = {
@@ -37,6 +87,7 @@ type ServiceDoc = {
   preco?: number | string;
   estado?: string;
   abrangencia?: string;
+  abrangenciaLabel?: string;
   disponibilidade?: string;
 
   // mídia
@@ -51,9 +102,15 @@ type ServiceDoc = {
 
   // meta/busca
   searchKeywords?: string[];
-  status?: "ativo" | "pausado" | "inativo" | "expirado";
+  status?: ServiceStatus;
   statusHistory?: Array<{ status: string; at: any }>;
   tipo?: string;
+  visivel?: boolean;
+
+  // curadoria
+  curadoriaStatus?: string;
+  curadoriaBy?: string | null;
+  curadoriaAt?: any;
 
   // datas
   createdAt?: any;
@@ -122,9 +179,13 @@ const disponibilidades = [
   "Sob consulta",
 ];
 
-const statusOpts: ServiceDoc["status"][] = [
-  "ativo",
+const statusOpts: ServiceStatus[] = [
+  "em_curadoria",
+  "aprovado",
+  "recusado",
+  "ajustes_solicitados",
   "pausado",
+  "ativo",
   "inativo",
   "expirado",
 ];
@@ -138,6 +199,7 @@ export default function EditServiceAdminPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [curating, setCurating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // mídia
@@ -160,13 +222,16 @@ export default function EditServiceAdminPage() {
   const [prestadorEmail, setPrestadorEmail] = useState<string>("");
   const [prestadorWhatsapp, setPrestadorWhatsapp] = useState<string>("");
 
-  // meta
-  const [status, setStatus] = useState<ServiceDoc["status"]>("ativo");
+  // meta / curadoria
+  const [status, setStatus] = useState<ServiceStatus>("em_curadoria");
   const [tipo, setTipo] = useState<string>("serviço");
+  const [visivel, setVisivel] = useState<boolean>(false);
+  const [curadoriaStatus, setCuradoriaStatus] = useState<string>("pendente");
+  const [curadoriaBy, setCuradoriaBy] = useState<string | null>(null);
 
   // datas
-  const [createdAtStr, setCreatedAtStr] = useState<string>("");
-  const [expiraEmInput, setExpiraEmInput] = useState<string>(""); // yyyy-MM-dd
+ const [createdAtStr, setCreatedAtStr] = useState<string>("");
+const [expiraEmInput, setExpiraEmInput] = useState<string>(""); // yyyy-MM-dd
 
   /* ===================== carregar serviço ===================== */
   useEffect(() => {
@@ -192,10 +257,10 @@ export default function EditServiceAdminPage() {
             typeof s.preco === "number"
               ? String(s.preco)
               : s.preco === "Sob consulta" || !s.preco
-                ? ""
-                : String(s.preco),
+              ? ""
+              : String(s.preco),
           estado: s.estado || "",
-          abrangencia: s.abrangencia || "",
+          abrangencia: s.abrangenciaLabel || s.abrangencia || "",
           disponibilidade: s.disponibilidade || "",
         });
 
@@ -208,25 +273,29 @@ export default function EditServiceAdminPage() {
         setPrestadorEmail(s.prestadorEmail || "");
         setPrestadorWhatsapp(s.prestadorWhatsapp || "");
 
-        // meta
-        setStatus(s.status ?? "ativo");
+        // meta / curadoria
+        setStatus((s.status as ServiceStatus) ?? "em_curadoria");
         setTipo(s.tipo || "serviço");
+        setVisivel(!!s.visivel);
+        setCuradoriaStatus(s.curadoriaStatus || "pendente");
+        setCuradoriaBy(s.curadoriaBy ?? null);
 
         // datas
         setCreatedAtStr(
           s.createdAt?.seconds
             ? new Date(s.createdAt.seconds * 1000).toLocaleString("pt-BR")
-            : "",
+            : ""
         );
         if (s.expiraEm?.seconds) {
-          const d = new Date(s.expiraEm.seconds * 1000);
-          const y = d.getFullYear();
-          const m = `${d.getMonth() + 1}`.padStart(2, "0");
-          const day = `${d.getDate()}`.padStart(2, "0");
-          setExpiraEmInput(`${y}-${m}-${day}`);
-        } else {
-          setExpiraEmInput("");
-        }
+  const d = new Date(s.expiraEm.seconds * 1000);
+  const y = d.getFullYear();
+  const m = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  setExpiraEmInput(`${y}-${m}-${day}`);
+} else {
+  setExpiraEmInput("");
+}
+
       } catch (e) {
         console.error(e);
         setError("Erro ao carregar serviço.");
@@ -240,7 +309,7 @@ export default function EditServiceAdminPage() {
   function handleChange(
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    >
   ) {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -250,7 +319,10 @@ export default function EditServiceAdminPage() {
     if (!form.preco) return "Sob consulta";
     const n = Number(form.preco);
     if (Number.isNaN(n)) return "Sob consulta";
-    return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `R$ ${n.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   }, [form.preco]);
 
   function removeImg(i: number) {
@@ -267,120 +339,157 @@ export default function EditServiceAdminPage() {
     });
   }
 
+  function normalizeSearchBase(str: string) {
+  return str
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeDateToMiddayUTC(d: Date) {
+  // evita voltar 1 dia por causa de timezone
+  d.setHours(12, 0, 0, 0);
+}
+
+
   /* ===================== persistência ===================== */
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  e.preventDefault();
+  setError(null);
 
-    // validações mínimas
-    if (
-      !form.titulo ||
-      !form.descricao ||
-      !form.categoria ||
-      !form.estado ||
-      !form.abrangencia ||
-      !form.disponibilidade
-    ) {
-      setError("Preencha todos os campos obrigatórios (*).");
-      return;
-    }
-    if (imagens.length === 0) {
-      setError("Adicione pelo menos uma imagem do serviço.");
-      return;
-    }
-    if (!prestadorNome || !prestadorEmail) {
-      setError("Preencha nome e e-mail do prestador.");
-      return;
-    }
+  if (
+    !form.titulo ||
+    !form.descricao ||
+    !form.categoria ||
+    !form.estado ||
+    !form.abrangencia ||
+    !form.disponibilidade
+  ) {
+    setError("Preencha todos os campos obrigatórios (*).");
+    return;
+  }
+  if (imagens.length === 0) {
+    setError("Adicione pelo menos uma imagem do serviço.");
+    return;
+  }
+  if (!prestadorNome || !prestadorEmail) {
+    setError("Preencha nome e e-mail do prestador.");
+    return;
+  }
 
-    // normaliza preço
-    let preco: number | string = "Sob consulta";
-    if (form.preco.trim() !== "") {
-      const n = Number(form.preco);
-      if (!Number.isNaN(n) && n >= 0) preco = Number(n.toFixed(2));
-    }
+  // preço
+  let preco: number | string = "Sob consulta";
+  if (form.preco.trim() !== "") {
+    const n = Number(form.preco);
+    if (!Number.isNaN(n) && n >= 0) preco = Number(n.toFixed(2));
+  }
 
-    // expiração
-    let expiraEmTS: Timestamp | undefined = undefined;
-    if (expiraEmInput) {
-      const d = new Date(expiraEmInput + "T00:00:00");
-      if (!Number.isNaN(d.getTime())) {
-        expiraEnforceUTC(d); // normaliza para evitar timezone drift
-        expiraEmTS = Timestamp.fromDate(d);
-      }
+  // expiração
+  let expiraEmTS: Timestamp | undefined;
+  if (expiraEmInput) {
+    const d = new Date(expiraEmInput + "T00:00:00");
+    if (!Number.isNaN(d.getTime())) {
+      normalizeDateToMiddayUTC(d);
+      expiraEmTS = Timestamp.fromDate(d);
     }
+  }
 
-    // keywords para busca
-    const searchBase = [
-      form.titulo,
-      form.descricao,
-      form.categoria,
-      String(preco),
-      form.estado,
-      form.abrangencia,
-      form.disponibilidade,
+  const currentAdminId = auth.currentUser?.uid || curadoriaBy || null;
+
+  const searchBaseRaw = [
+    form.titulo,
+    form.descricao,
+    form.categoria,
+    String(preco),
+    form.estado,
+    form.abrangencia,
+    form.disponibilidade,
+    prestadorNome,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const searchBase = normalizeSearchBase(searchBaseRaw);
+
+  try {
+    setSaving(true);
+
+    const payload: Partial<ServiceDoc> = {
+      titulo: form.titulo,
+      descricao: form.descricao,
+      categoria: form.categoria,
+      preco,
+      estado: form.estado,
+      abrangencia: form.abrangencia,
+      abrangenciaLabel: form.abrangencia,
+      disponibilidade: form.disponibilidade,
+
+      imagens,
+      imagesCount: imagens.length,
+
+      vendedorId,
       prestadorNome,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+      prestadorEmail,
+      prestadorWhatsapp,
 
+      status: status ?? "em_curadoria",
+      tipo: tipo || "serviço",
+      visivel,
+      searchKeywords: searchBase.split(/\s+/).slice(0, 60),
+
+      curadoriaStatus,
+      curadoriaBy: currentAdminId,
+      curadoriaAt: serverTimestamp(),
+
+      updatedAt: serverTimestamp(),
+      ...(expiraEmTS ? { expiraEm: expiraEmTS } : {}),
+    };
+
+    await updateDoc(doc(db, "services", serviceId), payload);
+    alert("Serviço atualizado com sucesso!");
+    router.push("/admin/services");
+  } catch (e) {
+    console.error(e);
+    setError("Erro ao salvar. Tente novamente.");
+  } finally {
+    setSaving(false);
+  }
+}
+
+  /* ===================== Ações de curadoria (3 botões) ===================== */
+  const wrapCuradoria = (fn: () => Promise<void>) => async () => {
     try {
-      setSaving(true);
-      const payload: Partial<ServiceDoc> = {
-        // principais
-        titulo: form.titulo,
-        descricao: form.descricao,
-        categoria: form.categoria,
-        preco,
-        estado: form.estado,
-        abrangencia: form.abrangencia,
-        disponibilidade: form.disponibilidade,
+      setCurating(true);
+      await fn();
 
-        // mídia
-        imagens,
-        imagesCount: imagens.length,
-
-        // autor
-        vendedorId,
-        prestadorNome,
-        prestadorEmail,
-        prestadorWhatsapp,
-
-        // meta
-        status: status ?? "ativo",
-        tipo: tipo || "serviço",
-        searchKeywords: searchBase.split(/\s+/).slice(0, 60),
-
-        // datas
-        updatedAt: serverTimestamp(),
-        ...expiraEnTSOrKeep(expiraEmTS),
-      };
-
-      await updateDoc(doc(db, "services", serviceId), payload);
-      alert("Serviço atualizado com sucesso!");
-      router.push("/admin/services");
-    } catch (e) {
-      console.error(e);
-      setError("Erro ao salvar. Tente novamente.");
+      // Atualiza UI local
+      const snap = await getDoc(doc(db, "services", serviceId));
+      if (snap.exists()) {
+        const s = snap.data() as ServiceDoc;
+        setStatus((s.status as ServiceStatus) ?? "em_curadoria");
+        setVisivel(!!s.visivel);
+        setCuradoriaStatus(s.curadoriaStatus || "pendente");
+        setCuradoriaBy(s.curadoriaBy ?? null);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao executar ação de curadoria.");
     } finally {
-      setSaving(false);
+      setCurating(false);
     }
-  }
+  };
 
-  /* Mantém expiraEm se não foi alterado */
-  function expiraEnTSOrKeep(chosen?: Timestamp) {
-    if (chosen) return { expiraEm: chosen } as Partial<ServiceDoc>;
-    // sem chosen => não manda expiraEm (preserva o atual no Firestore)
-    return {};
-  }
+  const doApprove = wrapCuradoria(async () => {
+    await approveAndPublishService(serviceId);
+  });
 
-  function expiraEnforceUTC(d: Date) {
-    // garante meio-dia UTC para evitar “voltar um dia” em TZs
-    d.setHours(12, 0, 0, 0);
-  }
+  const doReject = wrapCuradoria(async () => {
+    await rejectService(serviceId);
+  });
+
+  const doBack = wrapCuradoria(async () => {
+    await backToPendingService(serviceId);
+  });
 
   /* ===================== render ===================== */
   if (loading) {
@@ -411,7 +520,7 @@ export default function EditServiceAdminPage() {
             flexWrap: "wrap",
           }}
         >
-          <h2 style={cardTitle}>Editar Serviço</h2>
+          <h2 style={cardTitle}>Editar Serviço (Admin)</h2>
           <div
             style={{
               display: "flex",
@@ -457,12 +566,78 @@ export default function EditServiceAdminPage() {
           )}
         </div>
 
+        {/* ===== Status + Ações (3 botões - igual produtos) ===== */}
+        <div style={{ margin: "8px 0 18px", display: "grid", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: "1px solid #e5e7eb",
+                fontWeight: 900,
+                fontSize: 12,
+                ...(status === "aprovado"
+                  ? { background: "#ecfdf5", color: "#065f46" }
+                  : status === "recusado"
+                  ? { background: "#fff1f2", color: "#9f1239" }
+                  : status === "pausado"
+                  ? { background: "#f1f5f9", color: "#111827" }
+                  : { background: "#f1f5f9", color: "#111827" }),
+              }}
+            >
+              Status: {status} • Visível: <b>{visivel ? "Sim" : "Não"}</b>
+            </span>
+            <div style={{ flex: 1 }} />
+
+            {status !== "aprovado" && (
+              <button
+                type="button"
+                onClick={doApprove}
+                disabled={curating}
+                style={primaryBtn}
+              >
+                {curating ? "Processando…" : "Aprovar"}
+              </button>
+            )}
+
+            {status !== "recusado" && (
+              <button
+                type="button"
+                onClick={doReject}
+                disabled={curating}
+                style={dangerBtn}
+              >
+                {curating ? "Processando…" : "Rejeitar"}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={doBack}
+              disabled={curating}
+              style={ghostBtn}
+            >
+              {curating ? "Processando…" : "Voltar p/ curadoria"}
+            </button>
+          </div>
+        </div>
+
         {/* Dica */}
         <div style={infoBox}>
           <Info size={16} />{" "}
           <span>
-            Preço vazio vira <b>Sob consulta</b>. Você pode editar autor, status
-            e data de expiração.
+            Preço vazio vira <b>Sob consulta</b>. Aqui você também controla a{" "}
+            <b>curadoria</b> e se o serviço aparece ou não na vitrine pública.
           </span>
         </div>
 
@@ -470,10 +645,10 @@ export default function EditServiceAdminPage() {
         <form onSubmit={handleSubmit}>
           {/* Imagens */}
           <label style={label}>Imagens do Serviço *</label>
-          {/* Uploader sem preview */}
-          <ImageUploader imagens={[]} setImagens={setImagens} max={2} />
+
+          <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
           <div style={hintText}>
-            Adicione 1 ou 2 imagens reais ou de referência do serviço.
+            Adicione 1 ou mais imagens reais ou de referência do serviço.
           </div>
 
           {/* Miniaturas compactas */}
@@ -543,7 +718,7 @@ export default function EditServiceAdminPage() {
 
             <div style={{ flex: 1 }}>
               <label style={label}>
-                <Layers size={16} /> Categoria *
+                Categoria *
               </label>
               <select
                 name="categoria"
@@ -686,41 +861,42 @@ export default function EditServiceAdminPage() {
           </div>
 
           {/* Status + Expiração */}
-          <div style={sectionCard}>
-            <div style={sectionTitle}>
-              <Info size={16} /> Status & Expiração
-            </div>
-            <div style={twoCols}>
-              <div style={{ flex: 1 }}>
-                <label style={miniLabel}>Status</label>
-                <select
-                  value={status || "ativo"}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  style={input}
-                >
-                  {statusOpts.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={miniLabel}>
-                  <CalendarIcon size={14} /> Expira em
-                </label>
-                <input
-                  type="date"
-                  value={expiraEmInput}
-                  onChange={(e) => setExpiraEmInput(e.target.value)}
-                  style={input}
-                />
-                <div style={hintText}>
-                  Deixe em branco para manter a data atual.
-                </div>
-              </div>
-            </div>
-          </div>
+                    <div style={sectionCard}>
+                      <div style={sectionTitle}>
+                        <Info size={16} /> Status & Expiração
+                      </div>
+                      <div style={twoCols}>
+                        <div style={{ flex: 1 }}>
+                          <label style={miniLabel}>Status</label>
+                          <select
+                            value={status || "ativo"}
+                            onChange={(e) => setStatus(e.target.value as any)}
+                            style={input}
+                          >
+                            {statusOpts.map((s) => (
+                              <option key={s} value={s}>
+                                {s}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <label style={miniLabel}>
+                            <CalendarIcon size={14} /> Expira em
+                          </label>
+                         <input
+  type="date"
+  value={expiraEmInput}
+  onChange={(e) => setExpiraEmInput(e.target.value)}
+  style={input}
+/>
+
+                          <div style={hintText}>
+                            Deixe em branco para manter a data atual.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
           {/* Erro */}
           {error && <div style={errorBox}>{error}</div>}
@@ -864,11 +1040,29 @@ const primaryBtn: React.CSSProperties = {
   color: "#fff",
   border: "none",
   fontWeight: 900,
-  fontSize: "1rem",
-  padding: "12px 16px",
-  borderRadius: 12,
+  fontSize: "0.95rem",
+  padding: "10px 14px",
+  borderRadius: 10,
   cursor: "pointer",
   boxShadow: "0 2px 14px #0001",
+};
+const ghostBtn: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  background: "#f8fafc",
+  color: "#0f172a",
+  border: "1.5px solid #e5e7eb",
+  fontWeight: 800,
+  fontSize: "0.95rem",
+  padding: "10px 14px",
+  borderRadius: 10,
+  cursor: "pointer",
+};
+const dangerBtn: React.CSSProperties = {
+  ...primaryBtn,
+  background: "#e11d48",
 };
 const thumbWrap: React.CSSProperties = {
   display: "grid",
@@ -884,7 +1078,7 @@ const thumbItem: React.CSSProperties = {
 };
 const thumbImg: React.CSSProperties = {
   width: "100%",
-  height: 160, // miniatura menor
+  height: 160,
   objectFit: "cover",
   display: "block",
 };
@@ -907,7 +1101,6 @@ const miniBtn: React.CSSProperties = {
   cursor: "pointer",
   boxShadow: "0 1px 6px #2563eb22",
 };
-
 const centerBox: React.CSSProperties = {
   minHeight: 300,
   display: "flex",

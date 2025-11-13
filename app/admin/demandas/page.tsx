@@ -20,6 +20,7 @@ import {
   QueryConstraint,
   QueryDocumentSnapshot,
   Timestamp,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   ArrowLeft,
@@ -38,13 +39,15 @@ import {
 import { withRoleProtection } from "@/utils/withRoleProtection";
 
 /* =================== Tipos & meta =================== */
+type StatusCode = "pending" | "approved" | "in_progress" | "rejected" | "closed";
+
 type Demanda = {
   id: string;
   titulo: string;
   categoria?: string;
   criador?: string;
   emailCriador?: string;
-  status: "aberta" | "andamento" | "fechada" | "inativa" | string;
+  status?: StatusCode | string;
   createdAt?: Timestamp | any;
   visibilidade?: "publica" | "oculta";
   preco?: number;
@@ -52,32 +55,38 @@ type Demanda = {
 };
 
 const STATUS_META: Record<
-  string,
-  { label: string; color: string; bg: string; next: string }
+  StatusCode,
+  { label: string; color: string; bg: string; next: StatusCode }
 > = {
-  aberta: {
-    label: "Aberta",
+  pending: {
+    label: "Em curadoria",
+    color: "#92400e",
+    bg: "#fffbeb",
+    next: "approved",
+  },
+  approved: {
+    label: "Aprovada",
     color: "#059669",
     bg: "#e7faec",
-    next: "andamento",
+    next: "in_progress",
   },
-  andamento: {
+  in_progress: {
     label: "Em andamento",
-    color: "#FB8500",
-    bg: "#fff9ec",
-    next: "fechada",
+    color: "#2563eb",
+    bg: "#eff6ff",
+    next: "closed",
   },
-  fechada: {
-    label: "Fechada",
-    color: "#d90429",
-    bg: "#ffeaea",
-    next: "inativa",
+  closed: {
+    label: "Encerrada",
+    color: "#334155",
+    bg: "#f1f5f9",
+    next: "pending",
   },
-  inativa: {
-    label: "Inativa",
-    color: "#6b7280",
-    bg: "#f3f4f6",
-    next: "aberta",
+  rejected: {
+    label: "Rejeitada",
+    color: "#b91c1c",
+    bg: "#fef2f2",
+    next: "pending",
   },
 };
 
@@ -149,6 +158,35 @@ function looksLikeDocId(s = "") {
   return t.length >= 18;
 }
 
+/* ==== mapeia status antigos (aberta/andamento/fechada/inativa) para o padrão novo ==== */
+function normalizeStatus(raw?: string): StatusCode {
+  const s = (raw || "").trim();
+
+  // já está no formato novo
+  if (
+    s === "pending" ||
+    s === "approved" ||
+    s === "in_progress" ||
+    s === "rejected" ||
+    s === "closed"
+  ) {
+    return s as StatusCode;
+  }
+
+  // legado
+  switch (s) {
+    case "aberta":
+      return "approved";
+    case "andamento":
+      return "in_progress";
+    case "fechada":
+    case "inativa":
+      return "closed";
+    default:
+      return "pending";
+  }
+}
+
 /* =================== Toast =================== */
 function useToasts() {
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
@@ -172,7 +210,7 @@ function AdminDemandasPage() {
 
   // filtros
   const [term, setTerm] = useState(""); // agora usado (id exato + searchKeywords)
-  const [fStatus, setFStatus] = useState("");
+  const [fStatus, setFStatus] = useState<StatusCode | "">("");
   const [fCat, setFCat] = useState("");
   const [fEmail, setFEmail] = useState("");
   const [fIni, setFIni] = useState("");
@@ -185,7 +223,7 @@ function AdminDemandasPage() {
     hoje: 0,
     andamento: 0,
     fechadas: 0,
-    inativas: 0,
+    rejeitadas: 0,
   });
 
   // cursores p/ scroll infinito
@@ -243,7 +281,7 @@ function AdminDemandasPage() {
     );
 
     const today = startOfDay(new Date());
-    const [hojeC, andC, fecC, inaC] = await Promise.all([
+    const [hojeC, andC, fecC, rejC] = await Promise.all([
       getCountFromServer(
         query(
           collection(db, "demandas"),
@@ -257,21 +295,21 @@ function AdminDemandasPage() {
         query(
           collection(db, "demandas"),
           ...baseNoStatus,
-          where("status", "==", "andamento"),
+          where("status", "==", "in_progress"),
         ),
       ),
       getCountFromServer(
         query(
           collection(db, "demandas"),
           ...baseNoStatus,
-          where("status", "==", "fechada"),
+          where("status", "==", "closed"),
         ),
       ),
       getCountFromServer(
         query(
           collection(db, "demandas"),
           ...baseNoStatus,
-          where("status", "==", "inativa"),
+          where("status", "==", "rejected"),
         ),
       ),
     ]);
@@ -280,7 +318,7 @@ function AdminDemandasPage() {
       hoje: hojeC.data().count,
       andamento: andC.data().count,
       fechadas: fecC.data().count,
-      inativas: inaC.data().count,
+      rejeitadas: rejC.data().count,
     });
   }, [buildConstraints]);
 
@@ -309,11 +347,12 @@ function AdminDemandasPage() {
             setTotalGeral(totalAll.data().count);
 
             const today = startOfDay(new Date());
+            const statusCode = normalizeStatus(it.status as string);
             setKpi({
               hoje: it.createdAt && toDate(it.createdAt)! >= today ? 1 : 0,
-              andamento: it.status === "andamento" ? 1 : 0,
-              fechadas: it.status === "fechada" ? 1 : 0,
-              inativas: it.status === "inativa" ? 1 : 0,
+              andamento: statusCode === "in_progress" ? 1 : 0,
+              fechadas: statusCode === "closed" ? 1 : 0,
+              rejeitadas: statusCode === "rejected" ? 1 : 0,
             });
 
             setLoading(false);
@@ -473,26 +512,31 @@ function AdminDemandasPage() {
 
   /* =================== ações =================== */
   async function changeStatus(d: Demanda) {
-    const next = STATUS_META[d.status]?.next || "aberta";
+    const current = normalizeStatus(d.status as string);
+    const next = STATUS_META[current].next;
     await updateDoc(doc(db, "demandas", d.id), {
       status: next,
-      updatedAt: new Date() as any,
+      updatedAt: serverTimestamp(),
     });
     setItems((arr) =>
-      arr.map((x) => (x.id === d.id ? { ...x, status: next } : x)),
+      arr.map((x) =>
+        x.id === d.id ? { ...x, status: next as StatusCode } : x,
+      ),
     );
     await refreshCounts();
   }
+
   async function remove(id: string) {
     if (!confirm("Excluir esta demanda?")) return;
     await deleteDoc(doc(db, "demandas", id));
     await loadFirst();
   }
+
   async function toggleVis(d: Demanda) {
     const next = d.visibilidade === "oculta" ? "publica" : "oculta";
     await updateDoc(doc(db, "demandas", d.id), {
       visibilidade: next,
-      updatedAt: new Date() as any,
+      updatedAt: serverTimestamp(),
     });
     setItems((arr) =>
       arr.map((x) => (x.id === d.id ? { ...x, visibilidade: next } : x)),
@@ -507,9 +551,7 @@ function AdminDemandasPage() {
     [sel],
   );
 
-  async function bulkStatus(
-    next: "aberta" | "andamento" | "fechada" | "inativa",
-  ) {
+  async function bulkStatus(next: StatusCode) {
     if (!selectedIds.length) return;
     if (
       !confirm(
@@ -521,12 +563,13 @@ function AdminDemandasPage() {
       selectedIds.map((id) =>
         updateDoc(doc(db, "demandas", id), {
           status: next,
-          updatedAt: new Date() as any,
+          updatedAt: serverTimestamp(),
         }),
       ),
     );
     await loadFirst();
   }
+
   async function bulkDelete() {
     if (!selectedIds.length) return;
     if (!confirm(`Excluir ${selectedIds.length} demanda(s)?`)) return;
@@ -543,7 +586,7 @@ function AdminDemandasPage() {
     if (isNaN(val)) return push("Informe um valor válido.");
     await updateDoc(doc(db, "demandas", drawer.id), {
       preco: val,
-      updatedAt: new Date() as any,
+      updatedAt: serverTimestamp(),
     });
     setItems((a) =>
       a.map((x) => (x.id === drawer.id ? { ...x, preco: val } : x)),
@@ -551,14 +594,17 @@ function AdminDemandasPage() {
     setDrawer((d) => (d ? { ...d, preco: val } : d));
     push("Preço salvo.");
   }
+
   async function setCobranca(status: "pendente" | "pago" | "isento") {
     if (!drawer) return;
     await updateDoc(doc(db, "demandas", drawer.id), {
       cobrancaStatus: status,
-      updatedAt: new Date() as any,
+      updatedAt: serverTimestamp(),
     });
     setItems((a) =>
-      a.map((x) => (x.id === drawer.id ? { ...x, cobrancaStatus: status } : x)),
+      a.map((x) =>
+        x.id === drawer.id ? { ...x, cobrancaStatus: status } : x,
+      ),
     );
     setDrawer((d) => (d ? { ...d, cobrancaStatus: status } : d));
     push(`Cobrança: ${status}`);
@@ -599,7 +645,7 @@ function AdminDemandasPage() {
       {/* KPIs */}
       <div className="kpis">
         <div className="kpi">
-          <div className="kpi-label">Hoje</div>
+          <div className="kpi-label">Criadas hoje</div>
           <div className="kpi-value" style={{ color: "#2563eb" }}>
             {kpi.hoje}
           </div>
@@ -611,15 +657,15 @@ function AdminDemandasPage() {
           </div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Fechadas</div>
+          <div className="kpi-label">Encerradas</div>
           <div className="kpi-value" style={{ color: "#d90429" }}>
             {kpi.fechadas}
           </div>
         </div>
         <div className="kpi">
-          <div className="kpi-label">Inativas</div>
+          <div className="kpi-label">Rejeitadas</div>
           <div className="kpi-value" style={{ color: "#6b7280" }}>
-            {kpi.inativas}
+            {kpi.rejeitadas}
           </div>
         </div>
       </div>
@@ -631,16 +677,20 @@ function AdminDemandasPage() {
           <input
             value={term}
             onChange={(e) => setTerm(e.target.value)}
-            placeholder="Buscar (id, id curto, título, criador, e-mail, categoria, etc.)"
+            placeholder="Buscar (id, título, criador, e-mail, categoria, etc.)"
           />
         </div>
 
-        <select value={fStatus} onChange={(e) => setFStatus(e.target.value)}>
+        <select
+          value={fStatus}
+          onChange={(e) => setFStatus(e.target.value as StatusCode | "")}
+        >
           <option value="">Todos Status</option>
-          <option value="aberta">Aberta</option>
-          <option value="andamento">Em andamento</option>
-          <option value="fechada">Fechada</option>
-          <option value="inativa">Inativa</option>
+          <option value="pending">Em curadoria</option>
+          <option value="approved">Aberta / Aprovada</option>
+          <option value="in_progress">Em andamento</option>
+          <option value="closed">Encerrada</option>
+          <option value="rejected">Rejeitada</option>
         </select>
 
         <select value={fCat} onChange={(e) => setFCat(e.target.value)}>
@@ -694,7 +744,7 @@ function AdminDemandasPage() {
         {term && <Chip onX={() => setTerm("")}>Busca: “{term}”</Chip>}
         {fStatus && (
           <Chip onX={() => setFStatus("")}>
-            Status: {STATUS_META[fStatus]?.label || fStatus}
+            Status: {STATUS_META[fStatus].label}
           </Chip>
         )}
         {fCat && <Chip onX={() => setFCat("")}>Categoria: {fCat}</Chip>}
@@ -726,21 +776,21 @@ function AdminDemandasPage() {
               </span>
               <button
                 className="pill pill-warn"
-                onClick={() => bulkStatus("andamento")}
+                onClick={() => bulkStatus("in_progress")}
               >
                 Em andamento
               </button>
               <button
                 className="pill pill-danger"
-                onClick={() => bulkStatus("fechada")}
+                onClick={() => bulkStatus("closed")}
               >
-                Fechada
+                Encerrar
               </button>
               <button
                 className="pill pill-mute"
-                onClick={() => bulkStatus("inativa")}
+                onClick={() => bulkStatus("pending")}
               >
-                Inativa
+                Voltar para curadoria
               </button>
               <button
                 className="pill pill-danger"
@@ -774,14 +824,9 @@ function AdminDemandasPage() {
 
           <div className="grid-cards">
             {items.map((d) => {
-              const meta =
-                STATUS_META[d.status] ||
-                ({
-                  label: d.status,
-                  color: "#6b7280",
-                  bg: "#f3f4f6",
-                  next: "aberta",
-                } as const);
+              const statusCode = normalizeStatus(d.status as string);
+              const meta = STATUS_META[statusCode];
+
               return (
                 <article key={d.id} className="card">
                   <div className="card-top">
@@ -803,7 +848,9 @@ function AdminDemandasPage() {
                     </button>
                   </div>
 
-                  {d.categoria && <div className="card-cat">{d.categoria}</div>}
+                  {d.categoria && (
+                    <div className="card-cat">{d.categoria}</div>
+                  )}
                   {(d.criador || d.emailCriador) && (
                     <div className="card-author">
                       {d.criador || "—"}{" "}
@@ -846,7 +893,7 @@ function AdminDemandasPage() {
                       onClick={() => changeStatus(d)}
                       title="Trocar status"
                     >
-                      <ArrowLeftRight size={16} /> Mudar Status
+                      <ArrowLeftRight size={16} /> Próximo status
                     </button>
                     <button className="pill" onClick={() => setDrawer(d)}>
                       Ações
@@ -887,15 +934,21 @@ function AdminDemandasPage() {
 
             <h3 className="drawer-title">{drawer.titulo}</h3>
             <div className="drawer-sub">
-              <span
-                className="pill mini"
-                style={{
-                  background: STATUS_META[drawer.status]?.bg,
-                  color: STATUS_META[drawer.status]?.color,
-                }}
-              >
-                {STATUS_META[drawer.status]?.label ?? drawer.status}
-              </span>
+              {(() => {
+                const sc = normalizeStatus(drawer.status as string);
+                const meta = STATUS_META[sc];
+                return (
+                  <span
+                    className="pill mini"
+                    style={{
+                      background: meta.bg,
+                      color: meta.color,
+                    }}
+                  >
+                    {meta.label}
+                  </span>
+                );
+              })()}
               <span
                 className={
                   drawer.visibilidade === "oculta"

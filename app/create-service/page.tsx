@@ -30,6 +30,7 @@ import {
   FileText,
   Image as ImageIcon,
   Check,
+  Slash,
 } from "lucide-react";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
@@ -44,13 +45,63 @@ const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
 /* ================== Constantes ================== */
 const estados = [
   "BRASIL",
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB",
-  "PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ] as const;
 
 const UFS = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB",
-  "PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ] as const;
 const UFS_SET = new Set<string>(UFS);
 
@@ -79,6 +130,14 @@ function normalize(s: string) {
 
 /** Tipos mínimos para carregar categorias de nível 1 */
 type SubAny = { nome: string; slug?: string; subcategorias?: SubAny[] };
+
+type UsuarioFS = {
+  nome?: string;
+  email?: string;
+  whatsapp?: string;
+  telefone?: string;
+  status?: "ativo" | "suspenso" | "banido";
+};
 
 /* ================== Form types ================== */
 type FormState = {
@@ -139,6 +198,10 @@ export default function CreateServicePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // 🔒 controle de curadoria/bloqueio
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+
   /* ---------- Autosave local ---------- */
   useEffect(() => {
     const raw = localStorage.getItem(RASCUNHO_KEY);
@@ -165,14 +228,34 @@ export default function CreateServicePage() {
     return () => clearTimeout(id);
   }, [form, imagens, pdfUrl]);
 
-  /* ---------- Autofill do autor ---------- */
+  /* ---------- Autofill do autor + status (curadoria/bloqueio) ---------- */
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(async (user) => {
-      if (!user) return;
+      if (!user) {
+        setUserLoading(false);
+        setBlockedReason(null);
+        return;
+      }
       try {
         const uref = doc(db, "usuarios", user.uid);
         const usnap = await getDoc(uref);
-        const prof = usnap.exists() ? (usnap.data() as any) : {};
+        const prof = usnap.exists()
+          ? (usnap.data() as UsuarioFS)
+          : ({} as UsuarioFS);
+
+        const status = (prof.status || "ativo") as UsuarioFS["status"];
+        if (status === "banido") {
+          setBlockedReason(
+            "Sua conta está banida. Você não pode cadastrar serviços."
+          );
+        } else if (status === "suspenso") {
+          setBlockedReason(
+            "Sua conta está suspensa. Você não pode cadastrar serviços durante a suspensão."
+          );
+        } else {
+          setBlockedReason(null);
+        }
+
         setForm((prev) => ({
           ...prev,
           prestadorNome:
@@ -183,12 +266,16 @@ export default function CreateServicePage() {
             prev.prestadorWhatsapp || prof?.whatsapp || prof?.telefone || "",
         }));
       } catch {
+        // fallback: considera ativo
+        setBlockedReason(null);
+        const u = auth.currentUser;
         setForm((prev) => ({
           ...prev,
-          prestadorNome:
-            prev.prestadorNome || auth.currentUser?.displayName || "",
-          prestadorEmail: prev.prestadorEmail || auth.currentUser?.email || "",
+          prestadorNome: prev.prestadorNome || u?.displayName || "",
+          prestadorEmail: prev.prestadorEmail || u?.email || "",
         }));
+      } finally {
+        setUserLoading(false);
       }
     });
     return () => unsub();
@@ -199,7 +286,7 @@ export default function CreateServicePage() {
     e:
       | React.ChangeEvent<HTMLInputElement>
       | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLSelectElement>,
+      | React.ChangeEvent<HTMLSelectElement>
   ) {
     const { name, value } = e.target as any;
     setForm((prev) => ({
@@ -243,7 +330,9 @@ export default function CreateServicePage() {
     const has = form.ufsAtendidas.includes(val);
     setForm((f) => ({
       ...f,
-      ufsAtendidas: has ? f.ufsAtendidas.filter((u) => u !== val) : [...f.ufsAtendidas, val],
+      ufsAtendidas: has
+        ? f.ufsAtendidas.filter((u) => u !== val)
+        : [...f.ufsAtendidas, val],
     }));
   }
 
@@ -270,10 +359,25 @@ export default function CreateServicePage() {
       return;
     }
 
+    // bloqueio por curadoria (banido/suspenso)
+    if (blockedReason) {
+      setError(blockedReason);
+      setLoading(false);
+      return;
+    }
+
     // Validações
     const coberturaOk = form.atendeBrasil || form.ufsAtendidas.length > 0;
+    if (!coberturaOk) {
+      setError(
+        "Selecione pelo menos uma UF ou marque que atende o Brasil inteiro."
+      );
+      setLoading(false);
+      return;
+    }
 
-    
+   
+
     try {
       // preço: número ou "Sob consulta"
       let preco: number | string = "Sob consulta";
@@ -290,12 +394,17 @@ export default function CreateServicePage() {
 
       // Caminho padronizado: [Categoria, "Serviços"] (ou com texto livre em Outros)
       const categoriaPath = isOutros
-        ? ["Outros", "Serviços", form.outrosCategoriaTexto.trim()].filter(Boolean)
+        ? ["Outros", "Serviços", form.outrosCategoriaTexto.trim()].filter(
+            Boolean
+          )
         : [form.categoria, subcategoriaFixa];
 
       const categoriaPathLabel = categoriaPath.join(" > ");
 
-      const abrangenciaLabel = buildAbrangenciaLabel(form.atendeBrasil, form.ufsAtendidas);
+      const abrangenciaLabel = buildAbrangenciaLabel(
+        form.atendeBrasil,
+        form.ufsAtendidas
+      );
 
       // keywords para busca
       const searchBase = normalize(
@@ -309,7 +418,7 @@ export default function CreateServicePage() {
           form.prestadorNome,
         ]
           .filter(Boolean)
-          .join(" "),
+          .join(" ")
       );
 
       const payload = {
@@ -331,7 +440,13 @@ export default function CreateServicePage() {
         atendeBrasil: !!form.atendeBrasil,
         ufsAtendidas: form.atendeBrasil
           ? ["BRASIL"]
-          : Array.from(new Set((form.ufsAtendidas || []).map((u) => String(u).trim().toUpperCase()))),
+          : Array.from(
+              new Set(
+                (form.ufsAtendidas || []).map((u) =>
+                  String(u).trim().toUpperCase()
+                )
+              )
+            ),
 
         // Compatibilidade antiga (string amigável)
         abrangencia: abrangenciaLabel,
@@ -352,9 +467,16 @@ export default function CreateServicePage() {
 
         // busca e status
         searchKeywords: searchBase.split(/\s+/).slice(0, 60),
-        status: "ativo",
-        statusHistory: [{ status: "ativo", at: now }],
+
+        // 🔒 CURADORIA EM SERVIÇOS
         tipo: "serviço",
+        status: "em_curadoria",
+        statusHistory: [{ status: "em_curadoria", at: now }],
+        visivel: false,
+        origem: "usuario",
+        curadoriaStatus: "pendente",
+        curadoriaBy: null,
+        curadoriaAt: null,
 
         // datas
         createdAt: serverTimestamp(),
@@ -364,7 +486,7 @@ export default function CreateServicePage() {
 
       await addDoc(collection(db, "services"), payload);
       localStorage.removeItem(RASCUNHO_KEY);
-      setSuccess("Serviço cadastrado com sucesso!");
+      setSuccess("Seu serviço foi enviado para curadoria! 🎯");
       setTimeout(() => router.push("/vitrine"), 900);
     } catch (err) {
       console.error(err);
@@ -420,14 +542,63 @@ export default function CreateServicePage() {
             Cadastrar Serviço
           </h1>
 
-          {/* Dica topo */}
+          {/* Aviso de curadoria + dica topo */}
           <div style={hintCardStyle}>
             <Info className="w-5 h-5" />
             <p style={{ margin: 0 }}>
-              Quanto mais detalhes, melhor a conexão com clientes ideais. Pelo
-              menos 1 imagem é obrigatória.
+              Seu serviço será enviado para <strong>curadoria</strong>. Após
+              aprovado, ficará visível na vitrine para compradores. Quanto mais
+              detalhes e imagens, melhor a conexão com clientes ideais.
             </p>
           </div>
+
+          {/* Mensagem sobre status da conta */}
+          {userLoading ? (
+            <div
+              style={{
+                marginBottom: 16,
+                fontSize: 14,
+                color: "#475569",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Verificando permissões da sua conta…
+            </div>
+          ) : blockedReason ? (
+            <div
+              style={{
+                marginBottom: 16,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1.5px solid #ffe0e0",
+                background: "#fff7f7",
+                color: "#b00020",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontWeight: 900,
+                }}
+              >
+                <Slash className="w-4 h-4" />
+                Ação bloqueada
+              </div>
+              <span style={{ fontSize: 13 }}>{blockedReason}</span>
+              <span style={{ fontSize: 11 }}>
+                Se você acredita que isso é um engano, entre em contato com o
+                suporte.
+              </span>
+            </div>
+          ) : null}
 
           <AuthGateRedirect />
 
@@ -442,6 +613,8 @@ export default function CreateServicePage() {
                 background: "linear-gradient(180deg,#f8fbff, #ffffff)",
                 borderColor: "#e6ebf2",
                 padding: "18px",
+                opacity: blockedReason ? 0.6 : 1,
+                pointerEvents: blockedReason ? "none" : "auto",
               }}
             >
               <div className="flex items-center gap-2 mb-3">
@@ -464,8 +637,8 @@ export default function CreateServicePage() {
                   <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                     <ImageIcon className="w-4 h-4 text-sky-700" />
                     <strong className="text-[#0f172a]">
-                      Imagens do Serviço *
-                    </strong>
+  Imagens do Serviço (recomendado)
+</strong>
                   </div>
                   <div className="px-4 pb-4">
                     <div className="rounded-lg border border-dashed p-3">
@@ -476,8 +649,8 @@ export default function CreateServicePage() {
                       />
                     </div>
                     <p className="text-xs text-slate-500 mt-2">
-                      Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e
-                      com boa iluminação.
+                      Envie até 5 imagens (JPG/PNG). Use fotos nítidas, antes e
+                      depois, equipe em campo, etc.
                     </p>
                   </div>
                 </div>
@@ -508,7 +681,9 @@ export default function CreateServicePage() {
                         style={{ height: 300 }}
                       >
                         <DrivePDFViewer
-                          fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
+                          fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(
+                            pdfUrl || ""
+                          )}`}
                           height={300}
                         />
                       </div>
@@ -524,7 +699,13 @@ export default function CreateServicePage() {
             </div>
 
             {/* ================= Principais ================= */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+              style={{
+                opacity: blockedReason ? 0.6 : 1,
+                pointerEvents: blockedReason ? "none" : "auto",
+              }}
+            >
               <div className="md:col-span-2">
                 <label style={labelStyle}>
                   <Tag size={15} /> Título do Serviço *
@@ -650,48 +831,54 @@ export default function CreateServicePage() {
 
             {/* ===== Cobertura / Abrangência (igual Perfil) ===== */}
             <div className="card">
-  <div className="card-title">Cobertura / Abrangencia </div>
+              <div className="card-title">Cobertura / Abrangência</div>
 
-  <label className="checkbox" style={{ marginBottom: 10 }}>
-    <input
-      type="checkbox"
-      checked={form.atendeBrasil}
-      onChange={() => toggleUfAtendida("BRASIL")}
-    />
-    <span>Atendo o Brasil inteiro</span>
-  </label>
+              <label className="checkbox" style={{ marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={form.atendeBrasil}
+                  onChange={() => toggleUfAtendida("BRASIL")}
+                />
+                <span>Atendo o Brasil inteiro</span>
+              </label>
 
-  {!form.atendeBrasil && (
-    <>
-      <div className="label" style={{ marginTop: 8 }}>Selecione UFs</div>
-      <div className="grid grid-cols-8 gap-2 max-sm:grid-cols-4">
-        {UFS.map((uf) => {
-          const checked = form.ufsAtendidas.includes(uf);
-          return (
-            <button
-              key={uf}
-              type="button"
-              onClick={() => toggleUfAtendida(uf)}
-              className="pill"
-              style={{
-                background: checked ? "#219EBC" : "#f3f6fa",
-                color: checked ? "#fff" : "#023047",
-                borderColor: checked ? "#1a7a93" : "#e6e9ef",
-              }}
-              title={checked ? "Selecionado" : "Clique para selecionar"}
-            >
-              {checked && <Check size={12} />}
-              {uf}
-            </button>
-          );
-        })}
+              {!form.atendeBrasil && (
+                <>
+                  <div className="label" style={{ marginTop: 8 }}>
+                    Selecione UFs
                   </div>
-                 {form.ufsAtendidas.length === 0 && (
-  <div className="hint">
-    Dica: selecione pelo menos 1 UF ou marque “Brasil inteiro”.
-  </div>
-)}
-
+                  <div className="grid grid-cols-8 gap-2 max-sm:grid-cols-4">
+                    {UFS.map((uf) => {
+                      const checked = form.ufsAtendidas.includes(uf);
+                      return (
+                        <button
+                          key={uf}
+                          type="button"
+                          onClick={() => toggleUfAtendida(uf)}
+                          className="pill"
+                          style={{
+                            background: checked ? "#219EBC" : "#f3f6fa",
+                            color: checked ? "#fff" : "#023047",
+                            borderColor: checked ? "#1a7a93" : "#e6e9ef",
+                          }}
+                          title={
+                            checked
+                              ? "Selecionado"
+                              : "Clique para selecionar"
+                          }
+                        >
+                          {checked && <Check size={12} />}
+                          {uf}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {form.ufsAtendidas.length === 0 && (
+                    <div className="hint">
+                      Dica: selecione pelo menos 1 UF ou marque “Brasil
+                      inteiro”.
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -793,7 +980,7 @@ export default function CreateServicePage() {
             {/* Botão principal */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !!blockedReason}
               style={{
                 background: "linear-gradient(90deg,#fb8500,#219ebc)",
                 color: "#fff",
@@ -803,7 +990,8 @@ export default function CreateServicePage() {
                 fontWeight: 800,
                 fontSize: 22,
                 boxShadow: "0 2px 20px #fb850022",
-                cursor: loading ? "not-allowed" : "pointer",
+                cursor:
+                  loading || blockedReason ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -820,14 +1008,18 @@ export default function CreateServicePage() {
               onMouseEnter={(e) =>
                 (e.currentTarget.style.filter = "brightness(0.98)")
               }
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.filter = "none")
+              }
             >
               {loading ? (
                 <Loader2 className="animate-spin w-7 h-7" />
               ) : (
                 <Save className="w-6 h-6" />
               )}
-              {loading ? "Cadastrando..." : "Cadastrar Serviço"}
+              {loading
+                ? "Enviando para curadoria..."
+                : "Cadastrar Serviço"}
             </button>
 
             <div style={{ marginTop: 6, fontSize: 12, color: "#64748b" }}>
@@ -837,55 +1029,56 @@ export default function CreateServicePage() {
             </div>
           </form>
           <style jsx>{`
-  /* === mesmo visual do Perfil === */
-  .card {
-    background: #fff;
-    border-radius: 20px;
-    box-shadow: 0 4px 28px #0001;
-    padding: 24px 22px;
-    border: 1px solid #e6ebf2;
-  }
-  .card-title {
-    font-weight: 900;
-    color: #023047;
-    font-size: 1.2rem;
-    margin-bottom: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .label {
-    font-weight: 800;
-    color: #023047;
-    margin-bottom: 6px;
-    display: block;
-  }
-  .checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 800;
-    color: #023047;
-  }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    border: 1px solid #e6e9ef;
-    border-radius: 999px;
-    padding: 8px 12px;
-    font-weight: 800;
-    font-size: 0.95rem;
-    transition: transform .02s, filter .15s;
-  }
-  .pill:active { transform: translateY(1px); }
-  .hint {
-    margin-top: 8px;
-    font-size: 12px;
-    color: #64748b;
-  }
-`}</style>
-
+            /* === mesmo visual do Perfil === */
+            .card {
+              background: #fff;
+              border-radius: 20px;
+              box-shadow: 0 4px 28px #0001;
+              padding: 24px 22px;
+              border: 1px solid #e6ebf2;
+            }
+            .card-title {
+              font-weight: 900;
+              color: #023047;
+              font-size: 1.2rem;
+              margin-bottom: 14px;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+            }
+            .label {
+              font-weight: 800;
+              color: #023047;
+              margin-bottom: 6px;
+              display: block;
+            }
+            .checkbox {
+              display: inline-flex;
+              align-items: center;
+              gap: 8px;
+              font-weight: 800;
+              color: #023047;
+            }
+            .pill {
+              display: inline-flex;
+              align-items: center;
+              gap: 6px;
+              border: 1px solid #e6e9ef;
+              border-radius: 999px;
+              padding: 8px 12px;
+              font-weight: 800;
+              font-size: 0.95rem;
+              transition: transform 0.02s, filter 0.15s;
+            }
+            .pill:active {
+              transform: translateY(1px);
+            }
+            .hint {
+              margin-top: 8px;
+              font-size: 12px;
+              color: #64748b;
+            }
+          `}</style>
         </section>
       </main>
     </Suspense>

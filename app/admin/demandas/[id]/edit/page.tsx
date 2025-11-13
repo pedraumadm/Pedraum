@@ -929,34 +929,37 @@ export default function EditDemandaPage() {
             {userId && <div><b>UserID:</b> {userId}</div>}
           </div>
 
-          {/* Status + Ações */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "8px 0 14px" }}>
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: 999,
-              border: "1px solid #e5e7eb", fontWeight: 900, fontSize: 12,
-              ...(demandaStatus === "approved" ? { background: "#ecfdf5", color: "#065f46" }
-                : demandaStatus === "rejected" ? { background: "#fff1f2", color: "#9f1239" }
-                : { background: "#f1f5f9", color: "#111827" }),
-            }}>
-              Status: {demandaStatus}
-            </span>
-            <div style={{ flex: 1 }} />
-            {demandaStatus !== "approved" && (
-              <button type="button" onClick={approveAndPublish} style={{ ...primaryBtn, background: "#16a34a", border: "1px solid #16a34a" }}>
-                <CheckCircle2 size={18} /> Aprovar & Publicar
-              </button>
-            )}
-            {demandaStatus !== "rejected" && (
-              <button type="button" onClick={rejectDemand} style={dangerBtn}>
-                <XCircle size={18} /> Rejeitar
-              </button>
-            )}
-            {demandaStatus !== "pending" && (
-              <button type="button" onClick={backToPending} style={ghostBtn}>
-                Voltar a pendente
-              </button>
-            )}
-          </div>
+        {/* Status (somente pill no topo) */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    margin: "8px 0 14px",
+  }}
+>
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "6px 12px",
+      borderRadius: 999,
+      border: "1px solid #e5e7eb",
+      fontWeight: 900,
+      fontSize: 12,
+      ...(demandaStatus === "approved"
+        ? { background: "#ecfdf5", color: "#065f46" }
+        : demandaStatus === "rejected"
+        ? { background: "#fff1f2", color: "#9f1239" }
+        : { background: "#f1f5f9", color: "#111827" }),
+    }}
+  >
+    Status: {demandaStatus}
+  </span>
+</div>
+
 
           <form onSubmit={handleSubmit}>
             <label style={label}>Título da Demanda</label>
@@ -1132,22 +1135,69 @@ export default function EditDemandaPage() {
               )}
             </div>
 
-            <label style={label}>Observações (opcional)</label>
-            <textarea name="observacoes" value={form.observacoes} onChange={handleChange} placeholder="Alguma observação extra?" style={{ ...input, minHeight: 70 }} />
+                        <label style={label}>Observações (opcional)</label>
+            <textarea
+              name="observacoes"
+              value={form.observacoes}
+              onChange={handleChange}
+              placeholder="Alguma observação extra?"
+              style={{ ...input, minHeight: 70 }}
+            />
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14, justifyContent: "space-between" }}>
-              <div />
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+                marginTop: 14,
+                justifyContent: "space-between",
+              }}
+            >
+              {/* Botões de curadoria (lado esquerdo) */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {demandaStatus !== "approved" && (
+                  <button
+                    type="button"
+                    onClick={approveAndPublish}
+                    style={{ ...primaryBtn, background: "#16a34a", border: "1px solid #16a34a" }}
+                  >
+                    <CheckCircle2 size={18} /> Aprovar &amp; Publicar
+                  </button>
+                )}
+
+                {demandaStatus !== "rejected" && (
+                  <button type="button" onClick={rejectDemand} style={dangerBtn}>
+                    <XCircle size={18} /> Rejeitar
+                  </button>
+                )}
+
+                {demandaStatus !== "pending" && (
+                  <button type="button" onClick={backToPending} style={ghostBtn}>
+                    Voltar a pendente
+                  </button>
+                )}
+              </div>
+
+              {/* Salvar / Excluir (lado direito) */}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                 <button type="submit" disabled={salvando} style={primaryBtn}>
                   <Save size={20} /> {salvando ? "Salvando..." : "Salvar Alterações"}
                 </button>
-                <button type="button" disabled={removendo} onClick={handleDelete} style={dangerBtn}>
+                <button
+                  type="button"
+                  disabled={removendo}
+                  onClick={handleDelete}
+                  style={dangerBtn}
+                >
                   <Trash2 size={20} /> {removendo ? "Excluindo..." : "Excluir"}
                 </button>
               </div>
             </div>
           </form>
         </div>
+
+        
+
 
         {/* ================= Enviar demanda ================= */}
         <div style={card}>
@@ -1457,16 +1507,33 @@ function ProfileModal({
   // composição de dados tolerante
   const nome = u?.nome || u?.email || `Usuário ${userId}`;
   const email = u?.email || "";
-  const cats = [
-    ...(u?.categorias || []),
-    ...(u?.categoriesAll || []),
-    ...(u?.categoriasAtuacaoPairs || []).map((p) => p?.categoria).filter(Boolean) as string[],
-    ...(u?.atuacaoBasica || []).map((a) => a?.categoria).filter(Boolean) as string[],
-  ].filter(Boolean);
-  const subcats = [
-    ...(u?.categoriasAtuacaoPairs || []).map((p) => p?.subcategoria).filter(Boolean) as string[],
-    ...(u?.atuacaoBasica || []).map((a) => a?.subcategoria).filter(Boolean) as string[],
-  ].filter(Boolean);
+  // categorias (deduplicadas)
+const catSet = new Set<string>();
+
+(u?.categorias || []).forEach((c) => {
+  if (c) catSet.add(String(c));
+});
+
+(u?.categoriesAll || []).forEach((c) => {
+  if (c) catSet.add(String(c));
+});
+
+(u?.categoriasAtuacaoPairs || []).forEach((p) => {
+  if (p?.categoria) catSet.add(String(p.categoria));
+});
+
+(u?.atuacaoBasica || []).forEach((a) => {
+  if (a?.categoria) catSet.add(String(a.categoria));
+});
+
+const cats = Array.from(catSet);
+
+// subcategorias (podem repetir menos, mas já filtramos falsy)
+const subcats = [
+  ...(u?.categoriasAtuacaoPairs || []).map((p) => p?.subcategoria).filter(Boolean) as string[],
+  ...(u?.atuacaoBasica || []).map((a) => a?.subcategoria).filter(Boolean) as string[],
+].filter(Boolean);
+
 
   
 

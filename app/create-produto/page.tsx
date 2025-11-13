@@ -1,7 +1,6 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
-import AuthGateRedirect from "@/components/AuthGateRedirect";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
 import {
@@ -9,6 +8,8 @@ import {
   addDoc,
   serverTimestamp,
   Timestamp,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 import ImageUploader from "@/components/ImageUploader";
 import dynamic from "next/dynamic";
@@ -37,6 +38,7 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   ShieldCheck,
+  Slash,
 } from "lucide-react";
 
 /* ===================== Constantes ===================== */
@@ -78,6 +80,53 @@ const estados = [
   "TO",
 ];
 
+/* ===================== Tipos ===================== */
+type Item = { nome: string; slug?: string };
+type Subcat = { nome: string; slug?: string; itens?: Item[] };
+type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
+
+type TaxIndexRow = {
+  label: string;
+  path: string[]; // ["Categoria","Subcategoria","Item"]
+  haystack: string;
+};
+
+type UsuarioFS = {
+  id?: string;
+  nome?: string;
+  email?: string;
+  status?: "ativo" | "suspenso" | "banido";
+  // outros campos que você tem no /usuarios
+};
+
+/* ===================== RequireAuth (embutido) ===================== */
+function RequireAuth({ onReady }: { onReady: (uid: string) => void }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((u) => {
+      if (!u) {
+        router.replace("/login?next=/create-produto");
+      } else {
+        onReady(u.uid);
+      }
+      setLoading(false);
+    });
+    return () => unsub();
+  }, [router, onReady]);
+
+  if (loading) {
+    return (
+      <div className="p-6 text-[#023047] flex items-center gap-2">
+        <Loader2 className="animate-spin w-4 h-4" />
+        Verificando acesso…
+      </div>
+    );
+  }
+  return null;
+}
+
 /* ===================== Page Wrapper ===================== */
 export default function CreateProdutoPage() {
   return (
@@ -98,16 +147,6 @@ function normalize(s: string) {
     .trim()
     .toLowerCase();
 }
-
-type Item = { nome: string; slug?: string };
-type Subcat = { nome: string; slug?: string; itens?: Item[] };
-type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
-
-type TaxIndexRow = {
-  label: string; // "Britador de Mandíbulas"
-  path: string[]; // ["Britagem","Britadores","Britador de Mandíbulas"] (1..3 níveis)
-  haystack: string; // texto normalizado para busca
-};
 
 // achata a taxonomia em linhas pesquisáveis
 function buildTaxIndex(categorias: Cat[]): TaxIndexRow[] {
@@ -173,6 +212,12 @@ function searchTaxIndex(index: TaxIndexRow[], q: string): TaxIndexRow[] {
 function CreateProdutoForm() {
   const router = useRouter();
 
+  // 🔐 Estado de auth/usuário
+  const [uid, setUid] = useState<string | null>(null);
+  const [userDoc, setUserDoc] = useState<UsuarioFS | null>(null);
+  const [userLoading, setUserLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
+
   // 🔗 Taxonomia unificada (Firestore > fallback local)
   const { categorias, loading: taxLoading } = useTaxonomia() as {
     categorias: Cat[];
@@ -188,8 +233,8 @@ function CreateProdutoForm() {
     nome: "",
     categoria: "",
     subcategoria: "",
-    itemFinal: "", // ⭐ novo: 3º nível
-    outraCategoriaTexto: "", // ⭐ texto livre p/ "Outros"
+    itemFinal: "", // ⭐ 3º nível
+    outraCategoriaTexto: "",
     preco: "",
     estado: "",
     cidade: "",
@@ -197,7 +242,7 @@ function CreateProdutoForm() {
     condicao: "",
     descricao: "",
     hasWarranty: false,
-    warrantyMonths: "", // string para input fácil; convertemos no submit
+    warrantyMonths: "",
   });
 
   // cidades por UF (IBGE)
@@ -210,22 +255,72 @@ function CreateProdutoForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // ===== RequireAuth + carregar usuario FS =====
+  function handleAuthReady(authUid: string) {
+    setUid(authUid);
+  }
+
+  useEffect(() => {
+    let ignore = false;
+    async function fetchUser() {
+      if (!uid) return;
+      setUserLoading(true);
+      try {
+        const snap = await getDoc(doc(db, "usuarios", uid));
+        if (ignore) return;
+        if (snap.exists()) {
+          const data = snap.data() as UsuarioFS;
+          setUserDoc({ id: uid, ...data });
+
+          // 🚫 Regras de bloqueio para cadastrar produto/serviço
+          const status = (data.status || "ativo") as UsuarioFS["status"];
+          if (status === "banido") {
+            setBlockedReason(
+              "Sua conta está banida. Você não pode cadastrar produtos ou serviços."
+            );
+          } else if (status === "suspenso") {
+            setBlockedReason(
+              "Sua conta está suspensa. Você não pode cadastrar produtos ou serviços durante a suspensão."
+            );
+          } else {
+            setBlockedReason(null);
+          }
+        } else {
+          // Se o doc não existe, considere como ativo por padrão, mas recomendo criar o perfil no sign up
+          setUserDoc({ id: uid, status: "ativo" });
+          setBlockedReason(null);
+        }
+      } catch {
+        if (!ignore) {
+          setUserDoc({ id: uid, status: "ativo" });
+          setBlockedReason(null);
+        }
+      } finally {
+        if (!ignore) setUserLoading(false);
+      }
+    }
+    fetchUser();
+    return () => {
+      ignore = true;
+    };
+  }, [uid]);
+
   // ======= opções por nível =======
   const categoriaSelecionada = useMemo(
     () => categorias.find((c) => c.nome === form.categoria),
-    [categorias, form.categoria],
+    [categorias, form.categoria]
   );
   const subcategoriasDisponiveis: Subcat[] = useMemo(
     () => categoriaSelecionada?.subcategorias ?? [],
-    [categoriaSelecionada],
+    [categoriaSelecionada]
   );
   const subcategoriaSelecionada = useMemo(
     () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
-    [subcategoriasDisponiveis, form.subcategoria],
+    [subcategoriasDisponiveis, form.subcategoria]
   );
   const itensDisponiveis: Item[] = useMemo(
     () => subcategoriaSelecionada?.itens ?? [],
-    [subcategoriaSelecionada],
+    [subcategoriaSelecionada]
   );
 
   const catEhOutros = form.categoria === "Outros";
@@ -284,7 +379,7 @@ function CreateProdutoForm() {
   function handleChange(
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >,
+    >
   ) {
     const { name, value, type, checked } = e.target as any;
 
@@ -302,8 +397,8 @@ function CreateProdutoForm() {
       const autoHas = v.includes("com garantia")
         ? true
         : v.includes("sem garantia")
-          ? false
-          : form.hasWarranty;
+        ? false
+        : form.hasWarranty;
       setForm((f) => ({ ...f, condicao: v, hasWarranty: autoHas }));
       return;
     }
@@ -344,7 +439,7 @@ function CreateProdutoForm() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" },
+          { cache: "no-store" }
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
@@ -379,6 +474,13 @@ function CreateProdutoForm() {
       return;
     }
 
+    // Bloqueio: banido/suspenso
+    if (blockedReason) {
+      setError(blockedReason);
+      setSubmitting(false);
+      return;
+    }
+
     // validações
     const baseOk = !!(
       form.nome &&
@@ -390,6 +492,9 @@ function CreateProdutoForm() {
     );
 
     let taxOk = false;
+    const catEhOutros = form.categoria === "Outros";
+    const subcatEhOutros = form.subcategoria === "Outros";
+
     if (catEhOutros) {
       taxOk = !!form.outraCategoriaTexto.trim();
     } else if (subcatEhOutros) {
@@ -432,9 +537,10 @@ function CreateProdutoForm() {
       const categoriaPath = catEhOutros
         ? ["Outros", finalItem]
         : subcatEhOutros
-          ? [form.categoria, "Outros", finalItem]
-          : [form.categoria, form.subcategoria, finalItem];
+        ? [form.categoria, "Outros", finalItem]
+        : [form.categoria, form.subcategoria, finalItem];
 
+      // ======== CURADORIA: entra invisível e pendente =========
       await addDoc(collection(db, "produtos"), {
         tipo: "produto",
         nome: form.nome,
@@ -458,15 +564,24 @@ function CreateProdutoForm() {
         hasWarranty: !!form.hasWarranty,
         warrantyMonths: form.hasWarranty ? Number(form.warrantyMonths) : null,
 
+        // identificação
         userId: user.uid,
         createdAt: serverTimestamp(),
-        expiraEm: Timestamp.fromDate(expiresAt),
-        status: "ativo",
         updatedAt: serverTimestamp(),
-        visivel: true,
+
+        // validade
+        expiraEm: Timestamp.fromDate(expiresAt),
+
+        // 🔒 curadoria
+        status: "em_curadoria", // (antes estava "ativo")
+        visivel: false,
+        origem: "usuario",
+        curadoriaStatus: "pendente",
+        curadoriaBy: null,
+        curadoriaAt: null,
       });
 
-      setSuccess("Produto cadastrado com sucesso!");
+      setSuccess("Seu produto foi enviado para curadoria! 🎯");
       setForm({
         nome: "",
         categoria: "",
@@ -484,7 +599,7 @@ function CreateProdutoForm() {
       });
       setImagens([]);
       setPdfUrl(null);
-      setTimeout(() => router.push("/vitrine"), 900);
+      setTimeout(() => router.push("/painel"), 900);
     } catch (err) {
       console.error(err);
       setError("Erro ao cadastrar. Tente novamente.");
@@ -493,9 +608,12 @@ function CreateProdutoForm() {
     }
   }
 
+  // ======= UI =======
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#f7f9fb] via-white to-[#e0e7ef] flex flex-col items-center py-8 px-2 sm:px-4">
-      {/* 🔙 Botão Voltar estilizado */}
+      {/* RequireAuth: trava a tela até autenticar */}
+      <RequireAuth onReady={handleAuthReady} />
+
       <div className="w-full max-w-5xl px-2 mb-3 flex">
         <button
           type="button"
@@ -556,8 +674,37 @@ function CreateProdutoForm() {
           </button>
         </div>
 
-        {/* Gate de autenticação */}
-        <AuthGateRedirect />
+        {/* Avisos de status de conta */}
+        {userLoading ? (
+          <div className="mb-4 text-slate-700 flex items-center gap-2">
+            <Loader2 className="animate-spin w-4 h-4" />
+            Carregando permissões…
+          </div>
+        ) : blockedReason ? (
+          <div
+            className="mb-6 rounded-xl border p-4"
+            style={{ borderColor: "#ffe0e0", background: "#fff7f7" }}
+          >
+            <div className="flex items-center gap-2 font-extrabold text-[#b00020]">
+              <Slash className="w-5 h-5" />
+              Ação bloqueada
+            </div>
+            <p className="text-sm text-[#b00020] mt-1">{blockedReason}</p>
+            <p className="text-xs text-[#b00020] mt-2">
+              Se você acredita que isso é um engano, fale com o suporte.
+            </p>
+          </div>
+        ) : (
+          <div
+            className="mb-6 rounded-xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+          >
+            <p className="text-slate-700 text-sm">
+              Seu anúncio será enviado para <strong>curadoria</strong>. Após
+              aprovado, ficará visível na vitrine.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-6">
           {/* ================= Uploads (Imagens + PDF) ================= */}
@@ -567,6 +714,8 @@ function CreateProdutoForm() {
               background: "linear-gradient(180deg,#f8fbff, #ffffff)",
               borderColor: "#e6ebf2",
               padding: "18px",
+              opacity: blockedReason ? 0.6 : 1,
+              pointerEvents: blockedReason ? "none" as const : "auto",
             }}
           >
             <div className="flex items-center gap-2 mb-3">
@@ -633,7 +782,9 @@ function CreateProdutoForm() {
                       style={{ height: 300 }}
                     >
                       <DrivePDFViewer
-                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
+                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(
+                          pdfUrl || ""
+                        )}`}
                         height={300}
                       />
                     </div>
@@ -648,7 +799,13 @@ function CreateProdutoForm() {
           </div>
 
           {/* ================= Campos ================= */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            style={{
+              opacity: blockedReason ? 0.6 : 1,
+              pointerEvents: blockedReason ? "none" as const : "auto",
+            }}
+          >
             {/* Nome */}
             <FormField label="Nome *" icon={<Tag size={15} />}>
               <input
@@ -661,7 +818,7 @@ function CreateProdutoForm() {
               />
             </FormField>
 
-            {/* ===== Busca rápida por item/caminho (fica acima dos selects) ===== */}
+            {/* ===== Busca rápida por item/caminho ===== */}
             <div
               className="rounded-2xl border p-4"
               style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
@@ -835,8 +992,8 @@ function CreateProdutoForm() {
                     {!form.subcategoria
                       ? "Selecione a subcategoria primeiro"
                       : itensDisponiveis.length
-                        ? "Selecione"
-                        : "Sem itens disponíveis"}
+                      ? "Selecione"
+                      : "Sem itens disponíveis"}
                   </option>
                   {itensDisponiveis.map((it) => (
                     <option key={it.slug ?? it.nome} value={it.nome}>
@@ -912,7 +1069,7 @@ function CreateProdutoForm() {
             </FormField>
           </div>
 
-          {/* Cidade (dependente da UF) */}
+          {/* Cidade */}
           <FormField label="Cidade *" icon={<MapPin size={15} />}>
             <select
               name="cidade"
@@ -920,14 +1077,14 @@ function CreateProdutoForm() {
               onChange={handleChange}
               style={inputStyle}
               required
-              disabled={!form.estado || carregandoCidades}
+              disabled={!form.estado || carregandoCidades || !!blockedReason}
             >
               <option value="">
                 {carregandoCidades
                   ? "Carregando..."
                   : form.estado
-                    ? "Selecione a cidade"
-                    : "Selecione primeiro o estado"}
+                  ? "Selecione a cidade"
+                  : "Selecione primeiro o estado"}
               </option>
               {cidades.map((c) => (
                 <option key={c} value={c}>
@@ -947,13 +1104,19 @@ function CreateProdutoForm() {
               placeholder="Descreva com detalhes o produto, condição, uso, etc."
               rows={4}
               required
+              disabled={!!blockedReason}
             />
           </FormField>
 
           {/* Garantia */}
           <div
             className="rounded-xl border p-4"
-            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+            style={{
+              borderColor: "#e6ebf2",
+              background: "#f8fafc",
+              opacity: blockedReason ? 0.6 : 1,
+              pointerEvents: blockedReason ? "none" as const : "auto",
+            }}
           >
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-4 h-4 text-emerald-700" />
@@ -971,9 +1134,7 @@ function CreateProdutoForm() {
               </label>
 
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-700">
-                  Tempo de garantia
-                </span>
+                <span className="text-sm text-slate-700">Tempo de garantia</span>
                 <input
                   type="number"
                   name="warrantyMonths"
@@ -1031,7 +1192,7 @@ function CreateProdutoForm() {
           <div className="flex flex-col sm:flex-row-reverse gap-3">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !!blockedReason}
               style={{
                 background: "linear-gradient(90deg,#fb8500,#219ebc)",
                 color: "#fff",
@@ -1041,11 +1202,12 @@ function CreateProdutoForm() {
                 fontWeight: 800,
                 fontSize: 20,
                 boxShadow: "0 8px 40px rgba(251,133,0,0.25)",
-                cursor: submitting ? "not-allowed" : "pointer",
+                cursor: submitting || blockedReason ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 10,
+                opacity: blockedReason ? 0.6 : 1,
               }}
             >
               {submitting ? (
@@ -1053,7 +1215,7 @@ function CreateProdutoForm() {
               ) : (
                 <Save className="w-5 h-5" />
               )}
-              {submitting ? "Salvando..." : "Cadastrar Produto"}
+              {submitting ? "Enviando para curadoria..." : "Cadastrar Produto"}
             </button>
           </div>
         </form>

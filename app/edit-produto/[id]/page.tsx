@@ -1,29 +1,17 @@
-// app/edit-produto/[id]/page.tsx
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { db, auth } from "@/firebaseConfig";
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 
 import ImageUploader from "@/components/ImageUploader";
 import dynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
-/** Mantém o mesmo padrão do create (onUploaded) */
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
-  ssr: false,
-});
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
-  ssr: false,
-});
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
 
 import {
   Loader2,
@@ -67,10 +55,10 @@ type Produto = {
   id?: string;
   tipo?: "produto" | string;
   nome: string;
-  categoria: string;       // nível 1 (pode ser "Outros")
-  subcategoria: string;    // nível 2 (pode ser "Outros")
-  itemFinal?: string;      // nível 3 (texto livre quando "Outros")
-  categoriaPath?: string[]; // [cat, subcat, item] (flexível)
+  categoria: string;
+  subcategoria: string;
+  itemFinal?: string;
+  categoriaPath?: string[];
   preco: number | null;
   estado: string;
   cidade: string;
@@ -89,6 +77,14 @@ type Produto = {
   updatedAt?: any;
 };
 
+/* ===================== Utils ===================== */
+function normalizePrice(str: string): number | null {
+  if (!str) return null;
+  // remove milhares e troca vírgula por ponto
+  const n = Number(str.replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? null : n;
+}
+
 /* ===================== Page Wrapper ===================== */
 export default function EditProdutoPage() {
   return (
@@ -104,13 +100,11 @@ function EditProdutoForm() {
   const params = useParams();
   const { id } = params as { id: string };
 
-  // Taxonomia (mesmo hook do create)
   const { categorias, loading: taxLoading } = useTaxonomia() as {
     categorias: Cat[];
     loading: boolean;
   };
 
-  // estado de carregamento do doc
   const [loadingDoc, setLoadingDoc] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -120,7 +114,7 @@ function EditProdutoForm() {
   const [imagens, setImagens] = useState<string[]>([]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  // form (mesmos campos do create)
+  // form
   const [form, setForm] = useState({
     nome: "",
     categoria: "",
@@ -161,14 +155,11 @@ function EditProdutoForm() {
           throw new Error("Você não tem permissão para editar este produto.");
         }
 
-        // popular imagens/pdf
         setImagens(Array.isArray(data.imagens) ? data.imagens : []);
         setPdfUrl(data.pdfUrl || null);
 
-        // extrair níveis
         const c1 = data.categoria || "";
         const c2 = data.subcategoria || "";
-        // prioridade para itemFinal; senão tenta último da categoriaPath
         const c3 =
           data.itemFinal ||
           (Array.isArray(data.categoriaPath) ? (data.categoriaPath[2] ?? "") : "");
@@ -178,7 +169,7 @@ function EditProdutoForm() {
           categoria: c1,
           subcategoria: c2,
           itemFinal: c3,
-          outraCategoriaTexto: "", // só preenche quando "Outros" é usado pelo usuário
+          outraCategoriaTexto: "",
           preco: data.preco != null ? String(data.preco) : "",
           estado: data.estado || "",
           cidade: data.cidade || "",
@@ -203,7 +194,7 @@ function EditProdutoForm() {
     };
   }, [id]);
 
-  /* ====== Opções por nível (mesmo padrão do create) ====== */
+  /* ====== Opções por nível ====== */
   const catEhOutros = form.categoria === "Outros";
   const subcatEhOutros = form.subcategoria === "Outros";
 
@@ -250,7 +241,6 @@ function EditProdutoForm() {
       return;
     }
 
-    // resets em cascata
     if (name === "categoria") {
       setForm((f) => ({
         ...f,
@@ -273,7 +263,7 @@ function EditProdutoForm() {
     }));
   }
 
-  /* ====== IBGE cidades (igual create) ====== */
+  /* ====== IBGE cidades (inclui cidade atual se não vier da API) ====== */
   useEffect(() => {
     let abort = false;
 
@@ -291,12 +281,14 @@ function EditProdutoForm() {
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data
-          .map((m) => m.nome)
-          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
+        // preserva cidade atual se não estiver na lista
+        if (form.cidade && !nomes.includes(form.cidade)) nomes.unshift(form.cidade);
         setCidades(nomes);
       } catch {
-        if (!abort) setCidades([]);
+        if (!abort) {
+          setCidades((prev) => (prev.length ? prev : form.cidade ? [form.cidade] : []));
+        }
       } finally {
         if (!abort) setCarregandoCidades(false);
       }
@@ -306,6 +298,7 @@ function EditProdutoForm() {
     return () => {
       abort = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.estado]);
 
   /* ====== Submit (update) ====== */
@@ -316,7 +309,6 @@ function EditProdutoForm() {
     setSubmitting(true);
 
     try {
-      // validações iguais às do create
       const baseOk = !!(
         form.nome &&
         form.estado &&
@@ -327,9 +319,7 @@ function EditProdutoForm() {
       );
 
       let taxOk = false;
-      if (catEhOutros) {
-        taxOk = !!form.outraCategoriaTexto.trim();
-      } else if (subcatEhOutros) {
+      if (catEhOutros || subcatEhOutros) {
         taxOk = !!form.outraCategoriaTexto.trim();
       } else {
         taxOk = !!(form.categoria && form.subcategoria && form.itemFinal);
@@ -338,11 +328,9 @@ function EditProdutoForm() {
       if (!(baseOk && taxOk)) {
         throw new Error("Preencha todos os campos obrigatórios.");
       }
-
       if (imagens.length === 0) {
         throw new Error("Envie pelo menos uma imagem.");
       }
-
       if (form.hasWarranty) {
         const months = Number(form.warrantyMonths);
         if (!months || months <= 0) {
@@ -350,7 +338,6 @@ function EditProdutoForm() {
         }
       }
 
-      // montar path
       const finalItem =
         catEhOutros || subcatEhOutros
           ? form.outraCategoriaTexto.trim()
@@ -367,7 +354,6 @@ function EditProdutoForm() {
         tipo: "produto",
         nome: form.nome,
 
-        // taxonomia 3 níveis + path
         categoria: form.categoria || "Outros",
         subcategoria: subcatEhOutros
           ? "Outros"
@@ -375,7 +361,7 @@ function EditProdutoForm() {
         itemFinal: finalItem,
         categoriaPath,
 
-        preco: form.preco ? parseFloat(form.preco) : null,
+        preco: normalizePrice(form.preco),
         estado: form.estado,
         cidade: form.cidade,
         ano: form.ano ? Number(form.ano) : null,
@@ -427,10 +413,10 @@ function EditProdutoForm() {
     );
   }
 
-  /* ===================== UI (mesmo padrão do create) ===================== */
+  /* ===================== UI ===================== */
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#f7f9fb] via-white to-[#e0e7ef] flex flex-col items-center py-8 px-2 sm:px-4">
-      {/* 🔙 Botão Voltar estilizado */}
+      {/* 🔙 Voltar */}
       <div className="w-full max-w-5xl px-2 mb-3 flex">
         <button
           type="button"
@@ -479,11 +465,7 @@ function EditProdutoForm() {
             type="button"
             onClick={() => router.back()}
             className="hidden sm:inline-flex items-center gap-2 text-sm font-bold rounded-xl px-3 py-2"
-            style={{
-              background: "#eef2f7",
-              color: "#0f172a",
-              border: "1px solid #e3e8ef",
-            }}
+            style={{ background: "#eef2f7", color: "#0f172a", border: "1px solid #e3e8ef" }}
             aria-label="Voltar"
             title="Voltar"
           >
@@ -503,13 +485,11 @@ function EditProdutoForm() {
           >
             <div className="flex items-center gap-2 mb-3">
               <Upload className="w-4 h-4 text-slate-700" />
-              <h3 className="text-slate-800 font-black tracking-tight">
-                Arquivos do anúncio
-              </h3>
+              <h3 className="text-slate-800 font-black tracking-tight">Arquivos do anúncio</h3>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Card Imagens */}
+              {/* Imagens */}
               <div
                 className="rounded-xl border overflow-hidden"
                 style={{
@@ -520,9 +500,7 @@ function EditProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
-                  <strong className="text-[#0f172a]">
-                    Imagens do Produto *
-                  </strong>
+                  <strong className="text-[#0f172a]">Imagens do Produto *</strong>
                 </div>
                 <div className="px-4 pb-4">
                   <div className="rounded-lg border border-dashed p-3">
@@ -534,7 +512,7 @@ function EditProdutoForm() {
                 </div>
               </div>
 
-              {/* Card PDF */}
+              {/* PDF */}
               <div
                 className="rounded-xl border overflow-hidden"
                 style={{
@@ -545,13 +523,11 @@ function EditProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
-                  <strong className="text-[#0f172a]">
-                    Ficha técnica (PDF) — opcional
-                  </strong>
+                  <strong className="text-[#0f172a]">Ficha técnica (PDF) — opcional</strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   <div className="rounded-lg border border-dashed p-3">
-                    <PDFUploader onUploaded={setPdfUrl} />
+                    <PDFUploader initialUrl={pdfUrl ?? undefined} onUploaded={setPdfUrl} />
                   </div>
 
                   {pdfUrl ? (
@@ -562,9 +538,7 @@ function EditProdutoForm() {
                       />
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">
-                      Anexe manuais, especificações ou ficha técnica (até 8MB).
-                    </p>
+                    <p className="text-xs text-slate-500">Anexe manuais, especificações ou ficha técnica (até 8MB).</p>
                   )}
                 </div>
               </div>
@@ -587,13 +561,7 @@ function EditProdutoForm() {
 
             {/* Categoria */}
             <FormField label="Categoria *" icon={<List size={15} />}>
-              <select
-                name="categoria"
-                value={form.categoria}
-                onChange={handleChange}
-                style={inputStyle}
-                required
-              >
+              <select name="categoria" value={form.categoria} onChange={handleChange} style={inputStyle} required>
                 <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
                 {categorias.map((cat) => (
                   <option key={cat.slug ?? cat.nome} value={cat.nome}>
@@ -605,13 +573,13 @@ function EditProdutoForm() {
 
             {/* Subcategoria */}
             <FormField label="Subcategoria *" icon={<Layers size={15} />}>
-              {catEhOutros ? (
+              {form.categoria === "Outros" ? (
                 <input
                   name="outraCategoriaTexto"
                   value={form.outraCategoriaTexto}
                   onChange={handleChange}
                   style={inputStyle}
-                  placeholder="Descreva com suas palavras o que você precisa"
+                  placeholder="Descreva com suas palavras"
                   required
                 />
               ) : (
@@ -623,27 +591,27 @@ function EditProdutoForm() {
                   required
                   disabled={!form.categoria}
                 >
-                  <option value="">
-                    {form.categoria ? "Selecione" : "Selecione a categoria primeiro"}
-                  </option>
+                  <option value="">{form.categoria ? "Selecione" : "Selecione a categoria primeiro"}</option>
                   {subcategoriasDisponiveis.map((sub) => (
                     <option key={sub.slug ?? sub.nome} value={sub.nome}>
                       {sub.nome}
                     </option>
                   ))}
+                  {/* Se quiser permitir "Outros" no 2º nível: */}
+                  <option value="Outros">Outros</option>
                 </select>
               )}
             </FormField>
 
             {/* Item final */}
             <FormField label="Item final *" icon={<Layers size={15} />}>
-              {catEhOutros || subcatEhOutros ? (
+              {form.categoria === "Outros" || form.subcategoria === "Outros" ? (
                 <input
                   name="outraCategoriaTexto"
                   value={form.outraCategoriaTexto}
                   onChange={handleChange}
                   style={inputStyle}
-                  placeholder="Ex.: Descreva exatamente o que precisa"
+                  placeholder="Ex.: Descreva exatamente o item"
                   required
                 />
               ) : (
@@ -677,11 +645,10 @@ function EditProdutoForm() {
                 name="preco"
                 value={form.preco}
                 onChange={handleChange}
-                type="number"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
-                placeholder="Ex: 15000"
-                min={0}
-                step={0.01}
+                placeholder="Ex: 15.000,00"
               />
             </FormField>
 
@@ -701,13 +668,7 @@ function EditProdutoForm() {
 
             {/* Condição */}
             <FormField label="Condição *" icon={<Tag size={15} />}>
-              <select
-                name="condicao"
-                value={form.condicao}
-                onChange={handleChange}
-                style={inputStyle}
-                required
-              >
+              <select name="condicao" value={form.condicao} onChange={handleChange} style={inputStyle} required>
                 <option value="">Selecione</option>
                 {condicoes.map((c) => (
                   <option key={c} value={c}>
@@ -719,13 +680,7 @@ function EditProdutoForm() {
 
             {/* Estado */}
             <FormField label="Estado *" icon={<MapPin size={15} />}>
-              <select
-                name="estado"
-                value={form.estado}
-                onChange={handleChange}
-                style={inputStyle}
-                required
-              >
+              <select name="estado" value={form.estado} onChange={handleChange} style={inputStyle} required>
                 <option value="">Selecione</option>
                 {estados.map((e) => (
                   <option key={e} value={e}>
@@ -775,22 +730,14 @@ function EditProdutoForm() {
           </FormField>
 
           {/* Garantia */}
-          <div
-            className="rounded-xl border p-4"
-            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
-          >
+          <div className="rounded-xl border p-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-4 h-4 text-emerald-700" />
               <strong className="text-slate-800">Garantia</strong>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <input
-                  type="checkbox"
-                  name="hasWarranty"
-                  checked={form.hasWarranty}
-                  onChange={handleChange}
-                />
+                <input type="checkbox" name="hasWarranty" checked={form.hasWarranty} onChange={handleChange} />
                 Existe garantia?
               </label>
 
@@ -869,11 +816,7 @@ function EditProdutoForm() {
                 gap: 10,
               }}
             >
-              {submitting ? (
-                <Loader2 className="animate-spin w-6 h-6" />
-              ) : (
-                <Save className="w-5 h-5" />
-              )}
+              {submitting ? <Loader2 className="animate-spin w-6 h-6" /> : <Save className="w-5 h-5" />}
               {submitting ? "Salvando..." : "Salvar alterações"}
             </button>
           </div>
