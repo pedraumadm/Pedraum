@@ -97,7 +97,9 @@ function isPendente(d: any) {
     "análise",
     "aprovacao_pendente",
   ]);
-  return pend.has(s) || d?.pendente === true || (d?.aprovada === false && d?.rejeitada !== true);
+  return (
+    pend.has(s) || d?.pendente === true || (d?.aprovada === false && d?.rejeitada !== true)
+  );
 }
 function isRejeitada(d: any) {
   const s = normStatus(d?.status);
@@ -116,24 +118,6 @@ function isRejeitada(d: any) {
   ]);
   return rej.has(s) || d?.rejeitada === true || d?.aprovada === false;
 }
-
-/* ================== Categorias (UX) ================== */
-const CATEGORIAS_DEMANDAS = [
-  "Equipamentos de Perfuração e Demolição",
-  "Equipamentos de Carregamento e Transporte",
-  "Britagem e Classificação",
-  "Beneficiamento e Processamento Mineral",
-  "Peças e Componentes Industriais",
-  "Desgaste e Revestimento",
-  "Automação, Elétrica e Controle",
-  "Lubrificação e Produtos Químicos",
-  "Equipamentos Auxiliares e Ferramentas",
-  "EPIs (Equipamentos de Proteção Individual)",
-  "Instrumentos de Medição e Controle",
-  "Manutenção e Serviços Industriais",
-  "Veículos e Pneus",
-  "Outros",
-] as const;
 
 /* ================== Tipos ================== */
 type SortKey = "recentes" | "views_desc";
@@ -382,9 +366,9 @@ export default function VitrineDemandas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demandasFiltradasBase, isPatrocinador, explorarOutras, perfil, userCats]);
 
-  /* ================== Opções de CATEGORIA ================== */
+  /* ================== Opções de CATEGORIA (100% dinâmico) ================== */
   const categoriasTodasCarregadas = useMemo(() => {
-    const set = new Set<string>([...CATEGORIAS_DEMANDAS]);
+    const set = new Set<string>();
     for (const d of demandas) {
       const cat = (d.categoria || "").trim();
       if (cat) set.add(cat);
@@ -667,7 +651,10 @@ export default function VitrineDemandas() {
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
           disabled={!estado}
-          style={{ opacity: estado ? 1 : 0.6, cursor: estado ? "pointer" : "not-allowed" }}
+          style={{
+            opacity: estado ? 1 : 0.6,
+            cursor: estado ? "pointer" : "not-allowed",
+          }}
         >
           <option value="">{estado ? "Cidade" : "Selecione um estado"}</option>
           {cidadesDisponiveis.map((cid) => (
@@ -769,8 +756,11 @@ export default function VitrineDemandas() {
                   Não há demandas com contato disponível nas suas categorias por
                   enquanto.
                 </div>
-                <div style={{ fontWeight: 500, color: "#64748b", marginBottom: 18 }}>
-                  Você pode explorar outras oportunidades sem liberar os contatos.
+                <div
+                  style={{ fontWeight: 500, color: "#64748b", marginBottom: 18 }}
+                >
+                  Você pode explorar outras oportunidades sem liberar os
+                  contatos.
                 </div>
                 <button
                   type="button"
@@ -816,7 +806,6 @@ export default function VitrineDemandas() {
                 const fechada = isFechada(item);
                 const contato = getContatoFromDemanda(item);
                 const contatoLiberado = canSeeContacts(item);
-                const statusStr = normStatus(item?.status);
 
                 const setFirstRef = idx === 0 ? { ref: firstCardRef } : {};
 
@@ -886,7 +875,9 @@ export default function VitrineDemandas() {
                         }
                       >
                         <ShieldCheck size={14} />
-                        {contatoLiberado ? "Contato disponível" : "Contato bloqueado"}
+                        {contatoLiberado
+                          ? "Contato disponível"
+                          : "Contato bloqueado"}
                       </span>
                     )}
 
@@ -918,11 +909,16 @@ export default function VitrineDemandas() {
                             justifyContent: "center",
                           }}
                         >
-                          <ClipboardList size={27} style={{ color: "#FB8500" }} />
+                          <ClipboardList
+                            size={27}
+                            style={{ color: "#FB8500" }}
+                          />
                         </div>
                         <div>
                           <div
-                            data-tour={idx === 0 ? "demandas.card.titulo" : undefined}
+                            data-tour={
+                              idx === 0 ? "demandas.card.titulo" : undefined
+                            }
                             style={{
                               fontWeight: 800,
                               fontSize: "1.17rem",
@@ -935,7 +931,9 @@ export default function VitrineDemandas() {
                           </div>
                           {item.categoria && (
                             <span
-                              data-tour={idx === 0 ? "demandas.card.categoria" : undefined}
+                              data-tour={
+                                idx === 0 ? "demandas.card.categoria" : undefined
+                              }
                               style={{
                                 background: "#FFEDD5",
                                 color: "#E17000",
@@ -975,7 +973,8 @@ export default function VitrineDemandas() {
                           fontWeight: 600,
                         }}
                       >
-                        <MapPin size={17} /> {item.cidade || "-"}, {item.estado || "-"}
+                        <MapPin size={17} /> {item.cidade || "-"},{" "}
+                        {item.estado || "-"}
                         <Calendar size={16} />
                         {fmtData(item.createdAt)}
                         <Eye size={17} />
@@ -984,9 +983,13 @@ export default function VitrineDemandas() {
 
                       {/* Contato (quando liberado) */}
                       {contatoLiberado &&
-                        (contato?.whatsapp || contato?.email || contato?.nome) && (
+                        (contato?.whatsapp ||
+                          contato?.email ||
+                          contato?.nome) && (
                           <div
-                            data-tour={idx === 0 ? "demandas.card.contato" : undefined}
+                            data-tour={
+                              idx === 0 ? "demandas.card.contato" : undefined
+                            }
                             style={{
                               border: "1px dashed #bbf7d0",
                               background: "#f0fdf4",
@@ -1020,14 +1023,22 @@ export default function VitrineDemandas() {
                               }}
                             >
                               {contato?.nome && (
-                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                  }}
+                                >
                                   <User2 size={16} />
                                   {contato.nome}
                                 </div>
                               )}
                               {contato?.whatsapp && (
                                 <Link
-                                  href={`https://wa.me/${String(contato.whatsapp).replace(/\D/g, "")}`}
+                                  href={`https://wa.me/${String(
+                                    contato.whatsapp
+                                  ).replace(/\D/g, "")}`}
                                   target="_blank"
                                   style={{
                                     display: "flex",
@@ -1092,7 +1103,9 @@ export default function VitrineDemandas() {
                             }}
                           >
                             <Link
-                              data-tour={idx === 0 ? "demandas.card.botao" : undefined}
+                              data-tour={
+                                idx === 0 ? "demandas.card.botao" : undefined
+                              }
                               href={`/demandas/${item.id}`}
                               className="group-hover:scale-[1.02] transition"
                               style={{
@@ -1111,7 +1124,9 @@ export default function VitrineDemandas() {
                             </Link>
                             {contato?.whatsapp ? (
                               <Link
-                                href={`https://wa.me/${String(contato.whatsapp).replace(/\D/g, "")}`}
+                                href={`https://wa.me/${String(
+                                  contato.whatsapp
+                                ).replace(/\D/g, "")}`}
                                 target="_blank"
                                 className="group-hover:scale-[1.02] transition"
                                 style={{
@@ -1204,7 +1219,13 @@ export default function VitrineDemandas() {
             </div>
 
             {!finishedRef.current && (
-              <div style={{ display: "flex", justifyContent: "center", marginTop: 28 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginTop: 28,
+                }}
+              >
                 <button
                   onClick={carregarMais}
                   disabled={carregandoMais}
@@ -1222,7 +1243,11 @@ export default function VitrineDemandas() {
                   }}
                 >
                   {carregandoMais ? "Carregando..." : "Carregar mais"}
-                  {carregandoMais ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  {carregandoMais ? (
+                    <ChevronUp size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )}
                 </button>
               </div>
             )}

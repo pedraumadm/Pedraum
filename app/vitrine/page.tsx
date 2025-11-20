@@ -43,24 +43,6 @@ function isExpired(item: any): boolean {
   return now > plus45.getTime();
 }
 
-/* ================= Categorias (do PDF) ================= */
-const categoriasPDF = [
-  "Equipamentos de Perfuração e Demolição",
-  "Equipamentos de Carregamento e Transporte",
-  "Britagem e Classificação",
-  "Beneficiamento e Processamento Mineral",
-  "Peças e Componentes Industriais",
-  "Desgaste e Revestimento",
-  "Automação, Elétrica e Controle",
-  "Lubrificação e Produtos Químicos",
-  "Equipamentos Auxiliares e Ferramentas",
-  "EPIs (Equipamentos de Proteção Individual)",
-  "Instrumentos de Medição e Controle",
-  "Manutenção e Serviços Industriais",
-  "Veículos e Pneus",
-  "Outros",
-];
-
 /* ================= Cores por tipo ================= */
 const badgeTipoCor: Record<string, string> = {
   machines: "#3b82f6",
@@ -88,51 +70,62 @@ export default function VitrineCompleta() {
   // Selects dinâmicos
   const [estadosDisponiveis, setEstadosDisponiveis] = useState<string[]>([]);
   const [cidadesDisponiveis, setCidadesDisponiveis] = useState<string[]>([]);
+  const [categoriasDisponiveis, setCategoriasDisponiveis] = useState<string[]>([]);
 
   /* ================= Buscar dados ================= */
   useEffect(() => {
-  async function fetchData() {
-    setCarregando(true);
-    const all: any[] = [];
-    const cols = ["machines", "produtos", "services"] as const;
+    async function fetchData() {
+      setCarregando(true);
+      const all: any[] = [];
+      const cols = ["machines", "produtos", "services"] as const;
 
-    for (const colName of cols) {
-      try {
-        // Só traz o que pode aparecer na vitrine
-        const q = query(
-          collection(db, colName),
-          where("visivel", "==", true),
-          where("status", "==", "aprovado")
-        );
-        const snap = await getDocs(q);
-        snap.forEach((docu) => {
-          const data = docu.data();
-          all.push({ id: docu.id, ...data, tipo: colName });
-        });
-      } catch (e) {
-        // Se alguma coleção ainda não tem esses campos/índices,
-        // ignora silenciosamente para não quebrar a vitrine.
-        // (O console do Firebase vai te dar o link p/ criar o índice)
-        console.warn(`Falha ao ler ${colName}`, e);
+      for (const colName of cols) {
+        try {
+          // Só traz o que pode aparecer na vitrine
+          const q = query(
+            collection(db, colName),
+            where("visivel", "==", true),
+            where("status", "==", "aprovado")
+          );
+          const snap = await getDocs(q);
+          snap.forEach((docu) => {
+            const data = docu.data();
+            all.push({ id: docu.id, ...data, tipo: colName });
+          });
+        } catch (e) {
+          // Se alguma coleção ainda não tem esses campos/índices,
+          // ignora silenciosamente para não quebrar a vitrine.
+          console.warn(`Falha ao ler ${colName}`, e);
+        }
       }
+
+      // Cinto e suspensório no client (caso existam docs legados sem campos):
+      const safe = all.filter(
+        (x) =>
+          x?.visivel === true &&
+          (x?.status === "aprovado" || x?.curadoriaStatus === "aprovado")
+      );
+
+      setItens(safe);
+
+      // Estados disponíveis (dinâmico)
+      const estSet = new Set<string>();
+      safe.forEach((x) => x.estado && estSet.add(x.estado));
+      setEstadosDisponiveis(Array.from(estSet).sort());
+
+      // Categorias disponíveis (dinâmico, seguindo o que veio do Firestore
+      // — ou seja, já alinhado com a nova taxonomia que você usou nos formulários)
+      const catSet = new Set<string>();
+      safe.forEach((x) => x.categoria && catSet.add(x.categoria));
+      const categorias = Array.from(catSet).sort((a, b) =>
+        a.localeCompare(b, "pt-BR")
+      );
+      setCategoriasDisponiveis(categorias);
+
+      setCarregando(false);
     }
-
-    // Cinto e suspensório no client (caso existam docs legados sem campos):
-    const safe = all.filter(
-      (x) => x?.visivel === true && (x?.status === "aprovado" || x?.curadoriaStatus === "aprovado")
-    );
-
-    setItens(safe);
-
-    const estSet = new Set<string>();
-    safe.forEach((x) => x.estado && estSet.add(x.estado));
-    setEstadosDisponiveis(Array.from(estSet).sort());
-
-    setCarregando(false);
-  }
-  fetchData();
-}, []);
-
+    fetchData();
+  }, []);
 
   /* ================= Cidades dependentes ================= */
   useEffect(() => {
@@ -181,9 +174,18 @@ export default function VitrineCompleta() {
   }, [itens, tipo, categoria, estado, cidade, precoMin, precoMax, busca]);
 
   /* ================= Ordenação: ativos primeiro ================= */
-  const ativos = useMemo(() => itensFiltrados.filter((x) => !isExpired(x)), [itensFiltrados]);
-  const expirados = useMemo(() => itensFiltrados.filter((x) => isExpired(x)), [itensFiltrados]);
-  const itensOrdenados = useMemo(() => [...ativos, ...expirados], [ativos, expirados]);
+  const ativos = useMemo(
+    () => itensFiltrados.filter((x) => !isExpired(x)),
+    [itensFiltrados]
+  );
+  const expirados = useMemo(
+    () => itensFiltrados.filter((x) => isExpired(x)),
+    [itensFiltrados]
+  );
+  const itensOrdenados = useMemo(
+    () => [...ativos, ...expirados],
+    [ativos, expirados]
+  );
 
   // Índice do primeiro card ATIVO (não expirado) para marcar no tour
   const firstActiveIndex = useMemo(
@@ -208,7 +210,9 @@ export default function VitrineCompleta() {
   }, [carregando, firstActiveIndex]);
 
   return (
-    <section style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}>
+    <section
+      style={{ maxWidth: 1420, margin: "0 auto", padding: "40px 2vw 60px 2vw" }}
+    >
       <h1
         style={{
           fontSize: "2.35rem",
@@ -283,7 +287,11 @@ export default function VitrineCompleta() {
           marginBottom: 28,
         }}
       >
-        <select className="filtro" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+        <select
+          className="filtro"
+          value={tipo}
+          onChange={(e) => setTipo(e.target.value)}
+        >
           <option value="">Todos</option>
           <option value="machines">Máquinas</option>
           <option value="produtos">Produtos</option>
@@ -306,7 +314,7 @@ export default function VitrineCompleta() {
           onChange={(e) => setCategoria(e.target.value)}
         >
           <option value="">Categoria</option>
-          {categoriasPDF.map((cat) => (
+          {categoriasDisponiveis.map((cat) => (
             <option key={cat} value={cat}>
               {cat}
             </option>
@@ -332,7 +340,10 @@ export default function VitrineCompleta() {
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
           disabled={!estado}
-          style={{ opacity: estado ? 1 : 0.6, cursor: estado ? "pointer" : "not-allowed" }}
+          style={{
+            opacity: estado ? 1 : 0.6,
+            cursor: estado ? "pointer" : "not-allowed",
+          }}
         >
           <option value="">{estado ? "Cidade" : "Selecione um estado"}</option>
           {cidadesDisponiveis.map((cid) => (
@@ -412,7 +423,10 @@ export default function VitrineCompleta() {
             boxShadow: "0 4px 18px #0001",
           }}
         >
-          <Zap size={32} style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }} />
+          <Zap
+            size={32}
+            style={{ color: "#219ebc", marginBottom: -5, marginRight: 8 }}
+          />
           Nenhum item encontrado.
           <br />
           <span style={{ fontWeight: 400, fontSize: 16 }}>
@@ -431,7 +445,11 @@ export default function VitrineCompleta() {
           {itensOrdenados.map((item, idx) => {
             const expirado = isExpired(item);
             const tipoLabel =
-              item.tipo === "machines" ? "Máquina" : item.tipo === "produtos" ? "Produto" : "Serviço";
+              item.tipo === "machines"
+                ? "Máquina"
+                : item.tipo === "produtos"
+                ? "Produto"
+                : "Serviço";
             const corBadge = badgeTipoCor[item.tipo] || badgeTipoCor.default;
 
             const isFirstActive = idx === firstActiveIndex && !expirado;
@@ -531,7 +549,9 @@ export default function VitrineCompleta() {
                       src={item.imagens?.[0] || "/images/no-image.png"}
                       alt={item.nome || item.titulo}
                       style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      onError={(e) => (e.currentTarget.src = "/images/no-image.png")}
+                      onError={(e) =>
+                        (e.currentTarget.src = "/images/no-image.png")
+                      }
                     />
                   )}
                 </div>
@@ -560,7 +580,13 @@ export default function VitrineCompleta() {
                     >
                       {tipoLabel}
                     </div>
-                    <div style={{ color: "#219ebc", fontWeight: 700, fontSize: 15 }}>
+                    <div
+                      style={{
+                        color: "#219ebc",
+                        fontWeight: 700,
+                        fontSize: 15,
+                      }}
+                    >
                       {item.categoria}
                     </div>
                   </div>
@@ -578,20 +604,38 @@ export default function VitrineCompleta() {
                     {item.nome || item.titulo}
                   </div>
 
-                  <div style={{ color: "#64748b", fontWeight: 500, fontSize: 15 }}>
+                  <div
+                    style={{
+                      color: "#64748b",
+                      fontWeight: 500,
+                      fontSize: 15,
+                    }}
+                  >
                     {resumo(item.descricao)}
                   </div>
 
                   {textoPreco ? (
                     <div
                       data-tour={isFirstActive ? "vitrine.card.preco" : undefined}
-                      style={{ color: "#FB8500", fontWeight: 800, fontSize: 19, marginTop: 2 }}
+                      style={{
+                        color: "#FB8500",
+                        fontWeight: 800,
+                        fontSize: 19,
+                        marginTop: 2,
+                      }}
                     >
                       {textoPreco}
                     </div>
                   ) : null}
 
-                  <div style={{ color: "#8c9199", fontWeight: 600, fontSize: 15, marginTop: 2 }}>
+                  <div
+                    style={{
+                      color: "#8c9199",
+                      fontWeight: 600,
+                      fontSize: 15,
+                      marginTop: 2,
+                    }}
+                  >
                     {item.cidade || "-"}, {item.estado || "-"}
                   </div>
 

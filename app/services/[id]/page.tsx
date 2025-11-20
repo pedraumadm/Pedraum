@@ -1,3 +1,4 @@
+// app/services/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -27,7 +28,7 @@ import {
   Share2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import RequireAuth from "@/components/RequireAuth";
+// ❌ Removido RequireAuth – página será pública
 import dynamic from "next/dynamic";
 
 // === PDF & Thumbs (somente no client)
@@ -293,6 +294,7 @@ export default function ServiceDetailPage() {
   const [pdfThumbReady, setPdfThumbReady] = useState(false);
   const [pdfThumbWidth, setPdfThumbWidth] = useState(520);
 
+  // ====== Auth: apenas para preencher modal (página é pública) ======
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -364,7 +366,7 @@ export default function ServiceDetailPage() {
   }, [service?.id, service?.categoria]);
 
   // ===== PDF config (lazy & responsivo) =====
-  const pdfUrl: string | undefined = (service as any)?.pdfUrl || undefined; // mude o nome do campo se precisar
+  const pdfUrl: string | undefined = (service as any)?.pdfUrl || undefined;
   const pdfSrc = pdfUrl
     ? `/api/pdf-proxy?file=${encodeURIComponent(pdfUrl)}`
     : undefined;
@@ -397,14 +399,13 @@ export default function ServiceDetailPage() {
     };
   }, [pdfSrc]);
 
+  // página ainda carregando / sem serviço
   if (!service) {
     return (
-      <RequireAuth>
-        <section className="sv-wrap">
-          <div className="sv-skel" />
-          <style jsx>{baseCss}</style>
-        </section>
-      </RequireAuth>
+      <section className="sv-wrap">
+        <div className="sv-skel" />
+        <style jsx>{baseCss}</style>
+      </section>
     );
   }
 
@@ -417,10 +418,44 @@ export default function ServiceDetailPage() {
   const podeMostrarPreco = Boolean(precoFmt);
 
   const whatsLink = service.prestadorWhatsapp
-    ? `https://wa.me/${service.prestadorWhatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(
+    ? `https://wa.me/${service.prestadorWhatsapp.replace(
+        /\D/g,
+        "",
+      )}?text=${encodeURIComponent(
         `Olá! Tenho interesse no serviço "${service?.titulo || ""}".`,
       )}`
     : "";
+
+  // ========= Helper para exigir login só nos CTAs =========
+  function goToLogin() {
+    const redirectTarget =
+      typeof id === "string" ? `/services/${id}` : "/vitrine";
+    const encoded = encodeURIComponent(redirectTarget);
+    router.push(`/auth/login?redirect=${encoded}`);
+  }
+
+  const handleContatoClick = () => {
+    if (expirado || carregandoUsuario) return;
+
+    if (!auth.currentUser) {
+      goToLogin();
+      return;
+    }
+
+    setModalOpen(true);
+  };
+
+  const handleWhatsClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    if (expirado || !whatsLink) return;
+
+    if (!auth.currentUser) {
+      goToLogin();
+      return;
+    }
+
+    window.open(whatsLink, "_blank");
+  };
 
   const conteudo = (
     <section className="sv-wrap">
@@ -450,7 +485,7 @@ export default function ServiceDetailPage() {
         </button>
       </div>
 
-      {/* Grid principal (sem cardzão) */}
+      {/* Grid principal */}
       <div className="sv-grid">
         {/* ===== MÍDIA ===== */}
         <div className="sv-media">
@@ -525,13 +560,13 @@ export default function ServiceDetailPage() {
             </div>
           )}
 
-          {/* CTA principal (sem cardzão) */}
+          {/* CTA principal */}
           <div className="sv-cta">
             {podeMostrarPreco && <div className="sv-preco">{precoFmt}</div>}
 
             <button
               className="sv-btn-laranja"
-              onClick={() => setModalOpen(true)}
+              onClick={handleContatoClick}
               disabled={expirado || carregandoUsuario}
               aria-disabled={expirado || carregandoUsuario}
               style={{
@@ -545,8 +580,7 @@ export default function ServiceDetailPage() {
             {whatsLink && !expirado && (
               <a
                 href={whatsLink}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={handleWhatsClick}
                 className="sv-btn-azul"
               >
                 WhatsApp do prestador
@@ -607,7 +641,7 @@ export default function ServiceDetailPage() {
         </div>
       </div>
 
-      {/* Descrição completa (SEM CARD: fundo transparente e sem sombra) */}
+      {/* Descrição completa (sem cardzão) */}
       {service.descricao && (
         <div className="sv-desc-full">
           <div className="sv-desc-title">Descrição Completa</div>
@@ -785,8 +819,21 @@ export default function ServiceDetailPage() {
     </section>
   );
 
-  // 🔒 Proteção igual Demandas: só mostra login se não estiver autenticado.
-  return <RequireAuth>{conteudo}</RequireAuth>;
+  // ✅ Página PÚBLICA – sem RequireAuth. Só os CTAs exigem login.
+  return (
+    <>
+      {conteudo}
+
+      {service && (
+        <ModalContato
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          usuario={usuarioLogado}
+          service={service}
+        />
+      )}
+    </>
+  );
 }
 
 /* ======================= CSS (único <style jsx>) ======================= */
@@ -845,7 +892,7 @@ const baseCss = `
 .sv-meta-list{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px;font-size:1.02rem;color:#222}
 .sv-meta-list span{display:flex;align-items:center;gap:8px;color:#334155;font-weight:700}
 
-/* resumo (cartão leve — mantém, mas é pequeno e não “prende” a página) */
+/* resumo (cartão leve) */
 .sv-desc-card{
   width:100%;max-width:560px;background:#ffffff;border:1.5px solid #e6eef6;border-radius:18px;
   box-shadow:0 4px 18px rgba(2,48,71,0.06);padding:14px 16px;margin-top:6px
@@ -853,7 +900,7 @@ const baseCss = `
 .sv-desc-badge{display:inline-flex;align-items:center;gap:6px;background:#f1f7ff;border:1px solid #dbeafe;color:#0b4a6e;font-weight:900;font-size:.95rem;border-radius:999px;padding:6px 10px}
 .sv-desc-body{font-size:1.06rem;line-height:1.6;color:#1f2937}
 
-/* descrição completa — SEM CARD (fundo transparente, sem sombra) */
+/* descrição completa — SEM CARD */
 .sv-desc-full{margin-top:34px;padding:0}
 .sv-desc-title{font-size:1.45rem;font-weight:900;color:#023047;margin-bottom:12px}
 .sv-desc-text{font-size:1.05rem;color:#111827;white-space:pre-wrap}

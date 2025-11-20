@@ -1,8 +1,6 @@
 // app/demandas/[id]/page.tsx
 "use client";
 
-import AuthGateRedirect from "@/components/AuthGateRedirect";
-import RequireAuth from "@/components/RequireAuth";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -54,6 +52,7 @@ type Pricing = {
   exclusive?: boolean;
   cap?: number;
 };
+
 type AssignmentStatus =
   | "sent"
   | "viewed"
@@ -61,6 +60,7 @@ type AssignmentStatus =
   | "won"
   | "lost"
   | "refunded";
+
 type Assignment = {
   id: string;
   demandId: string;
@@ -107,7 +107,7 @@ type DemandFire = {
   status?: "aberta" | "andamento" | "fechada" | "expirada";
   visivel?: boolean;
 
-  visualizacoes?: number; // novo campo
+  visualizacoes?: number;
   lastViewedAt?: any;
 
   // PDF
@@ -146,16 +146,12 @@ const WPP_SPONSOR_MSG = encodeURIComponent(
 const WPP_SPONSOR_URL = `https://wa.me/${WPP_PEDRAUM}?text=${WPP_SPONSOR_MSG}`;
 
 /* ======================= Utils ======================= */
-function currencyCents(cents?: number) {
-  const n = Number(cents ?? 0);
-  if (!n) return "R$ 0,00";
-  return `R$ ${(n / 100).toFixed(2).replace(".", ",")}`;
-}
 function initials(t?: string) {
   if (!t) return "PD";
   const parts = t.trim().split(/\s+/).slice(0, 2);
   return parts.map((p) => p[0]?.toUpperCase()).join("") || "PD";
 }
+
 function toDate(ts?: any): Date | null {
   if (!ts) return null;
   if (typeof ts?.toDate === "function") return ts.toDate();
@@ -163,11 +159,13 @@ function toDate(ts?: any): Date | null {
   const d = new Date(ts);
   return isNaN(d.getTime()) ? null : d;
 }
+
 function parsePrazoStr(p?: string): Date | null {
   if (!p) return null;
   const d = new Date(p);
   return isNaN(d.getTime()) ? null : d;
 }
+
 function msToDHMS(ms: number) {
   const sec = Math.max(0, Math.floor(ms / 1000));
   const d = Math.floor(sec / 86400);
@@ -176,6 +174,7 @@ function msToDHMS(ms: number) {
   const s = sec % 60;
   return { d, h, m, s };
 }
+
 function resolveStatus(d: DemandFire): {
   key: DemandFire["status"] | "aberta";
   label: string;
@@ -197,12 +196,14 @@ function resolveStatus(d: DemandFire): {
         return { key: "aberta", label: "Aberta", color: "var(--st-green)" };
     }
   }
+
   const exp = toDate(d.expiraEm) || parsePrazoStr(d.prazo);
   if (exp && exp.getTime() < Date.now()) {
     return { key: "expirada", label: "Expirada", color: "var(--st-red)" };
   }
   return { key: "aberta", label: "Aberta", color: "var(--st-green)" };
 }
+
 function isPerfilPatrocinador(perfil?: Perfil | null): boolean {
   if (!perfil) return false;
   const flag =
@@ -216,6 +217,7 @@ function isPerfilPatrocinador(perfil?: Perfil | null): boolean {
   }
   return true;
 }
+
 const notEmptyString = (v: unknown): v is string =>
   typeof v === "string" && v.trim().length > 0;
 
@@ -234,7 +236,7 @@ export default function DemandaDetalhePage() {
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [relacionadas, setRelacionadas] = useState<DemandaMini[]>([]);
   const [loading, setLoading] = useState(true);
-  const [paying, setPaying] = useState(false);
+  const [paying] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   // Relógio
@@ -307,13 +309,19 @@ export default function DemandaDetalhePage() {
 
   // Realtime: Demanda + Assignment
   useEffect(() => {
-    if (!uid) return;
-
     const demRef = doc(db, "demandas", String(id));
     const unsubDem = onSnapshot(demRef, (snap) => {
       if (!snap.exists()) setDemanda(null);
       else setDemanda({ id: snap.id, ...(snap.data() as DemandFire) });
     });
+
+    if (!uid) {
+      setAssignment(null);
+      setLoading(false);
+      return () => {
+        unsubDem();
+      };
+    }
 
     const aRef = doc(db, "demandAssignments", `${id}_${uid}`);
     const unsubA = onSnapshot(aRef, async (snap) => {
@@ -380,10 +388,26 @@ export default function DemandaDetalhePage() {
   const uf = demanda?.estado || "—";
   const city = demanda?.cidade || "—";
   const prazoStr = demanda?.prazo || "";
-  const orcamento = demanda?.orcamento || "—";
+  const orcamentoStr = demanda?.orcamento || "";
   const views = Number(
     demanda?.visualizacoes ?? (demanda as any)?.viewCount ?? 0,
-  ); // compatibilidade com legado
+  ); // compat legado
+
+  const viewsLabel = useMemo(() => {
+    if (!views || views <= 0) return "0 visualizações";
+    if (views === 1) return "1 visualização";
+    return `${views} visualizações`;
+  }, [views]);
+
+  // Descrição truncada
+  const DESC_LIMIT = 260;
+  const [descExpanded, setDescExpanded] = useState(false);
+
+  const hasLongDescription = description.length > DESC_LIMIT;
+  const descShown =
+    !hasLongDescription || descExpanded
+      ? description
+      : description.slice(0, DESC_LIMIT).trimEnd() + "…";
 
   // Contato
   const contatoNome =
@@ -476,11 +500,13 @@ export default function DemandaDetalhePage() {
     setImgOk(!!imagens.length);
   }, [imagens.length]);
 
-  // Lightbox de imagens
+  // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Status + Countdown
   const statusInfo = resolveStatus(demanda || ({} as DemandFire));
+  const isClosed =
+    statusInfo.key === "fechada" || statusInfo.key === "expirada";
   const expDate: Date | null =
     toDate(demanda?.expiraEm) || parsePrazoStr(prazoStr);
   const timeLeft = useMemo(() => {
@@ -551,7 +577,11 @@ export default function DemandaDetalhePage() {
     })();
   }, [demanda?.id, demanda?.categoria]);
 
-  // Ações
+  // Helpers de ação
+  function goLogin() {
+    router.push(`/auth/login?redirect=/demandas/${id}`);
+  }
+
   async function ensureAssignmentDoc() {
     if (!uid) return;
     const aRef = doc(db, "demandAssignments", `${id}_${uid}`);
@@ -582,7 +612,17 @@ export default function DemandaDetalhePage() {
   }
 
   async function atender() {
-    if (!uid) return;
+    if (!uid) {
+      goLogin();
+      return;
+    }
+
+    try {
+      await ensureAssignmentDoc();
+    } catch {
+      // silencioso
+    }
+
     const texto = encodeURIComponent(
       `Olá! Quero atender esta demanda: "${title}" (ID: ${id})`,
     );
@@ -653,298 +693,178 @@ export default function DemandaDetalhePage() {
 
   if (loading) {
     return (
-      <RequireAuth>
-        <section className="op-wrap">
-          <div className="op-skel" />
-          <style jsx>{baseCss}</style>
-        </section>
-      </RequireAuth>
+      <section className="op-wrap">
+        <div className="op-skel" />
+        <style jsx>{baseCss}</style>
+      </section>
     );
   }
 
   if (!demanda) {
     return (
-      <RequireAuth>
-        <section className="op-wrap">
-          <div className="op-header">
-            <Link href="/demandas" className="op-link-voltar">
-              &lt; Voltar
-            </Link>
-          </div>
-          <div className="op-card p">Oportunidade não encontrada.</div>
-          <style jsx>{baseCss}</style>
-        </section>
-      </RequireAuth>
+      <section className="op-wrap">
+        <div className="op-header">
+          <Link href="/demandas" className="op-link-voltar">
+            &lt; Voltar
+          </Link>
+        </div>
+        <div className="op-card p">Oportunidade não encontrada.</div>
+        <style jsx>{baseCss}</style>
+      </section>
     );
   }
 
   return (
-    <RequireAuth>
-      <section className="op-wrap">
-        {/* Topo */}
-        <div className="op-header">
-          <button onClick={() => router.back()} className="op-link-voltar">
-            &lt; Voltar
+    <section className="op-wrap">
+      {/* Topo */}
+      <div className="op-header">
+        <button onClick={() => router.back()} className="op-link-voltar">
+          &lt; Voltar
+        </button>
+        <div className="op-actions">
+          <button className="op-share" onClick={share}>
+            <Share2 size={16} /> Compartilhar
           </button>
-          <div className="op-actions">
-            <button className="op-share" onClick={share}>
-              <Share2 size={16} /> Compartilhar
-            </button>
-            {msg && <span className="op-msg">{msg}</span>}
-          </div>
+          {msg && <span className="op-msg">{msg}</span>}
         </div>
+      </div>
 
-        {/* Header */}
-        <div className="op-headbar">
+      {/* Header */}
+      <div className="op-headbar">
+        <div>
           <h1 className="op-title">{title}</h1>
-          <div className="op-headbar-right">
-            <span
-              className="op-badge"
-              style={{ borderColor: statusInfo.color, color: statusInfo.color }}
-            >
-              <ShieldCheck size={14} /> {statusInfo.label}
-            </span>
-            <span className="op-views">
-              <Eye size={16} /> {views} visualizações
-            </span>
-            {expShown && (
-              <span className="op-countdown">
-                <Hourglass size={16} />
-                <b>{timeLeft?.d}d</b> {timeLeft?.h}h {timeLeft?.m}m{" "}
-                {timeLeft?.s}s
-              </span>
-            )}
-          </div>
         </div>
+        <div className="op-headbar-right">
+          <span
+            className="op-badge"
+            style={{ borderColor: statusInfo.color, color: statusInfo.color }}
+          >
+            <ShieldCheck size={14} /> {statusInfo.label}
+          </span>
+          <span className="op-views">
+            <Eye size={16} /> {viewsLabel}
+          </span>
+          {expShown && !isClosed && (
+            <span className="op-countdown">
+              <Hourglass size={16} />
+              <b>{timeLeft?.d}d</b> {timeLeft?.h}h {timeLeft?.m}m{" "}
+              {timeLeft?.s}s
+            </span>
+          )}
+        </div>
+      </div>
 
-        {/* Grid principal */}
-        <div className="op-grid">
-          {/* ===== MÍDIA (coluna esquerda) ===== */}
-          <div className="op-media">
-            {/* Imagem principal com Lightbox */}
-            {imagens.length > 0 && imgOk ? (
-              <>
-                <div
-                  className="op-img-wrap"
-                  role="button"
-                  tabIndex={0}
-                  title="Clique para ampliar"
-                  onClick={() => setLightboxOpen(true)}
-                  onKeyDown={(e) =>
-                    (e.key === "Enter" || e.key === " ") &&
-                    setLightboxOpen(true)
-                  }
-                >
-                  <img
-                    src={imgPrincipal}
-                    alt={title}
-                    className="op-img"
-                    onLoad={() => setImgOk(true)}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        "/images/no-image.png";
-                      setImgOk(false);
-                    }}
-                  />
-                  <span className="op-zoom-hint">Clique para ampliar</span>
-                </div>
-
-                {imagens.length > 1 && (
-                  <div className="op-thumbs op-thumbs-scroll">
-                    {imagens.map((img, idx) => (
-                      <img
-                        key={idx}
-                        src={img || "/images/no-image.png"}
-                        alt={`Imagem ${idx + 1}`}
-                        className={`op-thumb ${idx === imgIdx ? "op-thumb--active" : ""}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setImgIdx(idx);
-                          setLightboxOpen(true);
-                        }}
-                        onError={(e) =>
-                          ((e.currentTarget as HTMLImageElement).src =
-                            "/images/no-image.png")
-                        }
-                      />
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="op-noimg">
-                <div className="op-noimg-badge">
-                  <ImageIcon size={18} /> Sem fotos
-                </div>
-                <div className="op-noimg-avatar">{initials(title)}</div>
-                <div className="op-noimg-title" title={title}>
-                  {title}
-                </div>
-                <div className="op-noimg-meta">
-                  <span>
-                    <Tag size={16} /> {category}
-                    {subcat ? ` • ${subcat}` : ""}
-                  </span>
-                  <span>
-                    <MapPin size={16} /> {city}, {uf}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* ===== THUMB DO PDF (se houver) ===== */}
-            {pdfSrc && (
+      {/* Grid principal */}
+      <div className="op-grid">
+        {/* ===== MÍDIA (coluna esquerda) ===== */}
+        <div className="op-media">
+          {/* Imagem principal com Lightbox */}
+          {imagens.length > 0 && imgOk ? (
+            <>
               <div
-                className="op-pdf-thumb"
+                className="op-img-wrap"
                 role="button"
                 tabIndex={0}
-                title="Abrir anexo (PDF)"
-                onClick={() => setPdfOpen(true)}
+                title="Clique para ampliar"
+                onClick={() => setLightboxOpen(true)}
                 onKeyDown={(e) =>
-                  (e.key === "Enter" || e.key === " ") && setPdfOpen(true)
+                  (e.key === "Enter" || e.key === " ") &&
+                  setLightboxOpen(true)
                 }
               >
-                <div className="op-pdf-thumb-cover" ref={pdfThumbCoverRef}>
-                  <span className="pdf-badge">PDF</span>
-                  {pdfThumbReady ? (
-                    <PDFThumb src={pdfSrc} width={pdfThumbWidth} />
-                  ) : (
-                    <div className="pdf-thumb-skeleton" />
-                  )}
-                </div>
-                <div className="op-pdf-thumb-meta">
-                  <div className="titulo">Documento em PDF desta demanda</div>
-                  <div className="cta">Clique para abrir</div>
-                </div>
+                <img
+                  src={imgPrincipal}
+                  alt={title}
+                  className="op-img"
+                  onLoad={() => setImgOk(true)}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src =
+                      "/images/no-image.png";
+                    setImgOk(false);
+                  }}
+                />
+                <span className="op-zoom-hint">Clique para ampliar</span>
               </div>
-            )}
 
-            {/* ===== CTA (abaixo da mídia) ===== */}
-            <div className="op-cta">
-              {!unlocked ? (
-                <>
-                  <div className="op-cta-highlight">
-                    <h3 className="op-cta-title">
-                      <Zap size={18} /> Desbloqueie o contato e fale direto com
-                      o cliente
-                    </h3>
-
-                    <ul className="op-benefits">
-                      <li>⚡ Acesso imediato ao WhatsApp e E-mail</li>
-                      <li>💼 Oportunidade ativa procurando solução</li>
-                    </ul>
-
-                    <button
-                      onClick={atender}
-                      disabled={paying || false}
-                      className="op-btn-laranja op-btn-big"
-                      aria-disabled={paying || false}
-                      style={{
-                        background: paying ? "#d1d5db" : "#FB8500",
-                        cursor: paying ? "not-allowed" : "pointer",
+              {imagens.length > 1 && (
+                <div className="op-thumbs op-thumbs-scroll">
+                  {imagens.map((img, idx) => (
+                    <img
+                      key={idx}
+                      src={img || "/images/no-image.png"}
+                      alt={`Imagem ${idx + 1}`}
+                      className={`op-thumb ${
+                        idx === imgIdx ? "op-thumb--active" : ""
+                      }`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setImgIdx(idx);
+                        setLightboxOpen(true);
                       }}
-                    >
-                      {paying ? "Abrindo pagamento…" : "Atender agora"}
-                    </button>
-
-                    <div className="op-cta-note">
-                      Após o pagamento aprovado, o contato é liberado
-                      automaticamente nesta página.
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="op-contact">
-                  <div className="op-contact-title">
-                    <CheckCircle2 size={18} /> Contato liberado
-                  </div>
-
-                  <div className="op-contact-grid">
-                    <div>
-                      <div className="op-contact-label">Nome</div>
-                      <div className="op-contact-value">
-                        {contatoNome || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="op-contact-label">E-mail</div>
-                      <div className="op-contact-value">
-                        {contatoEmail || "—"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="op-contact-label">
-                        WhatsApp / Telefone
-                      </div>
-                      <div className="op-contact-wpp">
-                        <span className="op-contact-value">
-                          {contatoWpp || "—"}
-                        </span>
-                        {contatoWpp && (
-                          <button
-                            onClick={() => copy(String(contatoWpp))}
-                            className="op-copy"
-                            title="Copiar"
-                          >
-                            <Copy size={14} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {wppDigits && (
-                    <a
-                      target="_blank"
-                      href={`https://wa.me/${wppDigits}?text=${encodeURIComponent(
-                        `Olá! Vi sua demanda "${title}" no Pedraum e posso te atender.`,
-                      )}`}
-                      className="op-btn-azul"
-                    >
-                      <PhoneCall size={16} /> Abrir WhatsApp
-                    </a>
-                  )}
+                      onError={(e) =>
+                        ((e.currentTarget as HTMLImageElement).src =
+                          "/images/no-image.png")
+                      }
+                    />
+                  ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* ===== INFOS (coluna direita) ===== */}
-          <div className="op-info">
-            {/* Meta list */}
-            <div className="op-meta-list">
-              <span>
-                <Tag size={18} /> {category}
-                {subcat ? ` • ${subcat}` : ""}
-              </span>
-              <span>
-                <MapPin size={18} /> {city}, {uf}
-              </span>
-              <span>
-                <Calendar size={18} /> Prazo: {prazoStr || "—"}
-              </span>
-              <span>
-                <BadgeCheck size={18} /> Orçamento: {orcamento}
-              </span>
-            </div>
-
-            {/* Descrição */}
-            {description && (
-              <div className="op-desc-card">
-                <div className="op-desc-header">
-                  <span className="op-desc-badge">Descrição</span>
-                </div>
-                <div className="op-desc-body">{description}</div>
+            </>
+          ) : (
+            <div className="op-noimg">
+              <div className="op-noimg-badge">
+                <ImageIcon size={18} /> Sem fotos
               </div>
-            )}
+              <div className="op-noimg-avatar">{initials(title)}</div>
+              <div className="op-noimg-title" title={title}>
+                {title}
+              </div>
+              <div className="op-noimg-meta">
+                <span>
+                  <Tag size={16} /> {category}
+                  {subcat ? ` • ${subcat}` : ""}
+                </span>
+                <span>
+                  <MapPin size={16} /> {city}, {uf}
+                </span>
+              </div>
+            </div>
+          )}
 
-            {/* Upsell patrocinador */}
-            {!patrocinioAtivo && (
-              <div className="op-upsell">
-                <div className="op-upsell-left">
-                  <strong>Seja Patrocinador</strong> e veja contatos sem pagar
-                  por demanda nas suas categorias.
-                </div>
+          {/* ===== THUMB DO PDF (se houver) ===== */}
+          {pdfSrc && (
+            <div
+              className="op-pdf-thumb"
+              role="button"
+              tabIndex={0}
+              title="Abrir anexo (PDF)"
+              onClick={() => setPdfOpen(true)}
+              onKeyDown={(e) =>
+                (e.key === "Enter" || e.key === " ") && setPdfOpen(true)
+              }
+            >
+              <div className="op-pdf-thumb-cover" ref={pdfThumbCoverRef}>
+                <span className="pdf-badge">PDF</span>
+                {pdfThumbReady ? (
+                  <PDFThumb src={pdfSrc} width={pdfThumbWidth} />
+                ) : (
+                  <div className="pdf-thumb-skeleton" />
+                )}
+              </div>
+              <div className="op-pdf-thumb-meta">
+                <div className="titulo">Documento em PDF desta demanda</div>
+                <div className="cta">Clique para abrir</div>
+              </div>
+            </div>
+          )}
+                  {/* Upsell patrocinador – agora debaixo da imagem/PDF */}
+          {!patrocinioAtivo && (
+            <div className="op-upsell">
+              <div className="op-upsell-left">
+                <strong>Seja Patrocinador</strong> e veja contatos sem pagar por
+                demanda nas suas categorias.
+              </div>
+              {uid ? (
                 <a
                   href={WPP_SPONSOR_URL}
                   target="_blank"
@@ -953,143 +873,290 @@ export default function DemandaDetalhePage() {
                 >
                   Conhecer planos <ChevronRight size={16} />
                 </a>
+              ) : (
+                <button
+                  type="button"
+                  className="op-upsell-btn"
+                  onClick={goLogin}
+                >
+                  Conhecer planos <ChevronRight size={16} />
+                </button>
+              )}
+            </div>
+          )}
+</div>
+
+        {/* ===== INFOS (coluna direita) ===== */}
+        <div className="op-info">
+          {/* Meta list */}
+          <div className="op-meta-list">
+            <span>
+              <Tag size={18} /> {category}
+              {subcat ? ` • ${subcat}` : ""}
+            </span>
+            <span>
+              <MapPin size={18} /> {city}, {uf}
+            </span>
+            {prazoStr && (
+              <span>
+                <Calendar size={18} /> Prazo: {prazoStr}
+              </span>
+            )}
+            {orcamentoStr && (
+              <span>
+                <BadgeCheck size={18} /> Orçamento: {orcamentoStr}
+              </span>
+            )}
+          </div>
+
+          {/* Descrição com "ver mais" */}
+          {description && (
+            <div className="op-desc-card">
+              <div className="op-desc-header">
+                <span className="op-desc-badge">Descrição</span>
+              </div>
+              <div className="op-desc-body">{descShown}</div>
+              {hasLongDescription && (
+                <button
+                  type="button"
+                  className="op-desc-toggle"
+                  onClick={() => setDescExpanded((v) => !v)}
+                >
+                  {descExpanded ? "Ver menos" : "Ver descrição completa"}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* CTA logo abaixo da descrição */}
+          <div className="op-cta">
+            {!unlocked && !isOwner && isClosed ? (
+              <div className="op-cta-closed">
+                <h3 className="op-cta-closed-title">Oportunidade encerrada</h3>
+                <p>
+                  Esta demanda já foi marcada como{" "}
+                  <strong>{statusInfo.label.toLowerCase()}</strong>. Novas
+                  compras de contato não estão disponíveis.
+                </p>
+              </div>
+            ) : !unlocked ? (
+              <div className="op-cta-highlight">
+                <h3 className="op-cta-title">
+                  <Zap size={18} /> Desbloqueie o contato e fale direto com o
+                  cliente
+                </h3>
+
+                <ul className="op-benefits">
+                  <li>⚡ Acesso imediato ao WhatsApp e E-mail</li>
+                  <li>💼 Oportunidade ativa procurando solução</li>
+                  <li>💰 Investimento único por demanda</li>
+                </ul>
+
+                <button
+                  onClick={atender}
+                  disabled={paying || false}
+                  className="op-btn-laranja op-btn-big"
+                  aria-disabled={paying || false}
+                  style={{
+                    background: paying ? "#d1d5db" : "#FB8500",
+                    cursor: paying ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {paying ? "Abrindo pagamento…" : "Atender agora"}
+                </button>
+
+                <div className="op-cta-note">
+                  Após o pagamento aprovado, o contato é liberado
+                  automaticamente nesta página.
+                </div>
+              </div>
+            ) : (
+              <div className="op-contact">
+                <div className="op-contact-title">
+                  <CheckCircle2 size={18} /> Contato liberado
+                </div>
+
+                <div className="op-contact-grid">
+                  <div>
+                    <div className="op-contact-label">Nome</div>
+                    <div className="op-contact-value">
+                      {contatoNome || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="op-contact-label">E-mail</div>
+                    <div className="op-contact-value">
+                      {contatoEmail || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="op-contact-label">WhatsApp / Telefone</div>
+                    <div className="op-contact-wpp">
+                      <span className="op-contact-value">
+                        {contatoWpp || "—"}
+                      </span>
+                      {contatoWpp && (
+                        <button
+                          onClick={() => copy(String(contatoWpp))}
+                          className="op-copy"
+                          title="Copiar"
+                        >
+                          <Copy size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {wppDigits && (
+                  <a
+                    target="_blank"
+                    href={`https://wa.me/${wppDigits}?text=${encodeURIComponent(
+                      `Olá! Vi sua demanda "${title}" no Pedraum e posso te atender.`,
+                    )}`}
+                    className="op-btn-azul"
+                  >
+                    <PhoneCall size={16} /> Abrir WhatsApp
+                  </a>
+                )}
               </div>
             )}
           </div>
+
+        
         </div>
+      </div>
 
-        {/* Relacionadas */}
-        {relacionadas.length > 0 && (
-          <div className="op-recomenda">
-            <h3>Você também pode querer atender</h3>
-            <div className="op-carousel">
-              {relacionadas.map((d) => (
-                <Link
-                  key={d.id}
-                  href={`/demandas/${d.id}`}
-                  className="op-card-mini"
+      {/* Relacionadas */}
+      {relacionadas.length > 0 && (
+        <div className="op-recomenda">
+          <h3>Você também pode querer atender</h3>
+          <div className="op-carousel">
+            {relacionadas.map((d) => (
+              <Link
+                key={d.id}
+                href={`/demandas/${d.id}`}
+                className="op-card-mini"
+              >
+                <div
+                  className="op-card-mini-title"
+                  title={d.titulo || "Demanda"}
                 >
-                  <div
-                    className="op-card-mini-title"
-                    title={d.titulo || "Demanda"}
-                  >
-                    {d.titulo || "Demanda"}
-                  </div>
-                  <div className="op-card-mini-meta">
-                    {d.categoria || "—"} • {d.cidade || "—"}
-                    {d.estado ? `, ${d.estado}` : ""}
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  {d.titulo || "Demanda"}
+                </div>
+                <div className="op-card-mini-meta">
+                  {d.categoria || "—"} • {d.cidade || "—"}
+                  {d.estado ? `, ${d.estado}` : ""}
+                </div>
+              </Link>
+            ))}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ===== Lightbox Imagens ===== */}
-        <AnimatePresence>
-          {lightboxOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="lb-overlay"
-              onClick={() => setLightboxOpen(false)}
+      {/* ===== Lightbox Imagens ===== */}
+      <AnimatePresence>
+        {lightboxOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="lb-overlay"
+            onClick={() => setLightboxOpen(false)}
+          >
+            <motion.img
+              key={imgIdx}
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.25 }}
+              src={imagens[imgIdx] || "/images/no-image.png"}
+              alt={title}
+              className="lb-img"
+              onClick={(e) => e.stopPropagation()}
+              onError={(e) =>
+                ((e.currentTarget as HTMLImageElement).src =
+                  "/images/no-image.png")
+              }
+            />
+
+            {imagens.length > 1 && (
+              <>
+                <button
+                  aria-label="Anterior"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImgIdx(
+                      (i) => (i - 1 + imagens.length) % imagens.length,
+                    );
+                  }}
+                  className="lb-nav lb-left"
+                >
+                  ‹
+                </button>
+                <button
+                  aria-label="Próxima"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImgIdx((i) => (i + 1) % imagens.length);
+                  }}
+                  className="lb-nav lb-right"
+                >
+                  ›
+                </button>
+              </>
+            )}
+
+            <button
+              aria-label="Fechar"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxOpen(false);
+              }}
+              className="lb-close"
             >
-              <motion.img
-                key={imgIdx}
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ type: "spring", duration: 0.25 }}
-                src={imagens[imgIdx] || "/images/no-image.png"}
-                alt={title}
-                className="lb-img"
-                onClick={(e) => e.stopPropagation()}
-                onError={(e) =>
-                  ((e.currentTarget as HTMLImageElement).src =
-                    "/images/no-image.png")
-                }
-              />
+              ×
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-              {imagens.length > 1 && (
-                <>
-                  <button
-                    aria-label="Anterior"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImgIdx(
-                        (i) => (i - 1 + imagens.length) % imagens.length,
-                      );
-                    }}
-                    className="lb-nav lb-left"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    aria-label="Próxima"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setImgIdx((i) => (i + 1) % imagens.length);
-                    }}
-                    className="lb-nav lb-right"
-                  >
-                    ›
-                  </button>
-                </>
-              )}
-
+      {/* ===== Modal PDF ===== */}
+      <AnimatePresence>
+        {pdfOpen && pdfSrc && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pdf-overlay"
+            onClick={() => setPdfOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.25 }}
+              className="pdf-modal"
+              onClick={(e) => e.stopPropagation()}
+            >
               <button
                 aria-label="Fechar"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setLightboxOpen(false);
-                }}
-                className="lb-close"
+                onClick={() => setPdfOpen(false)}
+                className="pdf-close"
               >
                 ×
               </button>
+              <div className="pdf-container">
+                <DrivePDFViewer fileUrl={pdfSrc} height={undefined as any} />
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* ===== Modal PDF ===== */}
-        <AnimatePresence>
-          {pdfOpen && pdfSrc && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="pdf-overlay"
-              onClick={() => setPdfOpen(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ type: "spring", duration: 0.25 }}
-                className="pdf-modal"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  aria-label="Fechar"
-                  onClick={() => setPdfOpen(false)}
-                  className="pdf-close"
-                >
-                  ×
-                </button>
-                <div className="pdf-container">
-                  <DrivePDFViewer fileUrl={pdfSrc} height={undefined as any} />
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* CSS */}
-        <style jsx>{baseCss}</style>
-        <AuthGateRedirect />
-      </section>
-    </RequireAuth>
+      {/* CSS */}
+      <style jsx>{baseCss}</style>
+    </section>
   );
 }
 
@@ -1163,6 +1230,9 @@ const baseCss = `
 .op-benefits{text-align:left;margin:0 auto 12px;max-width:460px;color:#78350f;font-weight:600;line-height:1.5}
 .op-benefits li{margin-bottom:6px}
 
+.op-cta-closed{background:#f9fafb;border-radius:16px;border:1.5px solid #e5e7eb;padding:16px;text-align:left}
+.op-cta-closed-title{font-size:1.05rem;font-weight:800;color:#111827;margin-bottom:4px}
+
 .op-btn-laranja{width:100%;border:none;border-radius:10px;padding:14px 0;font-weight:800;font-size:1.12rem;box-shadow:0 2px 10px #fb850022;transition:background .14s, transform .12s}
 .op-btn-laranja:not([aria-disabled="true"]):hover{background:#e17000 !important;transform:translateY(-1px)}
 .op-btn-big{padding:16px 0;font-size:1.15rem}
@@ -1171,7 +1241,7 @@ const baseCss = `
 /* upsell */
 .op-upsell{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#f1f5f9;border:1.5px solid #e2e8f0;border-radius:14px;padding:10px 12px}
 .op-upsell-left{color:#0f172a;font-weight:800}
-.op-upsell-btn{display:inline-flex;align-items:center;gap:6px;background:#219ebc;color:#fff;border-radius:10px;padding:8px 12px;text-decoration:none;font-weight:800}
+.op-upsell-btn{display:inline-flex;align-items:center;gap:6px;background:#219ebc;color:#fff;border-radius:10px;padding:8px 12px;text-decoration:none;font-weight:800;border:none;cursor:pointer}
 .op-upsell-btn:hover{background:#176684}
 
 /* contato liberado */
@@ -1203,6 +1273,20 @@ const baseCss = `
   font-weight:900;font-size:.95rem;border-radius:999px;padding:6px 10px
 }
 .op-desc-body{ font-size:1.12rem;line-height:1.75;color:#1f2937;white-space:pre-wrap }
+.op-desc-toggle{
+  margin-top:8px;
+  border:none;
+  background:transparent;
+  color:#219ebc;
+  font-weight:800;
+  font-size:.9rem;
+  cursor:pointer;
+  padding:0;
+  text-decoration:underline;
+}
+.op-desc-toggle:hover{
+  color:#176684;
+}
 
 /* carrossel */
 .op-recomenda{margin-top:34px}

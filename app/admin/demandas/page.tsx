@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { db } from "@/firebaseConfig";
 import {
   collection,
@@ -37,6 +43,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { withRoleProtection } from "@/utils/withRoleProtection";
+import { useTaxonomia } from "@/hooks/useTaxonomia";
 
 /* =================== Tipos & meta =================== */
 type StatusCode = "pending" | "approved" | "in_progress" | "rejected" | "closed";
@@ -89,23 +96,6 @@ const STATUS_META: Record<
     next: "pending",
   },
 };
-
-const CATEGORIAS = [
-  "Equipamentos de Perfuração e Demolição",
-  "Equipamentos de Carregamento e Transporte",
-  "Britagem e Classificação",
-  "Beneficiamento e Processamento Mineral",
-  "Peças e Componentes Industriais",
-  "Desgaste e Revestimento",
-  "Automação, Elétrica e Controle",
-  "Lubrificação e Produtos Químicos",
-  "Equipamentos Auxiliares e Ferramentas",
-  "EPIs (Equipamentos de Proteção Individual)",
-  "Instrumentos de Medição e Controle",
-  "Manutenção e Serviços Industriais",
-  "Veículos e Pneus",
-  "Outros",
-] as const;
 
 const PAGE_SIZE = 30;
 
@@ -160,9 +150,8 @@ function looksLikeDocId(s = "") {
 
 /* ==== mapeia status antigos (aberta/andamento/fechada/inativa) para o padrão novo ==== */
 function normalizeStatus(raw?: string): StatusCode {
-  const s = (raw || "").trim();
+  const s = (raw || "").trim().toLowerCase();
 
-  // já está no formato novo
   if (
     s === "pending" ||
     s === "approved" ||
@@ -173,17 +162,34 @@ function normalizeStatus(raw?: string): StatusCode {
     return s as StatusCode;
   }
 
-  // legado
   switch (s) {
     case "aberta":
       return "approved";
     case "andamento":
       return "in_progress";
     case "fechada":
+    case "encerrada":
     case "inativa":
       return "closed";
     default:
       return "pending";
+  }
+}
+
+function getStatusQueryValues(status: StatusCode): string[] {
+  switch (status) {
+    case "pending":
+      return ["pending"];
+    case "approved":
+      return ["approved", "aberta"];
+    case "in_progress":
+      return ["in_progress", "andamento"];
+    case "closed":
+      return ["closed", "fechada", "encerrada", "inativa"];
+    case "rejected":
+      return ["rejected"];
+    default:
+      return [status];
   }
 }
 
@@ -201,6 +207,17 @@ function useToasts() {
 /* =================== Página =================== */
 function AdminDemandasPage() {
   const { push, toasts } = useToasts();
+
+  // 👉 NOVO: categorias vindas da taxonomia oficial
+  const { categorias: taxCats, loading: loadingTax } = useTaxonomia();
+  const categoriaOptions = useMemo(
+    () =>
+      (taxCats || [])
+        .map((c) => c.nome)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, "pt-BR")),
+    [taxCats],
+  );
 
   // lista + carregamento
   const [items, setItems] = useState<Demanda[]>([]);
@@ -246,14 +263,38 @@ function AdminDemandasPage() {
   const buildConstraints = useCallback((): QueryConstraint[] => {
     const c: QueryConstraint[] = [];
 
-    if (fStatus) c.push(where("status", "==", fStatus));
-    if (fCat) c.push(where("categoria", "==", fCat));
-    if (fEmail.trim()) c.push(where("emailCriador", "==", fEmail.trim()));
+    // ===== STATUS =====
+    if (fStatus) {
+      const vals = getStatusQueryValues(fStatus as StatusCode);
 
-    if (fIni) c.push(where("createdAt", ">=", startOfDay(new Date(fIni))));
-    if (fFim) c.push(where("createdAt", "<=", endOfDay(new Date(fFim))));
+      if (!term.trim()) {
+        if (vals.length === 1) {
+          c.push(where("status", "==", vals[0]));
+        } else {
+          c.push(where("status", "in", vals));
+        }
+      }
+    }
 
-    // Busca por palavra (requer campo searchKeywords e índice composto)
+    // ===== CATEGORIA =====
+    if (fCat) {
+      c.push(where("categoria", "==", fCat));
+    }
+
+    // ===== E-MAIL DO CRIADOR =====
+    if (fEmail.trim()) {
+      c.push(where("emailCriador", "==", fEmail.trim()));
+    }
+
+    // ===== DATAS =====
+    if (fIni) {
+      c.push(where("createdAt", ">=", startOfDay(new Date(fIni))));
+    }
+    if (fFim) {
+      c.push(where("createdAt", "<=", endOfDay(new Date(fFim))));
+    }
+
+    // ===== BUSCA (searchKeywords) =====
     if (term.trim()) {
       const tokens = tokenizeTerm(term);
       if (tokens.length > 0) {
@@ -281,37 +322,43 @@ function AdminDemandasPage() {
     );
 
     const today = startOfDay(new Date());
+    const baseSemCreatedAt = baseNoStatus.filter(
+      (cc: any) => cc?.fieldPath?.canonicalString !== "createdAt",
+    );
+
+    // helpers pra montar query de status com "in"
+    function statusCountQuery(
+      status: StatusCode,
+      extra: QueryConstraint[] = [],
+    ) {
+      const vals = getStatusQueryValues(status);
+      const colRef = collection(db, "demandas");
+
+      if (vals.length === 1) {
+        return query(colRef, ...extra, where("status", "==", vals[0]));
+      }
+
+      return query(colRef, ...extra, where("status", "in", vals));
+    }
+
     const [hojeC, andC, fecC, rejC] = await Promise.all([
+      // Criadas hoje
       getCountFromServer(
         query(
           collection(db, "demandas"),
-          ...baseNoStatus.filter(
-            (cc: any) => cc?.fieldPath?.canonicalString !== "createdAt",
-          ),
+          ...baseSemCreatedAt,
           where("createdAt", ">=", today),
         ),
       ),
-      getCountFromServer(
-        query(
-          collection(db, "demandas"),
-          ...baseNoStatus,
-          where("status", "==", "in_progress"),
-        ),
-      ),
-      getCountFromServer(
-        query(
-          collection(db, "demandas"),
-          ...baseNoStatus,
-          where("status", "==", "closed"),
-        ),
-      ),
-      getCountFromServer(
-        query(
-          collection(db, "demandas"),
-          ...baseNoStatus,
-          where("status", "==", "rejected"),
-        ),
-      ),
+
+      // Em andamento (inclui "andamento")
+      getCountFromServer(statusCountQuery("in_progress", baseNoStatus)),
+
+      // Encerradas (inclui "fechada", "encerrada", "inativa")
+      getCountFromServer(statusCountQuery("closed", baseNoStatus)),
+
+      // Rejeitadas
+      getCountFromServer(statusCountQuery("rejected", baseNoStatus)),
     ]);
 
     setKpi({
@@ -358,7 +405,7 @@ function AdminDemandasPage() {
             setLoading(false);
             if (typeof window !== "undefined")
               window.scrollTo({ top: 0, behavior: "smooth" });
-            return; // não segue para a query paginada
+            return;
           }
         }
       } catch (e) {
@@ -420,58 +467,61 @@ function AdminDemandasPage() {
 
   /* =================== mais itens (scroll infinito) =================== */
   const loadMore = useCallback(async () => {
-    if (!lastDocRef.current || !hasMoreRef.current || loadingMore) return;
-    setLoadingMore(true);
-    setErrMsg(null);
-    try {
-      const constraints = buildConstraints();
-      const snap = await getDocs(
+  if (!lastDocRef.current || !hasMoreRef.current || loadingMore) return;
+  setLoadingMore(true);
+  setErrMsg(null);
+  try {
+    const constraints = buildConstraints();
+    const snap = await getDocs(
+      query(
+        collection(db, "demandas"),
+        ...constraints,
+        orderBy("createdAt", "desc"),
+        startAfter(lastDocRef.current),
+        fsLimit(PAGE_SIZE),
+      ),
+    );
+    const list = snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as any),
+    })) as Demanda[];
+
+    setItems((prev) => [...prev, ...list]);
+
+    lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
+
+    if (lastDocRef.current) {
+      const ns = await getDocs(
         query(
           collection(db, "demandas"),
           ...constraints,
           orderBy("createdAt", "desc"),
           startAfter(lastDocRef.current),
-          fsLimit(PAGE_SIZE),
+          fsLimit(1),
         ),
       );
-      const list = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as any),
-      })) as Demanda[];
-      setItems((prev) => [...prev, ...list]);
-
-      lastDocRef.current = snap.docs[snap.docs.length - 1] ?? null;
-      if (lastDocRef.current) {
-        const ns = await getDocs(
-          query(
-            collection(db, "demandas"),
-            ...constraints,
-            orderBy("createdAt", "desc"),
-            startAfter(lastDocRef.current),
-            fsLimit(1),
-          ),
-        );
-        hasMoreRef.current = !ns.empty;
-      } else {
-        hasMoreRef.current = false;
-      }
-    } catch (e: any) {
-      console.error(e);
-      if (
-        e?.message?.includes("FAILED_PRECONDITION") ||
-        e?.message?.includes("index")
-      ) {
-        setErrMsg(
-          "Faltou um índice composto no Firestore. Abra o link sugerido no console para criar.",
-        );
-      } else {
-        setErrMsg("Erro ao carregar mais demandas.");
-        push("Erro ao carregar mais demandas.");
-      }
-    } finally {
-      setLoadingMore(false);
+      hasMoreRef.current = !ns.empty;
+    } else {
+      hasMoreRef.current = false;
     }
-  }, [buildConstraints, loadingMore, push]);
+  } catch (e: any) {
+    console.error(e);
+    if (
+      e?.message?.includes("FAILED_PRECONDITION") ||
+      e?.message?.includes("index")
+    ) {
+      setErrMsg(
+        "Faltou um índice composto no Firestore. Abra o link sugerido no console para criar.",
+      );
+    } else {
+      setErrMsg("Erro ao carregar mais demandas.");
+      push("Erro ao carregar mais demandas.");
+    }
+  } finally {
+    setLoadingMore(false);
+  }
+}, [buildConstraints, loadingMore, push]);
+
 
   /* =================== efeitos =================== */
   useEffect(() => {
@@ -693,9 +743,16 @@ function AdminDemandasPage() {
           <option value="rejected">Rejeitada</option>
         </select>
 
-        <select value={fCat} onChange={(e) => setFCat(e.target.value)}>
-          <option value="">Todas Categorias</option>
-          {CATEGORIAS.map((c) => (
+        {/* 👉 Select agora usa categorias da taxonomia */}
+        <select
+          value={fCat}
+          onChange={(e) => setFCat(e.target.value)}
+          disabled={loadingTax}
+        >
+          <option value="">
+            {loadingTax ? "Carregando categorias..." : "Todas Categorias"}
+          </option>
+          {categoriaOptions.map((c) => (
             <option key={c} value={c}>
               {c}
             </option>
@@ -1209,6 +1266,10 @@ function AdminDemandasPage() {
           font-weight: 700;
           background: #fff;
         }
+        .filters select:disabled {
+          opacity: 0.7;
+          cursor: not-allowed;
+        }
         .date-group {
           display: flex;
           align-items: center;
@@ -1231,25 +1292,6 @@ function AdminDemandasPage() {
           flex-wrap: wrap;
           gap: 8px;
           margin-top: 10px;
-        }
-        .chip {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          background: #fff;
-          border: 1.5px solid #e8edf3;
-          color: #023047;
-          border-radius: 10px;
-          padding: 6px 10px;
-          font-weight: 800;
-          font-size: 0.9rem;
-        }
-        .chip button {
-          background: none;
-          border: none;
-          color: #9ca3af;
-          cursor: pointer;
-          font-size: 16px;
         }
 
         .bulk {

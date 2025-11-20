@@ -49,7 +49,7 @@ type Produto = {
   categoria?: string;
   cidade?: string;
   estado?: string;
-  status?: "Ativo" | "Inativo" | "Bloqueado" | "Pendente" | string;
+ status?: "Ativo" | "Inativo" | "Bloqueado" | "Pendente" | "Expirado" | string;
   createdAt?: any;
   userId?: string;
   verificado?: boolean; // opcional, caso use selo
@@ -71,13 +71,41 @@ function formatDate(ts?: any) {
 function hasImagem(p: Produto) {
   return Array.isArray(p.imagens) && p.imagens.length > 0 && !!p.imagens[0];
 }
-function asStatus(p: Produto): "Ativo" | "Inativo" | "Bloqueado" | "Pendente" {
-  const s = (p.status || "Ativo").toString().toLowerCase();
-  if (s === "ativo") return "Ativo";
+function asStatus(p: Produto): "Ativo" | "Inativo" | "Bloqueado" | "Pendente" | "Expirado" {
+  const s = (p.status || "").toString().toLowerCase();
+
+  if (s === "expirado") return "Expirado";
+  if ((p as any).expirado === true || isExpiredProduto(p)) return "Expirado";
+
   if (s === "inativo") return "Inativo";
   if (s === "bloqueado") return "Bloqueado";
   if (s === "pendente") return "Pendente";
+
+  // default
   return "Ativo";
+}
+
+function isExpiredProduto(p: Produto): boolean {
+  const tsToDateLocal = (ts?: any): Date | null => {
+    if (!ts) return null;
+    if (typeof ts?.toDate === "function") return ts.toDate();
+    if (typeof ts?.seconds === "number") return new Date(ts.seconds * 1000);
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const now = Date.now();
+
+  // Se existir um campo expiraEm, usa ele
+  const expiraEm = tsToDateLocal((p as any).expiraEm);
+  if (expiraEm) return now > expiraEm.getTime();
+
+  // Fallback: createdAt + 45 dias (igual vitrine)
+  const created = tsToDateLocal(p.createdAt);
+  if (!created) return false;
+  const plus45 = new Date(created);
+  plus45.setDate(plus45.getDate() + 45);
+  return now > plus45.getTime();
 }
 
 /* ========================= Página ========================= */
@@ -93,7 +121,7 @@ function AdminProdutosPage() {
   // filtros essenciais
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<
-    "" | "Ativo" | "Inativo" | "Bloqueado" | "Pendente"
+    "" | "Ativo" | "Inativo" | "Bloqueado" | "Pendente" | "Expirado"
   >("");
   const [filtroCategoria, setFiltroCategoria] = useState("");
   const [filtroUF, setFiltroUF] = useState("");
@@ -179,9 +207,14 @@ function AdminProdutosPage() {
         df = new Date(dataFim + "T23:59:59");
       }
 
-      // wheres server-side (apenas os que Firestore suporta direto)
-      const wheres: any[] = [];
-      if (filtroStatus) wheres.push(where("status", "==", filtroStatus));
+// wheres server-side (apenas os que Firestore suporta direto)
+const wheres: any[] = [];
+
+// Para "Expirado", vamos filtrar só no client (por data), 
+// porque no Firestore nem sempre tem o status certinho.
+if (filtroStatus && filtroStatus !== "Expirado") {
+  wheres.push(where("status", "==", filtroStatus));
+}
       if (filtroCategoria)
         wheres.push(where("categoria", "==", filtroCategoria));
       if (filtroUF) wheres.push(where("estado", "==", filtroUF));
@@ -236,43 +269,55 @@ function AdminProdutosPage() {
       let items = res.docs.map((d) => ({ id: d.id, ...d.data() }) as Produto);
 
       // filtros client-side complementares
-      items = items.filter((p) => {
-        // busca
-        const t = busca.trim().toLowerCase();
-        const okBusca =
-          !t ||
-          (p.nome || "").toLowerCase().includes(t) ||
-          (p.descricao || "").toLowerCase().includes(t) ||
-          (p.categoria || "").toLowerCase().includes(t) ||
-          (p.cidade || "").toLowerCase().includes(t) ||
-          (p.estado || "").toLowerCase().includes(t) ||
-          (p.id || "").toLowerCase().includes(t);
+      // 1) Filtros básicos
+items = items.filter((p) => {
+  // busca
+  const t = busca.trim().toLowerCase();
+  const okBusca =
+    !t ||
+    (p.nome || "").toLowerCase().includes(t) ||
+    (p.descricao || "").toLowerCase().includes(t) ||
+    (p.categoria || "").toLowerCase().includes(t) ||
+    (p.cidade || "").toLowerCase().includes(t) ||
+    (p.estado || "").toLowerCase().includes(t) ||
+    (p.id || "").toLowerCase().includes(t);
 
-        // imagem
-        let okImg = true;
-        if (filtroComImagem === "com") okImg = hasImagem(p);
-        if (filtroComImagem === "sem") okImg = !hasImagem(p);
+  // imagem
+  let okImg = true;
+  if (filtroComImagem === "com") okImg = hasImagem(p);
+  if (filtroComImagem === "sem") okImg = !hasImagem(p);
 
-        // preço (client quando necessário)
-        let okPreco = true;
-        if (aplicarPrecoNoCliente) {
-          if (precoMinNum !== undefined && !isNaN(precoMinNum)) {
-            okPreco =
-              okPreco &&
-              (typeof p.preco === "number" ? p.preco >= precoMinNum : false);
-          }
-          if (precoMaxNum !== undefined && !isNaN(precoMaxNum)) {
-            okPreco =
-              okPreco &&
-              (typeof p.preco === "number" ? p.preco <= precoMaxNum : false);
-          }
-        }
+  // preço
+  let okPreco = true;
+  if (aplicarPrecoNoCliente) {
+    if (precoMinNum !== undefined && !isNaN(precoMinNum)) {
+      okPreco = okPreco && (typeof p.preco === "number" ? p.preco >= precoMinNum : false);
+    }
+    if (precoMaxNum !== undefined && !isNaN(precoMaxNum)) {
+      okPreco = okPreco && (typeof p.preco === "number" ? p.preco <= precoMaxNum : false);
+    }
+  }
 
-        // tag
-        const okTag = !filtroTag || (p.tags || []).includes(filtroTag);
+  // tag
+  const okTag = !filtroTag || (p.tags || []).includes(filtroTag);
 
-        return okBusca && okImg && okPreco && okTag;
-      });
+  return okBusca && okImg && okPreco && okTag;
+});
+
+// 2) Filtro de EXPIRADOS separado (e aqui funciona!)
+if (filtroStatus === "Expirado") {
+  items = items.filter((p) => {
+    const s = (p.status || "").toLowerCase();
+    const flagExpirado = (p as any).expirado === true;
+    return (
+      s === "expirado" ||
+      s === "expirado_manual" ||
+      flagExpirado ||
+      isExpiredProduto(p)
+    );
+  });
+}
+
 
       setProdutos(items);
       setPageCursor(res.last);
@@ -345,7 +390,7 @@ function AdminProdutosPage() {
 
   async function handleStatus(
     id: string,
-    novo: "Ativo" | "Inativo" | "Bloqueado" | "Pendente",
+    novo: "Ativo" | "Inativo" | "Bloqueado" | "Pendente"| "Expirado",
   ) {
     const before = produtos.find((p) => p.id === id);
     await updateDoc(doc(db, "produtos", id), { status: novo });
@@ -378,7 +423,7 @@ function AdminProdutosPage() {
     [selecionados],
   );
 
-  async function bulkStatus(novo: "Ativo" | "Bloqueado" | "Inativo") {
+  async function bulkStatus(novo: "Ativo" | "Bloqueado" | "Inativo" | "Expirado") {
     if (!idsSelecionados.length) return;
     if (
       !window.confirm(
@@ -617,6 +662,7 @@ function AdminProdutosPage() {
               <option value="Inativo">Inativo</option>
               <option value="Pendente">Pendente</option>
               <option value="Bloqueado">Bloqueado</option>
+              <option value="Expirado">Expirado</option>
             </select>
 
             <select

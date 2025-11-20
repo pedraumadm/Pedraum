@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db, auth } from "@/firebaseConfig";
@@ -87,7 +88,7 @@ type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
 
 type TaxIndexRow = {
   label: string;
-  path: string[]; // ["Categoria","Subcategoria","Item"]
+  path: string[]; // ["Categoria","Subcategoria", (opcional "Item")]
   haystack: string;
 };
 
@@ -96,7 +97,6 @@ type UsuarioFS = {
   nome?: string;
   email?: string;
   status?: "ativo" | "suspenso" | "banido";
-  // outros campos que você tem no /usuarios
 };
 
 /* ===================== RequireAuth (embutido) ===================== */
@@ -154,27 +154,31 @@ function buildTaxIndex(categorias: Cat[]): TaxIndexRow[] {
   for (const cat of categorias) {
     const catName = cat?.nome || "";
     const subs = Array.isArray(cat?.subcategorias) ? cat.subcategorias : [];
+
     if (subs.length) {
       for (const sub of subs) {
         const subName = sub?.nome || "";
         const itens = Array.isArray(sub?.itens) ? sub.itens : [];
+
+        // linha principal: categoria + subcategoria
+        const baseHay = normalize([catName, subName].join(" "));
+        rows.push({
+          label: subName || catName,
+          path: [catName, subName],
+          haystack: baseHay,
+        });
+
+        // se tiver itens, usamos só pra melhorar busca (sem usar item no formulário)
         if (itens.length) {
           for (const it of itens) {
             const itemName = it?.nome || "";
             const hay = normalize([catName, subName, itemName].join(" "));
             rows.push({
-              label: itemName || subName || catName,
+              label: itemName,
               path: [catName, subName, itemName],
               haystack: hay,
             });
           }
-        } else {
-          const hay = normalize([catName, subName].join(" "));
-          rows.push({
-            label: subName || catName,
-            path: [catName, subName],
-            haystack: hay,
-          });
         }
       }
     } else {
@@ -233,7 +237,6 @@ function CreateProdutoForm() {
     nome: "",
     categoria: "",
     subcategoria: "",
-    itemFinal: "", // ⭐ 3º nível
     outraCategoriaTexto: "",
     preco: "",
     estado: "",
@@ -272,7 +275,6 @@ function CreateProdutoForm() {
           const data = snap.data() as UsuarioFS;
           setUserDoc({ id: uid, ...data });
 
-          // 🚫 Regras de bloqueio para cadastrar produto/serviço
           const status = (data.status || "ativo") as UsuarioFS["status"];
           if (status === "banido") {
             setBlockedReason(
@@ -286,7 +288,6 @@ function CreateProdutoForm() {
             setBlockedReason(null);
           }
         } else {
-          // Se o doc não existe, considere como ativo por padrão, mas recomendo criar o perfil no sign up
           setUserDoc({ id: uid, status: "ativo" });
           setBlockedReason(null);
         }
@@ -314,14 +315,6 @@ function CreateProdutoForm() {
     () => categoriaSelecionada?.subcategorias ?? [],
     [categoriaSelecionada]
   );
-  const subcategoriaSelecionada = useMemo(
-    () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
-    [subcategoriasDisponiveis, form.subcategoria]
-  );
-  const itensDisponiveis: Item[] = useMemo(
-    () => subcategoriaSelecionada?.itens ?? [],
-    [subcategoriaSelecionada]
-  );
 
   const catEhOutros = form.categoria === "Outros";
   const subcatEhOutros = form.subcategoria === "Outros";
@@ -347,12 +340,11 @@ function CreateProdutoForm() {
   }, [searchTerm, taxIndex]);
 
   function selectTaxonomyPath(path: string[]) {
-    const [c1, c2, c3] = path;
+    const [c1, c2] = path; // ignorando item final
     setForm((prev) => ({
       ...prev,
       categoria: c1 || "",
       subcategoria: c2 || "",
-      itemFinal: c3 || "",
       outraCategoriaTexto: "",
     }));
     setSearchTerm("");
@@ -409,13 +401,8 @@ function CreateProdutoForm() {
         ...f,
         categoria: value,
         subcategoria: "",
-        itemFinal: "",
         outraCategoriaTexto: "",
       }));
-      return;
-    }
-    if (name === "subcategoria") {
-      setForm((f) => ({ ...f, subcategoria: value, itemFinal: "" }));
       return;
     }
 
@@ -481,7 +468,7 @@ function CreateProdutoForm() {
       return;
     }
 
-    // validações
+    // validações base
     const baseOk = !!(
       form.nome &&
       form.estado &&
@@ -491,16 +478,13 @@ function CreateProdutoForm() {
       form.condicao
     );
 
+    // validação taxonômica (sem item final)
     let taxOk = false;
-    const catEhOutros = form.categoria === "Outros";
-    const subcatEhOutros = form.subcategoria === "Outros";
 
-    if (catEhOutros) {
-      taxOk = !!form.outraCategoriaTexto.trim();
-    } else if (subcatEhOutros) {
+    if (catEhOutros || subcatEhOutros) {
       taxOk = !!form.outraCategoriaTexto.trim();
     } else {
-      taxOk = !!(form.categoria && form.subcategoria && form.itemFinal);
+      taxOk = !!(form.categoria && form.subcategoria);
     }
 
     if (!(baseOk && taxOk)) {
@@ -529,29 +513,32 @@ function CreateProdutoForm() {
       const expiresAt = new Date(now);
       expiresAt.setDate(now.getDate() + 45); // 45 dias
 
-      const finalItem =
+      // Mantemos itemFinal só para compatibilidade com outras telas,
+      // mas ele passa a ser derivado de categoria/subcategoria ou texto livre.
+      const resolvedItemFinal =
         catEhOutros || subcatEhOutros
           ? form.outraCategoriaTexto.trim()
-          : form.itemFinal;
+          : form.subcategoria || form.categoria;
 
       const categoriaPath = catEhOutros
-        ? ["Outros", finalItem]
+        ? ["Outros", resolvedItemFinal]
         : subcatEhOutros
-        ? [form.categoria, "Outros", finalItem]
-        : [form.categoria, form.subcategoria, finalItem];
+        ? [form.categoria, "Outros"]
+        : [form.categoria, form.subcategoria];
 
       // ======== CURADORIA: entra invisível e pendente =========
       await addDoc(collection(db, "produtos"), {
         tipo: "produto",
         nome: form.nome,
 
-        // taxonomia 3 níveis + path
+        // taxonomia 2 níveis + path
         categoria: form.categoria || "Outros",
         subcategoria: subcatEhOutros
           ? "Outros"
           : form.subcategoria || (catEhOutros ? "—" : ""),
-        itemFinal: finalItem,
+        itemFinal: resolvedItemFinal, // compatibilidade com telas antigas
         categoriaPath,
+        outraCategoriaTexto: form.outraCategoriaTexto.trim() || null,
 
         preco: form.preco ? parseFloat(form.preco) : null,
         estado: form.estado,
@@ -573,7 +560,7 @@ function CreateProdutoForm() {
         expiraEm: Timestamp.fromDate(expiresAt),
 
         // 🔒 curadoria
-        status: "em_curadoria", // (antes estava "ativo")
+        status: "em_curadoria",
         visivel: false,
         origem: "usuario",
         curadoriaStatus: "pendente",
@@ -586,7 +573,6 @@ function CreateProdutoForm() {
         nome: "",
         categoria: "",
         subcategoria: "",
-        itemFinal: "",
         outraCategoriaTexto: "",
         preco: "",
         estado: "",
@@ -715,7 +701,7 @@ function CreateProdutoForm() {
               borderColor: "#e6ebf2",
               padding: "18px",
               opacity: blockedReason ? 0.6 : 1,
-              pointerEvents: blockedReason ? "none" as const : "auto",
+              pointerEvents: blockedReason ? ("none" as const) : ("auto" as const),
             }}
           >
             <div className="flex items-center gap-2 mb-3">
@@ -803,7 +789,7 @@ function CreateProdutoForm() {
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
             style={{
               opacity: blockedReason ? 0.6 : 1,
-              pointerEvents: blockedReason ? "none" as const : "auto",
+              pointerEvents: blockedReason ? ("none" as const) : ("auto" as const),
             }}
           >
             {/* Nome */}
@@ -818,14 +804,14 @@ function CreateProdutoForm() {
               />
             </FormField>
 
-            {/* ===== Busca rápida por item/caminho ===== */}
+            {/* ===== Busca rápida por categoria/subcategoria ===== */}
             <div
               className="rounded-2xl border p-4"
               style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
             >
               <h3 className="text-slate-800 font-black tracking-tight mb-3 flex items-center gap-2">
-                <Tag className="w-5 h-5 text-orange-500" /> Buscar por nome do
-                item (atalho)
+                <Tag className="w-5 h-5 text-orange-500" /> Busca rápida pela
+                taxonomia
               </h3>
 
               <div className="relative">
@@ -835,7 +821,7 @@ function CreateProdutoForm() {
                   onFocus={() => searchTerm && setShowResults(true)}
                   onKeyDown={onSearchKeyDown}
                   onBlur={() => setTimeout(() => setShowResults(false), 120)}
-                  placeholder="Ex.: britador de mandíbulas, peneira vibratória, CLP, etc."
+                  placeholder="Digite algo como 'mandíbulas', 'peneira', 'CLP'..."
                   style={inputStyle}
                   aria-autocomplete="list"
                   aria-expanded={showResults}
@@ -907,8 +893,8 @@ function CreateProdutoForm() {
                       color: "#64748b",
                     }}
                   >
-                    Nada encontrado. Tente “mandibulas”, “mandíbula”,
-                    “mandibula”…
+                    Nada encontrado. Tente variações de escrita ou termos mais
+                    gerais.
                   </div>
                 )}
               </div>
@@ -942,7 +928,7 @@ function CreateProdutoForm() {
                   value={form.outraCategoriaTexto}
                   onChange={handleChange}
                   style={inputStyle}
-                  placeholder="Descreva com suas palavras o que você precisa"
+                  placeholder="Descreva com suas palavras o tipo de produto"
                   required
                 />
               ) : (
@@ -964,42 +950,8 @@ function CreateProdutoForm() {
                       {sub.nome}
                     </option>
                   ))}
-                </select>
-              )}
-            </FormField>
-
-            {/* Item final */}
-            <FormField label="Item final *" icon={<Layers size={15} />}>
-              {catEhOutros || subcatEhOutros ? (
-                <input
-                  name="outraCategoriaTexto"
-                  value={form.outraCategoriaTexto}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="Ex.: Descreva exatamente o que precisa"
-                  required
-                />
-              ) : (
-                <select
-                  name="itemFinal"
-                  value={form.itemFinal}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  required
-                  disabled={!form.subcategoria || itensDisponiveis.length === 0}
-                >
-                  <option value="">
-                    {!form.subcategoria
-                      ? "Selecione a subcategoria primeiro"
-                      : itensDisponiveis.length
-                      ? "Selecione"
-                      : "Sem itens disponíveis"}
-                  </option>
-                  {itensDisponiveis.map((it) => (
-                    <option key={it.slug ?? it.nome} value={it.nome}>
-                      {it.nome}
-                    </option>
-                  ))}
+                  {/* opção Outras dentro da categoria */}
+                  <option value="Outros">Outros</option>
                 </select>
               )}
             </FormField>
@@ -1115,7 +1067,7 @@ function CreateProdutoForm() {
               borderColor: "#e6ebf2",
               background: "#f8fafc",
               opacity: blockedReason ? 0.6 : 1,
-              pointerEvents: blockedReason ? "none" as const : "auto",
+              pointerEvents: blockedReason ? ("none" as const) : ("auto" as const),
             }}
           >
             <div className="flex items-center gap-2 mb-2">
@@ -1254,6 +1206,7 @@ const labelStyle: React.CSSProperties = {
   gap: 6,
   letterSpacing: -0.2,
 };
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "13px 14px",

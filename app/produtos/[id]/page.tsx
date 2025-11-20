@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   doc,
   getDoc,
@@ -28,7 +28,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { onAuthStateChanged } from "firebase/auth";
 import dynamic from "next/dynamic";
-import AuthGateRedirect from "@/components/AuthGateRedirect"; // ✅ proteção sem card
+// 🔁 Removido AuthGateRedirect – página fica pública
 
 // carrega só no cliente (evita SSR do react-pdf)
 const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
@@ -360,6 +360,8 @@ function ModalContato({
 // ======================= Página =======================
 export default function ProdutoDetalhePage() {
   const { id } = useParams();
+  const router = useRouter();
+
   const [produto, setProduto] = useState<ProdutoDoc | null>(null);
   const [usuarioLogado, setUsuarioLogado] = useState<any>(null);
   const [carregandoUsuario, setCarregandoUsuario] = useState(true);
@@ -380,7 +382,7 @@ export default function ProdutoDetalhePage() {
   const [relacionados, setRelacionados] = useState<any[]>([]);
   const carrosselRef = useRef<HTMLDivElement>(null);
 
-  // auth (apenas para preencher dados do usuário na Modal; proteção é feita pelo AuthGateRedirect)
+  // auth (apenas para preencher dados do usuário na Modal; página é pública)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -499,6 +501,7 @@ export default function ProdutoDetalhePage() {
     }
     fetchRelacionados();
   }, [produto?.id, produto?.categoria]);
+
   // Número fixo da Pedraum (formato exigido pelo WhatsApp: DDI + DDD + número, só dígitos)
   const WHATS_PEDRAUM = "5531990903613";
 
@@ -515,6 +518,14 @@ export default function ProdutoDetalhePage() {
         : `https://pedraum.com.br/produtos/${p?.id || ""}`;
 
     return `Olá! Tenho interesse no produto "${titulo}" que vi na Pedraum.${preco}${local}\nLink: ${link}\nPode me ajudar?`;
+  }
+
+  // ========= Helper para exigir login só nos CTAs =========
+  function goToLogin() {
+    const redirectTarget =
+      typeof id === "string" ? `/produtos/${id}` : "/vitrine";
+    const encoded = encodeURIComponent(redirectTarget);
+    router.push(`/auth/login?redirect=${encoded}`);
   }
 
   const conteudo = (() => {
@@ -534,6 +545,34 @@ export default function ProdutoDetalhePage() {
 
     // garantia
     const garantia = resolveGarantia(produto);
+
+    // 💡 clique em "Entrar em Contato" só abre se estiver logado
+    const handleContatoClick = () => {
+      if (expirado || carregandoUsuario) return;
+
+      if (!auth.currentUser) {
+        goToLogin();
+        return;
+      }
+
+      setModalOpen(true);
+    };
+
+    // 💡 clique em WhatsApp exige login antes de abrir o link
+    const handleWhatsClick = (e: any) => {
+      e.preventDefault();
+      if (expirado) return;
+
+      if (!auth.currentUser) {
+        goToLogin();
+        return;
+      }
+
+      const url = `https://wa.me/${WHATS_PEDRAUM}?text=${encodeURIComponent(
+        buildWhatsMsg(produto),
+      )}`;
+      window.open(url, "_blank");
+    };
 
     return (
       <section className="produto-detalhe">
@@ -591,7 +630,9 @@ export default function ProdutoDetalhePage() {
                     key={idx}
                     src={img}
                     alt={`Imagem ${idx + 1}`}
-                    className={`produto-miniatura ${idx === imgIndex ? "miniatura-ativa" : ""}`}
+                    className={`produto-miniatura ${
+                      idx === imgIndex ? "miniatura-ativa" : ""
+                    }`}
                     onClick={() => setImgIndex(idx)}
                     onError={(e) =>
                       ((e.currentTarget as HTMLImageElement).src =
@@ -670,7 +711,7 @@ export default function ProdutoDetalhePage() {
 
               <button
                 className="produto-btn-laranja"
-                onClick={() => setModalOpen(true)}
+                onClick={handleContatoClick}
                 disabled={expirado || carregandoUsuario}
                 aria-disabled={expirado || carregandoUsuario}
                 style={{
@@ -684,9 +725,8 @@ export default function ProdutoDetalhePage() {
 
               {!expirado && (
                 <a
-                  href={`https://wa.me/${WHATS_PEDRAUM}?text=${encodeURIComponent(buildWhatsMsg(produto))}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="#"
+                  onClick={handleWhatsClick}
                   className="produto-btn-azul"
                 >
                   WhatsApp
@@ -712,7 +752,9 @@ export default function ProdutoDetalhePage() {
             <div>
               <div className="produto-desc-item-title">Destaques</div>
               <div className="produto-desc-item-text">
-                {produto.destaques || resumo(produto.descricao, 260) || "—"}
+                {produto.destaques ||
+                  resumo(produto.descricao, 260) ||
+                  "—"}
               </div>
 
               <div
@@ -1385,15 +1427,6 @@ export default function ProdutoDetalhePage() {
             z-index: 1101;
           }
 
-          @keyframes pdfShimmer {
-            0% {
-              background-position: 100% 0;
-            }
-            100% {
-              background-position: 0 0;
-            }
-          }
-
           @media (max-width: 900px) {
             .produto-grid {
               grid-template-columns: 1fr;
@@ -1415,10 +1448,9 @@ export default function ProdutoDetalhePage() {
     );
   })();
 
-  // ✅ Proteção sem card: só redireciona se não logado e não envolve o layout
+  // ✅ Página pública – só CTAs exigem login
   return (
     <>
-      <AuthGateRedirect />
       {conteudo}
 
       {/* Modais fora do conteúdo para manter overlay correto */}
@@ -1432,7 +1464,6 @@ export default function ProdutoDetalhePage() {
         />
       )}
 
-      {/* PDF modal */}
       {/* o modal do PDF é controlado dentro do conteúdo */}
     </>
   );

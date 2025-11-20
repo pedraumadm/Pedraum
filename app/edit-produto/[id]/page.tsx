@@ -1,17 +1,28 @@
 "use client";
 
+import type React from "react";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { db, auth } from "@/firebaseConfig";
-import { doc, getDoc, updateDoc, serverTimestamp, Timestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  updateDoc,
+  serverTimestamp,
+  Timestamp,
+} from "firebase/firestore";
 
 import ImageUploader from "@/components/ImageUploader";
 import dynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
 
-const PDFUploader = dynamic(() => import("@/components/PDFUploader"), { ssr: false });
-const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), { ssr: false });
+const PDFUploader = dynamic(() => import("@/components/PDFUploader"), {
+  ssr: false,
+});
+const DrivePDFViewer = dynamic(() => import("@/components/DrivePDFViewer"), {
+  ssr: false,
+});
 
 import {
   Loader2,
@@ -42,13 +53,37 @@ const condicoes = [
 ];
 
 const estados = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
-  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
 ];
 
 /* ===================== Tipos ===================== */
-type Item = { nome: string; slug?: string };
-type Subcat = { nome: string; slug?: string; itens?: Item[] };
+type Subcat = { nome: string; slug?: string; itens?: { nome: string }[] };
 type Cat = { nome: string; slug?: string; subcategorias?: Subcat[] };
 
 type Produto = {
@@ -59,6 +94,7 @@ type Produto = {
   subcategoria: string;
   itemFinal?: string;
   categoriaPath?: string[];
+  outraCategoriaTexto?: string | null;
   preco: number | null;
   estado: string;
   cidade: string;
@@ -80,7 +116,6 @@ type Produto = {
 /* ===================== Utils ===================== */
 function normalizePrice(str: string): number | null {
   if (!str) return null;
-  // remove milhares e troca vírgula por ponto
   const n = Number(str.replace(/\./g, "").replace(",", "."));
   return isNaN(n) ? null : n;
 }
@@ -119,7 +154,6 @@ function EditProdutoForm() {
     nome: "",
     categoria: "",
     subcategoria: "",
-    itemFinal: "",
     outraCategoriaTexto: "",
     preco: "",
     estado: "",
@@ -152,7 +186,9 @@ function EditProdutoForm() {
 
         const user = auth.currentUser;
         if (!user || (data.userId && data.userId !== user.uid)) {
-          throw new Error("Você não tem permissão para editar este produto.");
+          throw new Error(
+            "Você não tem permissão para editar este produto."
+          );
         }
 
         setImagens(Array.isArray(data.imagens) ? data.imagens : []);
@@ -160,16 +196,15 @@ function EditProdutoForm() {
 
         const c1 = data.categoria || "";
         const c2 = data.subcategoria || "";
-        const c3 =
-          data.itemFinal ||
-          (Array.isArray(data.categoriaPath) ? (data.categoriaPath[2] ?? "") : "");
+        const outraTexto =
+          data.outraCategoriaTexto ??
+          (c1 === "Outros" || c2 === "Outros" ? data.itemFinal ?? "" : "");
 
         setForm({
           nome: data.nome || "",
           categoria: c1,
           subcategoria: c2,
-          itemFinal: c3,
-          outraCategoriaTexto: "",
+          outraCategoriaTexto: outraTexto || "",
           preco: data.preco != null ? String(data.preco) : "",
           estado: data.estado || "",
           cidade: data.cidade || "",
@@ -200,24 +235,18 @@ function EditProdutoForm() {
 
   const categoriaSelecionada = useMemo(
     () => categorias.find((c) => c.nome === form.categoria),
-    [categorias, form.categoria],
+    [categorias, form.categoria]
   );
   const subcategoriasDisponiveis: Subcat[] = useMemo(
     () => categoriaSelecionada?.subcategorias ?? [],
-    [categoriaSelecionada],
-  );
-  const subcategoriaSelecionada = useMemo(
-    () => subcategoriasDisponiveis.find((s) => s.nome === form.subcategoria),
-    [subcategoriasDisponiveis, form.subcategoria],
-  );
-  const itensDisponiveis: Item[] = useMemo(
-    () => subcategoriaSelecionada?.itens ?? [],
-    [subcategoriaSelecionada],
+    [categoriaSelecionada]
   );
 
   /* ====== Handlers ====== */
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+    >
   ) {
     const { name, value, type, checked } = e.target as any;
 
@@ -246,13 +275,8 @@ function EditProdutoForm() {
         ...f,
         categoria: value,
         subcategoria: "",
-        itemFinal: "",
         outraCategoriaTexto: "",
       }));
-      return;
-    }
-    if (name === "subcategoria") {
-      setForm((f) => ({ ...f, subcategoria: value, itemFinal: "" }));
       return;
     }
 
@@ -276,18 +300,21 @@ function EditProdutoForm() {
       try {
         const res = await fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`,
-          { cache: "no-store" },
+          { cache: "no-store" }
         );
         const data = (await res.json()) as Array<{ nome: string }>;
         if (abort) return;
 
-        const nomes = data.map((m) => m.nome).sort((a, b) => a.localeCompare(b, "pt-BR"));
-        // preserva cidade atual se não estiver na lista
+        const nomes = data
+          .map((m) => m.nome)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
         if (form.cidade && !nomes.includes(form.cidade)) nomes.unshift(form.cidade);
         setCidades(nomes);
       } catch {
         if (!abort) {
-          setCidades((prev) => (prev.length ? prev : form.cidade ? [form.cidade] : []));
+          setCidades((prev) =>
+            prev.length ? prev : form.cidade ? [form.cidade] : []
+          );
         }
       } finally {
         if (!abort) setCarregandoCidades(false);
@@ -322,7 +349,7 @@ function EditProdutoForm() {
       if (catEhOutros || subcatEhOutros) {
         taxOk = !!form.outraCategoriaTexto.trim();
       } else {
-        taxOk = !!(form.categoria && form.subcategoria && form.itemFinal);
+        taxOk = !!(form.categoria && form.subcategoria);
       }
 
       if (!(baseOk && taxOk)) {
@@ -338,16 +365,16 @@ function EditProdutoForm() {
         }
       }
 
-      const finalItem =
+      const resolvedItemFinal =
         catEhOutros || subcatEhOutros
           ? form.outraCategoriaTexto.trim()
-          : form.itemFinal;
+          : form.subcategoria || form.categoria;
 
       const categoriaPath = catEhOutros
-        ? ["Outros", finalItem]
+        ? ["Outros", resolvedItemFinal]
         : subcatEhOutros
-        ? [form.categoria, "Outros", finalItem]
-        : [form.categoria, form.subcategoria, finalItem];
+        ? [form.categoria, "Outros"]
+        : [form.categoria, form.subcategoria];
 
       const ref = doc(db, "produtos", id);
       await updateDoc(ref, {
@@ -358,8 +385,9 @@ function EditProdutoForm() {
         subcategoria: subcatEhOutros
           ? "Outros"
           : form.subcategoria || (catEhOutros ? "—" : ""),
-        itemFinal: finalItem,
+        itemFinal: resolvedItemFinal,
         categoriaPath,
+        outraCategoriaTexto: form.outraCategoriaTexto.trim() || null,
 
         preco: normalizePrice(form.preco),
         estado: form.estado,
@@ -370,7 +398,9 @@ function EditProdutoForm() {
         imagens,
         pdfUrl: pdfUrl || null,
         hasWarranty: !!form.hasWarranty,
-        warrantyMonths: form.hasWarranty ? Number(form.warrantyMonths) : null,
+        warrantyMonths: form.hasWarranty
+          ? Number(form.warrantyMonths)
+          : null,
 
         updatedAt: serverTimestamp(),
       });
@@ -389,7 +419,9 @@ function EditProdutoForm() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="animate-spin mb-3" size={38} />
-        <div className="text-lg font-bold text-[#219EBC]">Carregando produto…</div>
+        <div className="text-lg font-bold text-[#219EBC]">
+          Carregando produto…
+        </div>
       </div>
     );
   }
@@ -465,7 +497,11 @@ function EditProdutoForm() {
             type="button"
             onClick={() => router.back()}
             className="hidden sm:inline-flex items-center gap-2 text-sm font-bold rounded-xl px-3 py-2"
-            style={{ background: "#eef2f7", color: "#0f172a", border: "1px solid #e3e8ef" }}
+            style={{
+              background: "#eef2f7",
+              color: "#0f172a",
+              border: "1px solid #e3e8ef",
+            }}
             aria-label="Voltar"
             title="Voltar"
           >
@@ -485,7 +521,9 @@ function EditProdutoForm() {
           >
             <div className="flex items-center gap-2 mb-3">
               <Upload className="w-4 h-4 text-slate-700" />
-              <h3 className="text-slate-800 font-black tracking-tight">Arquivos do anúncio</h3>
+              <h3 className="text-slate-800 font-black tracking-tight">
+                Arquivos do anúncio
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -500,14 +538,21 @@ function EditProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
-                  <strong className="text-[#0f172a]">Imagens do Produto *</strong>
+                  <strong className="text-[#0f172a]">
+                    Imagens do Produto *
+                  </strong>
                 </div>
                 <div className="px-4 pb-4">
                   <div className="rounded-lg border border-dashed p-3">
-                    <ImageUploader imagens={imagens} setImagens={setImagens} max={5} />
+                    <ImageUploader
+                      imagens={imagens}
+                      setImagens={setImagens}
+                      max={5}
+                    />
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
-                    Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e com boa iluminação.
+                    Envie até 5 imagens (JPG/PNG). Dica: use fotos nítidas e com
+                    boa iluminação.
                   </p>
                 </div>
               </div>
@@ -523,22 +568,34 @@ function EditProdutoForm() {
               >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
-                  <strong className="text-[#0f172a]">Ficha técnica (PDF) — opcional</strong>
+                  <strong className="text-[#0f172a]">
+                    Ficha técnica (PDF) — opcional
+                  </strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   <div className="rounded-lg border border-dashed p-3">
-                    <PDFUploader initialUrl={pdfUrl ?? undefined} onUploaded={setPdfUrl} />
+                    <PDFUploader
+                      initialUrl={pdfUrl ?? undefined}
+                      onUploaded={setPdfUrl}
+                    />
                   </div>
 
                   {pdfUrl ? (
-                    <div className="rounded-lg border overflow-hidden" style={{ height: 300 }}>
+                    <div
+                      className="rounded-lg border overflow-hidden"
+                      style={{ height: 300 }}
+                    >
                       <DrivePDFViewer
-                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(pdfUrl || "")}`}
+                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(
+                          pdfUrl || ""
+                        )}`}
                         height={300}
                       />
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Anexe manuais, especificações ou ficha técnica (até 8MB).</p>
+                    <p className="text-xs text-slate-500">
+                      Anexe manuais, especificações ou ficha técnica (até 8MB).
+                    </p>
                   )}
                 </div>
               </div>
@@ -561,8 +618,16 @@ function EditProdutoForm() {
 
             {/* Categoria */}
             <FormField label="Categoria *" icon={<List size={15} />}>
-              <select name="categoria" value={form.categoria} onChange={handleChange} style={inputStyle} required>
-                <option value="">{taxLoading ? "Carregando..." : "Selecione"}</option>
+              <select
+                name="categoria"
+                value={form.categoria}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
+                <option value="">
+                  {taxLoading ? "Carregando..." : "Selecione"}
+                </option>
                 {categorias.map((cat) => (
                   <option key={cat.slug ?? cat.nome} value={cat.nome}>
                     {cat.nome}
@@ -591,50 +656,17 @@ function EditProdutoForm() {
                   required
                   disabled={!form.categoria}
                 >
-                  <option value="">{form.categoria ? "Selecione" : "Selecione a categoria primeiro"}</option>
+                  <option value="">
+                    {form.categoria
+                      ? "Selecione"
+                      : "Selecione a categoria primeiro"}
+                  </option>
                   {subcategoriasDisponiveis.map((sub) => (
                     <option key={sub.slug ?? sub.nome} value={sub.nome}>
                       {sub.nome}
                     </option>
                   ))}
-                  {/* Se quiser permitir "Outros" no 2º nível: */}
                   <option value="Outros">Outros</option>
-                </select>
-              )}
-            </FormField>
-
-            {/* Item final */}
-            <FormField label="Item final *" icon={<Layers size={15} />}>
-              {form.categoria === "Outros" || form.subcategoria === "Outros" ? (
-                <input
-                  name="outraCategoriaTexto"
-                  value={form.outraCategoriaTexto}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="Ex.: Descreva exatamente o item"
-                  required
-                />
-              ) : (
-                <select
-                  name="itemFinal"
-                  value={form.itemFinal}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  required
-                  disabled={!form.subcategoria || itensDisponiveis.length === 0}
-                >
-                  <option value="">
-                    {!form.subcategoria
-                      ? "Selecione a subcategoria primeiro"
-                      : itensDisponiveis.length
-                      ? "Selecione"
-                      : "Sem itens disponíveis"}
-                  </option>
-                  {itensDisponiveis.map((it) => (
-                    <option key={it.slug ?? it.nome} value={it.nome}>
-                      {it.nome}
-                    </option>
-                  ))}
                 </select>
               )}
             </FormField>
@@ -668,7 +700,13 @@ function EditProdutoForm() {
 
             {/* Condição */}
             <FormField label="Condição *" icon={<Tag size={15} />}>
-              <select name="condicao" value={form.condicao} onChange={handleChange} style={inputStyle} required>
+              <select
+                name="condicao"
+                value={form.condicao}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
                 <option value="">Selecione</option>
                 {condicoes.map((c) => (
                   <option key={c} value={c}>
@@ -680,7 +718,13 @@ function EditProdutoForm() {
 
             {/* Estado */}
             <FormField label="Estado *" icon={<MapPin size={15} />}>
-              <select name="estado" value={form.estado} onChange={handleChange} style={inputStyle} required>
+              <select
+                name="estado"
+                value={form.estado}
+                onChange={handleChange}
+                style={inputStyle}
+                required
+              >
                 <option value="">Selecione</option>
                 {estados.map((e) => (
                   <option key={e} value={e}>
@@ -730,19 +774,29 @@ function EditProdutoForm() {
           </FormField>
 
           {/* Garantia */}
-          <div className="rounded-xl border p-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
+          <div
+            className="rounded-xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+          >
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-4 h-4 text-emerald-700" />
               <strong className="text-slate-800">Garantia</strong>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                <input type="checkbox" name="hasWarranty" checked={form.hasWarranty} onChange={handleChange} />
+                <input
+                  type="checkbox"
+                  name="hasWarranty"
+                  checked={form.hasWarranty}
+                  onChange={handleChange}
+                />
                 Existe garantia?
               </label>
 
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-700">Tempo de garantia</span>
+                <span className="text-sm text-slate-700">
+                  Tempo de garantia
+                </span>
                 <input
                   type="number"
                   name="warrantyMonths"
@@ -757,7 +811,8 @@ function EditProdutoForm() {
               </div>
             </div>
             <p className="text-xs text-slate-500 mt-2">
-              Dica: se escolher “com garantia” na condição, a opção acima é marcada automaticamente.
+              Dica: se escolher “com garantia” na condição, a opção acima é
+              marcada automaticamente.
             </p>
           </div>
 
@@ -816,7 +871,11 @@ function EditProdutoForm() {
                 gap: 10,
               }}
             >
-              {submitting ? <Loader2 className="animate-spin w-6 h-6" /> : <Save className="w-5 h-5" />}
+              {submitting ? (
+                <Loader2 className="animate-spin w-6 h-6" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
               {submitting ? "Salvando..." : "Salvar alterações"}
             </button>
           </div>
@@ -856,6 +915,7 @@ const labelStyle: React.CSSProperties = {
   gap: 6,
   letterSpacing: -0.2,
 };
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
   padding: "13px 14px",
