@@ -97,7 +97,7 @@ export default function Hero() {
             fontFamily: "'Poppins','Inter',sans-serif",
           }}
         >
-          Encontre o <span style={{ color: "#FFB703" }}>Fornecedor Ideal</span>{" "}
+          Encontre a <span style={{ color: "#FFB703" }}>Oportunidade Ideal</span>{" "}
           para sua Mineradora, em Minutos
         </h1>
 
@@ -158,7 +158,7 @@ export default function Hero() {
             </a>
           </Link>
 
-          <Link href="/vitrine" passHref legacyBehavior>
+          <Link href="/demandas" passHref legacyBehavior>
             <a
               style={{
                 background: "rgba(255,255,255,.92)",
@@ -185,7 +185,7 @@ export default function Hero() {
                 (e.currentTarget.style.transform = "translateY(0)")
               }
             >
-              Ver Fornecedores
+              Ver Demandas
             </a>
           </Link>
         </div>

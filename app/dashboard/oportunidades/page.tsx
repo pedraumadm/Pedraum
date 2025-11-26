@@ -13,6 +13,8 @@ import {
   query,
   where,
   limit as fbLimit,
+  updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   Loader2,
@@ -32,6 +34,7 @@ type Pricing = {
   exclusive?: boolean;
   cap?: number;
 };
+
 type Assignment = {
   id: string;
   demandId: string;
@@ -140,6 +143,7 @@ export default function OportunidadesPage() {
         .sort(sortByCreatedAtDesc),
     [allAssignments],
   );
+
   const atendimento = useMemo(
     () =>
       allAssignments
@@ -164,10 +168,29 @@ export default function OportunidadesPage() {
       alert("Faça login para desbloquear este contato.");
       return;
     }
+
+    // Se o assignment veio com amount 0, consideramos lead grátis:
+    const isFree =
+      typeof a?.pricing?.amount === "number" && a.pricing.amount <= 0;
+
     setAbrindo(a.demandId);
 
     try {
+      if (isFree) {
+        // Desbloqueio direto (sem Mercado Pago)
+        await updateDoc(doc(db, "demandAssignments", a.id), {
+          status: "unlocked",
+          unlockedAt: serverTimestamp(),
+        });
+
+        // Vai direto para os detalhes da oportunidade já liberada
+        router.push(`/dashboard/oportunidades/${a.demandId}`);
+        return;
+      }
+
+      // Fluxo normal pago (Mercado Pago)
       const n = normalizeDemand(a.demand || {});
+
       // preço em centavos — se não vier no assignment, define um default
       const unitPriceCents =
         typeof a?.pricing?.amount === "number" && a.pricing.amount! > 0
@@ -240,7 +263,7 @@ export default function OportunidadesPage() {
         >
           <Target size={24} color="#2563eb" />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: "#023047" }}>
-            Demandas Enviadas Para Você
+            Oportunidades Enviadas Para Você
           </h1>
         </header>
 
@@ -338,7 +361,7 @@ export default function OportunidadesPage() {
         {/* Novas */}
         <SectionTitle
           icon={<Eye size={18} />}
-          title="Novas Demandas"
+          title="Novas Oportunidades"
           hint="Envios recentes para você"
         />
         {loading ? (
@@ -351,7 +374,7 @@ export default function OportunidadesPage() {
               <OportunidadeCard
                 key={it.id}
                 a={it}
-                onDesbloquear={() => desbloquearLead(it)} // <-- AQUI: inicia checkout MP
+                onDesbloquear={() => desbloquearLead(it)}
                 desbloqueando={abrindo === it.demandId}
               />
             ))}
@@ -361,7 +384,7 @@ export default function OportunidadesPage() {
         {/* Em atendimento */}
         <SectionTitle
           icon={<LockOpen size={18} />}
-          title="Em atendimento"
+          title="Desbloqueados"
           hint="Contatos já liberados"
         />
         {loading ? (
@@ -421,15 +444,6 @@ function OportunidadeCard({
   const norm = normalizeDemand(a.demand || {});
   const preview = (norm.description || "").slice(0, 160);
 
-  // valor para exibir no botão (se houver)
-  const valorBRL =
-    typeof a?.pricing?.amount === "number"
-      ? (a.pricing.amount / 100).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        })
-      : undefined;
-
   return (
     <div
       style={{
@@ -469,7 +483,7 @@ function OportunidadeCard({
               fontSize: 13,
             }}
           >
-            <CheckCircle2 size={16} /> Em atendimento
+            <CheckCircle2 size={16} /> Liberado
           </span>
         )}
       </div>
@@ -525,7 +539,9 @@ function OportunidadeCard({
         ) : norm?.contact?.whatsapp ? (
           <a
             target="_blank"
-            href={`https://wa.me/${String(norm.contact.whatsapp).replace(/\D/g, "")}?text=${encodeURIComponent(
+            href={`https://wa.me/${String(
+              norm.contact.whatsapp,
+            ).replace(/\D/g, "")}?text=${encodeURIComponent(
               `Olá! Vi sua demanda "${norm.title}" no Pedraum e posso te atender.`,
             )}`}
             style={btnWhats}

@@ -3,7 +3,17 @@
 
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Menu, X, LogIn, User, Package, ClipboardList, ChevronDown, Info } from "lucide-react";
+import {
+  Menu,
+  X,
+  LogIn,
+  User,
+  ClipboardList,
+  Info,
+  Home,
+  HelpCircle,
+  ChevronDown,
+} from "lucide-react";
 import { auth, db } from "@/firebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -17,7 +27,7 @@ type NavItem = {
 
 type TourStep = {
   id: string;
-  selector: string; // CSS selector do alvo
+  selector: string;
   title: string;
   content: string;
   placement?: "top" | "bottom" | "left" | "right" | "auto";
@@ -33,11 +43,13 @@ export default function Header() {
   const onKeydown = useCallback((e: KeyboardEvent) => {
     if (e.key === "Escape") setOpen(false);
   }, []);
+
   useEffect(() => {
     document.addEventListener("keydown", onKeydown);
     return () => document.removeEventListener("keydown", onKeydown);
   }, [onKeydown]);
 
+  // === Auth state ==–
   useEffect(() => {
     const off = auth.onAuthStateChanged(async (user) => {
       if (!user) {
@@ -63,30 +75,38 @@ export default function Header() {
     return () => off();
   }, []);
 
+  // === Links principais (SEM produtos/serviços) ===
   const links: NavItem[] = useMemo(
     () => [
       {
-        href: "/vitrine",
-        label: "Produtos e Serviços",
-        desc: "Explore e filtre soluções disponíveis para compra/contratação.",
-        icon: <Package size={16} />,
-        className: "nav-produtos",
+        href: "/",
+        label: "Início",
+        desc: "Volte para a página inicial com os destaques de demandas.",
+        icon: <Home size={16} />,
+        className: "nav-inicio",
       },
       {
         href: "/demandas",
         label: "Demandas",
-        desc: "Veja pedidos de compradores e feche negócios.",
+        desc: "Veja as demandas publicadas e encontre oportunidades reais de negócio.",
         icon: <ClipboardList size={16} />,
         className: "nav-demandas",
+      },
+      {
+        href: "/sobre",
+        label: "Como Funciona",
+        desc: "Entenda em poucos minutos como a plataforma de demandas Pedraum funciona.",
+        icon: <HelpCircle size={16} />,
+        className: "nav-como-funciona",
       },
       {
         href: painelHref,
         label: "Painel",
         desc: isAuthed
           ? isAdmin
-            ? "Painel do Administrador."
-            : "Gerencie seus cadastros e leads."
-          : "Entre para acessar seu painel.",
+            ? "Acesse o painel do administrador."
+            : "Gerencie suas demandas, propostas e contatos."
+          : "Entre para acessar seu painel e começar a usar a plataforma.",
         icon: <User size={16} />,
         className: "nav-painel",
       },
@@ -94,9 +114,8 @@ export default function Header() {
     [isAuthed, isAdmin, painelHref]
   );
 
-  /** ======== Registro de passos do tour (HEADER é o primeiro grupo) ======== */
+  /** ======== Registro de passos do tour (HEADER) ======== */
   useEffect(() => {
-    // monta os passos dinamicamente conforme estado de auth e layout
     const steps: TourStep[] = [
       {
         id: "header-logo",
@@ -106,17 +125,17 @@ export default function Header() {
         placement: "bottom",
       },
       {
-        id: "header-produtos",
-        selector: "[data-tour='header-nav-produtos']",
-        title: "Vitrine: Produtos e Serviços",
-        content: "Encontre máquinas, peças e serviços. Use filtros e entre em contato com fornecedores.",
-        placement: "bottom",
-      },
-      {
         id: "header-demandas",
         selector: "[data-tour='header-nav-demandas']",
         title: "Feed de Demandas",
-        content: "Veja pedidos de compradores. Se você vende, pode oferecer sua solução e fechar negócio.",
+        content: "Aqui você vê todas as demandas publicadas e encontra negócios reais.",
+        placement: "bottom",
+      },
+      {
+        id: "header-como-funciona",
+        selector: "[data-tour='header-nav-como-funciona']",
+        title: "Como a Pedraum funciona",
+        content: "Se tiver dúvida, clique aqui e veja um passo a passo simples de uso da plataforma.",
         placement: "bottom",
       },
       {
@@ -124,8 +143,8 @@ export default function Header() {
         selector: "[data-tour='header-nav-painel']",
         title: isAuthed ? (isAdmin ? "Painel Admin" : "Seu Painel") : "Acesso ao Painel",
         content: isAuthed
-          ? "Gerencie suas publicações, contatos e notificações."
-          : "Entre para acessar seu painel e começar a publicar.",
+          ? "Gerencie suas demandas, propostas e notificações."
+          : "Entre para acessar seu painel e começar a publicar demandas.",
         placement: "bottom",
       },
       !isAuthed
@@ -133,14 +152,15 @@ export default function Header() {
             id: "header-register",
             selector: "[data-tour='header-register']",
             title: "Criar Conta",
-            content: "Leva 1 minuto. Com uma conta você publica, responde demandas e fala com compradores.",
+            content:
+              "Crie sua conta em poucos instantes para publicar demandas e responder oportunidades.",
             placement: "left",
           }
         : {
             id: "header-login",
             selector: "[data-tour='header-login']",
             title: "Seu Perfil",
-            content: "Acesse e personalize seu perfil: categorias, contato e portfólio.",
+            content: "Acesse seu perfil para ajustar seus dados, contatos e áreas de atuação.",
             placement: "left",
           },
       {
@@ -152,8 +172,6 @@ export default function Header() {
       },
     ].filter(Boolean) as TourStep[];
 
-    // Emite o evento global para o orquestrador do tour ouvir e inserir estes passos como os primeiros
-    // Importante: este grupo tem ordem '0' para garantir que o Header aparece antes de qualquer outro.
     window.dispatchEvent(
       new CustomEvent("pedraum:tour-register", {
         detail: {
@@ -190,8 +208,13 @@ export default function Header() {
           }}
           className="no-underline"
         >
-          {/* Logo (alvo do tour) */}
-          <Link href="/" aria-label="Início" className="header-logo" data-tour="header-logo">
+          {/* Logo */}
+          <Link
+            href="/"
+            aria-label="Início"
+            className="header-logo"
+            data-tour="header-logo"
+          >
             <span
               style={{
                 display: "flex",
@@ -204,7 +227,11 @@ export default function Header() {
                 height: 56,
               }}
             >
-              <img src="/logo-pedraum.png" alt="Pedraum Brasil" style={{ height: 44, marginRight: 10, display: "block" }} />
+              <img
+                src="/logo-pedraum.png"
+                alt="Pedraum Brasil"
+                style={{ height: 44, marginRight: 10, display: "block" }}
+              />
             </span>
           </Link>
 
@@ -228,11 +255,13 @@ export default function Header() {
                 style={{ position: "relative" }}
                 className={className}
                 data-tour={
-                  label === "Produtos e Serviços"
-                    ? "header-nav-produtos"
-                    : label === "Demandas"
+                  label === "Demandas"
                     ? "header-nav-demandas"
-                    : "header-nav-painel"
+                    : label === "Como Funciona"
+                    ? "header-nav-como-funciona"
+                    : label === "Painel"
+                    ? "header-nav-painel"
+                    : "header-nav-inicio"
                 }
               >
                 <Link href={href}>
@@ -248,26 +277,47 @@ export default function Header() {
             ))}
           </ul>
 
-          {/* Ações (desktop + mobile) */}
-          <div className="actions header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Login/Perfil (alvo do tour: header-login) */}
+          {/* Ações (login/registro + hambúrguer) */}
+          <div
+            className="actions header-actions"
+            style={{ display: "flex", alignItems: "center", gap: 10 }}
+          >
+            {/* Login/Perfil */}
             {isAuthed ? (
-              <Link href="/perfil" title="Meu Perfil" className="login-mobile no-underline header-login" data-tour="header-login">
-                <span style={{ color: "#219EBC", padding: 6, borderRadius: 9 }}>
+              <Link
+                href="/perfil"
+                title="Meu Perfil"
+                className="login-mobile no-underline header-login"
+                data-tour="header-login"
+              >
+                <span
+                  style={{ color: "#219EBC", padding: 6, borderRadius: 9 }}
+                >
                   <User size={24} strokeWidth={2.1} />
                 </span>
               </Link>
             ) : (
-              <Link href="/auth/login" title="Login" className="login-mobile no-underline header-login" data-tour="header-login">
-                <span style={{ color: "#FB8500", padding: 6, borderRadius: 9 }}>
+              <Link
+                href="/auth/login"
+                title="Login"
+                className="login-mobile no-underline header-login"
+                data-tour="header-login"
+              >
+                <span
+                  style={{ color: "#FB8500", padding: 6, borderRadius: 9 }}
+                >
                   <LogIn size={24} strokeWidth={2.1} />
                 </span>
               </Link>
             )}
 
-            {/* Botão Cadastrar (alvo: header-register) */}
+            {/* Botão Cadastrar (só desktop) */}
             {authChecked && !isAuthed && (
-              <Link href="/auth/register" className="btn-register-desktop no-underline header-register" data-tour="header-register">
+              <Link
+                href="/auth/register"
+                className="btn-register-desktop no-underline header-register"
+                data-tour="header-register"
+              >
                 <span
                   style={{
                     background: "#FB8500",
@@ -285,7 +335,7 @@ export default function Header() {
               </Link>
             )}
 
-            {/* Hambúrguer (alvo: header-hamburger) */}
+            {/* Hambúrguer — só mobile (via CSS) */}
             <button
               className="hamburger header-hamburger"
               onClick={() => setOpen(true)}
@@ -298,26 +348,53 @@ export default function Header() {
         </nav>
 
         {/* Overlay */}
-        <div className="overlay" onClick={() => setOpen(false)} aria-hidden={!open} style={{ display: open ? "block" : "none" }} />
+        <div
+          className="overlay"
+          onClick={() => setOpen(false)}
+          aria-hidden={!open}
+          style={{ display: open ? "block" : "none" }}
+        />
 
-        {/* Menu Mobile (alvo do tour: menu-mobile-drawer) */}
-        <nav className="menu-mobile no-underline menu-mobile-drawer" style={{ right: open ? 0 : "-110vw" }} data-tour="menu-mobile-drawer">
+        {/* Menu Mobile */}
+        <nav
+          className="menu-mobile no-underline menu-mobile-drawer"
+          style={{ right: open ? 0 : "-110vw" }}
+          data-tour="menu-mobile-drawer"
+        >
           <div className="mobile-head">
-            <button onClick={() => setOpen(false)} aria-label="Fechar menu" className="close">
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Fechar menu"
+              className="close"
+            >
               <X size={30} />
             </button>
 
-            <Link href="/" onClick={() => setOpen(false)} className="logo-mobile" aria-label="Início">
+            <Link
+              href="/"
+              onClick={() => setOpen(false)}
+              className="logo-mobile"
+              aria-label="Início"
+            >
               <img src="/logo-pedraum.png" alt="Pedraum Brasil" />
             </Link>
 
-            {/* Ícone Login/Perfil topo drawer */}
             {isAuthed ? (
-              <Link href="/perfil" onClick={() => setOpen(false)} title="Meu Perfil" className="icon-top">
+              <Link
+                href="/perfil"
+                onClick={() => setOpen(false)}
+                title="Meu Perfil"
+                className="icon-top"
+              >
                 <User size={22} />
               </Link>
             ) : (
-              <Link href="/auth/login" onClick={() => setOpen(false)} title="Login" className="icon-top">
+              <Link
+                href="/auth/login"
+                onClick={() => setOpen(false)}
+                title="Login"
+                className="icon-top"
+              >
                 <LogIn size={22} />
               </Link>
             )}
@@ -331,7 +408,9 @@ export default function Header() {
                     <span className="left">
                       {icon}
                       <span>{label}</span>
-                      {label === "Painel" && isAdmin && <small className="badge">ADMIN</small>}
+                      {label === "Painel" && isAdmin && (
+                        <small className="badge">ADMIN</small>
+                      )}
                     </span>
                     <ChevronDown size={18} className="chev" />
                   </span>
@@ -340,19 +419,31 @@ export default function Header() {
               </li>
             ))}
 
-            {/* Ações rápidas no mobile */}
             {!isAuthed ? (
               <li className="quick-actions">
-                <Link href="/auth/login" onClick={() => setOpen(false)} className="btn-ghost">
+                <Link
+                  href="/auth/login"
+                  onClick={() => setOpen(false)}
+                  className="btn-ghost"
+                >
                   Entrar
                 </Link>
-                <Link href="/auth/register" onClick={() => setOpen(false)} className="btn-cta" data-tour="header-register">
+                <Link
+                  href="/auth/register"
+                  onClick={() => setOpen(false)}
+                  className="btn-cta"
+                  data-tour="header-register"
+                >
                   Cadastrar
                 </Link>
               </li>
             ) : (
               <li className="quick-actions">
-                <Link href={painelHref} onClick={() => setOpen(false)} className="btn-cta">
+                <Link
+                  href={painelHref}
+                  onClick={() => setOpen(false)}
+                  className="btn-cta"
+                >
                   Ir para o Painel
                 </Link>
               </li>
@@ -364,65 +455,177 @@ export default function Header() {
       {/* ======= ESTILOS ======= */}
       <style>{`
         .no-underline a { text-decoration: none !important; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.28); z-index: 90; }
+        .overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,.28);
+          z-index: 90;
+        }
 
-        .hint-wrap { margin-left: 6px; display: inline-flex; align-items: center; position: relative; color: #9ca3af; cursor: help; }
+        .hint-wrap {
+          margin-left: 6px;
+          display: inline-flex;
+          align-items: center;
+          position: relative;
+          color: #9ca3af;
+          cursor: help;
+        }
         .hint-wrap:hover { color: #64748b; }
         .hint-bubble {
-          visibility: hidden; opacity: 0;
-          min-width: 220px; max-width: 280px; background-color: #023047; color: #fff;
-          border-radius: 8px; padding: 8px 10px; position: absolute; z-index: 999;
-          top: 140%; left: 50%; transform: translateX(-50%);
-          transition: opacity .18s, visibility .18s; font-size: .82rem; line-height: 1.25; white-space: normal;
+          visibility: hidden;
+          opacity: 0;
+          min-width: 220px;
+          max-width: 280px;
+          background-color: #023047;
+          color: #fff;
+          border-radius: 8px;
+          padding: 8px 10px;
+          position: absolute;
+          z-index: 999;
+          top: 140%;
+          left: 50%;
+          transform: translateX(-50%);
+          transition: opacity .18s, visibility .18s;
+          font-size: .82rem;
+          line-height: 1.25;
+          white-space: normal;
           box-shadow: 0 8px 24px rgba(0,0,0,.16);
         }
-        .hint-wrap:hover .hint-bubble { visibility: visible; opacity: 1; }
+        .hint-wrap:hover .hint-bubble {
+          visibility: visible;
+          opacity: 1;
+        }
 
         .menu-mobile {
-          position: fixed; top: 0; right: 0; width: min(84vw, 360px); height: 100vh; background: #fff;
-          z-index: 100; box-shadow: -10px 0 36px rgba(0,0,0,.18);
+          position: fixed;
+          top: 0;
+          right: 0;
+          width: min(84vw, 360px);
+          height: 100vh;
+          background: #fff;
+          z-index: 100;
+          box-shadow: -10px 0 36px rgba(0,0,0,.18);
           transition: right .24s cubic-bezier(.42,.91,.56,1.17);
-          display: flex; flex-direction: column;
+          display: flex;
+          flex-direction: column;
         }
         .mobile-head {
-          display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 8px;
-          padding: 14px 12px; border-bottom: 1px solid #eef2f7;
+          display: grid;
+          grid-template-columns: 40px 1fr 40px;
+          align-items: center;
+          gap: 8px;
+          padding: 14px 12px;
+          border-bottom: 1px solid #eef2f7;
         }
-        .close { background: transparent; border: none; color: #023047; cursor: pointer; padding: 6px; border-radius: 10px; }
+        .close {
+          background: transparent;
+          border: none;
+          color: #023047;
+          cursor: pointer;
+          padding: 6px;
+          border-radius: 10px;
+        }
         .close:hover { background: #f3f4f6; }
         .logo-mobile { justify-self: center; }
         .logo-mobile img { height: 36px; display: block; }
-        .icon-top { justify-self: end; color: #FB8500; display: inline-flex; align-items: center; }
+        .icon-top {
+          justify-self: end;
+          color: #FB8500;
+          display: inline-flex;
+          align-items: center;
+        }
 
-        .mobile-list { list-style: none; padding: 10px 12px 22px; margin: 0; overflow-y: auto; }
+        .mobile-list {
+          list-style: none;
+          padding: 10px 12px 22px;
+          margin: 0;
+          overflow-y: auto;
+        }
         .mobile-item {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 12px 10px; border-radius: 12px; color: #023047; background: #fff; transition: background .12s;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 10px;
+          border-radius: 12px;
+          color: #023047;
+          background: #fff;
+          transition: background .12s;
         }
         .mobile-item:hover { background: #f8fafc; }
-        .mobile-item .left { display: inline-flex; gap: 10px; align-items: center; }
+        .mobile-item .left {
+          display: inline-flex;
+          gap: 10px;
+          align-items: center;
+        }
         .mobile-item .chev { color: #94a3b8; }
-        .mobile-desc { color: #64748b; font-size: .86rem; margin: 3px 8px 14px 12px; }
-
-        .badge {
-          margin-left: 8px; background: #e3f2ff; color: #0369a1; font-weight: 700;
-          font-size: .65rem; padding: 2px 6px; border-radius: 999px;
+        .mobile-desc {
+          color: #64748b;
+          font-size: .86rem;
+          margin: 3px 8px 14px 12px;
         }
 
-        .quick-actions { margin-top: 10px; display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
-        .btn-cta, .btn-ghost { display: inline-block; text-align: center; padding: 12px 12px; border-radius: 14px; font-weight: 700; width: 100%; }
-        .btn-cta { background: #FB8500; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,.08); grid-column: span 2; }
-        .btn-ghost { background: #f3f4f6; color: #023047; }
+        .badge {
+          margin-left: 8px;
+          background: #e3f2ff;
+          color: #0369a1;
+          font-weight: 700;
+          font-size: .65rem;
+          padding: 2px 6px;
+          border-radius: 999px;
+        }
+
+        .quick-actions {
+          margin-top: 10px;
+          display: grid;
+          gap: 10px;
+          grid-template-columns: 1fr 1fr;
+        }
+        .btn-cta,
+        .btn-ghost {
+          display: inline-block;
+          text-align: center;
+          padding: 12px 12px;
+          border-radius: 14px;
+          font-weight: 700;
+          width: 100%;
+        }
+        .btn-cta {
+          background: #FB8500;
+          color: #fff;
+          box-shadow: 0 4px 14px rgba(0,0,0,.08);
+          grid-column: span 2;
+        }
+        .btn-ghost {
+          background: #f3f4f6;
+          color: #023047;
+        }
 
         .hamburger {
-          background: transparent; border: none; color: #023047; padding: 6px; margin-left: 6px; cursor: pointer; border-radius: 10px;
+          background: transparent;
+          border: none;
+          color: #023047;
+          padding: 6px;
+          margin-left: 6px;
+          cursor: pointer;
+          border-radius: 10px;
         }
         .hamburger:hover { background: #f3f4f6; }
 
+        /* ===== Responsividade ===== */
+
+        /* Desktop: esconde hambúrguer, mostra menu */
+        @media (min-width: 981px) {
+          .hamburger { display: none !important; }
+          .menu-desktop { display: flex !important; }
+          .login-mobile { display: inline-flex !important; }
+        }
+
+        /* Mobile: mostra hambúrguer, esconde menu desktop + botão cadastrar desktop */
         @media (max-width: 980px) {
           .menu-desktop { display: none !important; }
           .btn-register-desktop { display: none !important; }
           .login-mobile { display: inline-flex !important; }
+          .hamburger { display: inline-flex !important; }
         }
       `}</style>
     </>

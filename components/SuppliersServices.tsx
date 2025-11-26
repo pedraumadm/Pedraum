@@ -2,13 +2,13 @@
 import Link from "next/link";
 
 type Props = {
-  primaryHref?: string; // rota para cadastrar produto/serviço
+  primaryHref?: string;   // rota para criar conta / acessar painel e responder demandas
   secondaryHref?: string; // rota para ver demandas ativas
-  imgSrc?: string; // imagem ilustrativa do fornecedor
+  imgSrc?: string;        // imagem ilustrativa (fornecedor respondendo demanda)
 };
 
 export default function SuppliersServices({
-  primaryHref = "/vitrine", // ajuste para a rota real de cadastro
+  primaryHref = "/auth/register",
   secondaryHref = "/demandas",
   imgSrc = "/banners/fornecedor.jpg",
 }: Props) {
@@ -25,44 +25,47 @@ export default function SuppliersServices({
         {/* Coluna de conteúdo */}
         <div className="ss-content">
           <h2 id="ss-title" className="ss-title">
-            É Fornecedor? Conecte seus produtos e serviços às mineradoras que
-            precisam de você
+            É fornecedor? Responda demandas reais e feche negócios com
+            mineradoras de todo o Brasil
           </h2>
 
           <p className="ss-desc">
-            No <b>Pedraum</b>, você ganha visibilidade no setor de britagem e
-            mineração. Cadastre seus produtos e serviços em poucos minutos e
-            comece a receber
-            <b> demandas reais</b> de empresas em busca de fornecedores
-            qualificados.
+            No <b>Pedraum</b>, as oportunidades nascem a partir das{" "}
+            <b>demandas publicadas</b> por quem precisa comprar. Você acompanha
+            o fluxo de demandas do seu segmento, envia propostas em poucos
+            cliques e transforma necessidade em contrato – sem depender de
+            vitrine de produtos.
           </p>
 
           <ul className="ss-benefits" role="list">
             <li>
-              <span className="dot" /> <b>Mais clientes, menos esforço:</b>{" "}
-              esteja na vitrine e seja encontrado por mineradoras de todo o
-              Brasil.
+              <span className="dot" />{" "}
+              <b>Foque em quem já está comprando:</b> visualize apenas demandas
+              reais do seu nicho, prontas para receber orçamento.
             </li>
             <li>
-              <span className="dot" /> <b>Atenda demandas ativas:</b> receba
-              solicitações diretas de quem precisa, sem perder tempo com
-              prospecção.
+              <span className="dot" />{" "}
+              <b>Envie propostas diretas:</b> responda as demandas pela
+              plataforma, apresente suas soluções e negocie com o decisor.
             </li>
             <li>
-              <span className="dot" /> <b>Leads qualificados:</b> contatos e
-              propostas chegam direto pela plataforma.
+              <span className="dot" />{" "}
+              <b>Organize oportunidades:</b> acompanhe demandas respondidas,
+              contatos e status em um único lugar.
             </li>
             <li>
-              <span className="dot" /> <b>Negócios com segurança:</b> conectamos
-              você a compradores reais e verificados.
+              <span className="dot" />{" "}
+              <b>Negócios com segurança:</b> conectamos você a compradores{" "}
+              <b>verificados</b>, reduzindo ruído e perda de tempo.
             </li>
           </ul>
 
-          {/* Ações – estilo idêntico ao Hero */}
+          {/* Ações – estilo idêntico ao Hero (agora voltadas a demandas) */}
           <div
             className="ss-actions"
             style={{ display: "flex", gap: 14, flexWrap: "wrap" }}
           >
+            {/* CTA principal: criar conta para responder demandas */}
             <Link href={primaryHref} passHref legacyBehavior>
               <a
                 style={{
@@ -74,7 +77,7 @@ export default function SuppliersServices({
                   padding: "14px 22px",
                   boxShadow: "0 10px 24px #0003",
                   textDecoration: "none",
-                  minWidth: 170,
+                  minWidth: 210,
                   textAlign: "center",
                   letterSpacing: ".01em",
                   transition: "background .15s",
@@ -86,10 +89,11 @@ export default function SuppliersServices({
                   (e.currentTarget.style.background = "#FB8500")
                 }
               >
-                Cadastrar Produto ou Serviço
+                Criar conta para responder demandas
               </a>
             </Link>
 
+            {/* CTA secundário: ver lista de demandas */}
             <Link href={secondaryHref} passHref legacyBehavior>
               <a
                 style={{
@@ -101,7 +105,7 @@ export default function SuppliersServices({
                   padding: "14px 22px",
                   boxShadow: "0 10px 24px #0000001f",
                   textDecoration: "none",
-                  minWidth: 180,
+                  minWidth: 190,
                   textAlign: "center",
                   letterSpacing: ".01em",
                   transition: "background .15s",
@@ -111,7 +115,7 @@ export default function SuppliersServices({
                   (e.currentTarget.style.background = "rgba(255,255,255,.92)")
                 }
               >
-                Ver Demandas Ativas
+                Ver demandas publicadas
               </a>
             </Link>
           </div>
@@ -213,7 +217,6 @@ export default function SuppliersServices({
           flex: 0 0 8px;
         }
 
-        /* Ações (layout) */
         .ss-actions {
           display: flex;
           flex-wrap: wrap;
@@ -221,56 +224,8 @@ export default function SuppliersServices({
           margin-top: 10px;
         }
 
-        /* === BOTÕES NO ESTILO DO HERO === */
-        /* Primário laranja */
-        .btn-hero-primary {
-          background: #fb8500;
-          color: #fff;
-          font-weight: 700;
-          font-size: 1.09rem; /* igual ao hero */
-          border-radius: 18px; /* igual ao hero */
-          padding: 14px 28px; /* igual ao hero */
-          box-shadow: 0 4px 20px #0003; /* igual ao hero */
-          text-decoration: none;
-          transition:
-            background 0.15s,
-            transform 0.13s;
-          display: inline-block;
-          letter-spacing: -0.5px;
-        }
-        .btn-hero-primary:hover {
-          background: #e17000;
-          transform: translateY(-1px);
-        }
-
-        /* Secundário branco (borda + leve sombra) */
-        .btn-hero-secondary {
-          background: #fff;
-          color: #023047;
-          font-weight: 700;
-          font-size: 1.09rem; /* igual ao hero */
-          border-radius: 18px; /* igual ao hero */
-          padding: 14px 24px; /* igual ao hero */
-          box-shadow: 0 4px 20px #0001; /* igual ao hero */
-          border: 1.5px solid #e6e6e6; /* igual ao hero */
-          text-decoration: none;
-          transition:
-            background 0.15s,
-            transform 0.13s,
-            border-color 0.15s;
-          display: inline-block;
-          letter-spacing: -0.5px;
-        }
-        .btn-hero-secondary:hover {
-          background: #f8fafc;
-          border-color: #dfe3e8;
-          transform: translateY(-1px);
-        }
-
-        /* Mobile: botões 100% */
         @media (max-width: 640px) {
-          .btn-hero-primary,
-          .btn-hero-secondary {
+          .ss-actions a {
             width: 100%;
             max-width: 520px;
             margin: 0 auto;

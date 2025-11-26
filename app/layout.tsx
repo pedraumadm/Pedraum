@@ -1,32 +1,39 @@
-// =============================
-// app/layout.tsx
-// =============================
+// =======================================
+// app/layout.tsx — Versão Premium Pedraum
+// =======================================
 
 import "@/styles/globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
-import OnboardingTour from "@/components/OnboardingTour";
+
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsappFloatButton from "@/components/WhatsappFloatButton";
+import OnboardingTour from "@/components/OnboardingTour";
 
+// =========================
+// Fonte global
+// =========================
 const inter = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
+// =========================
+// SEO + Metadados
+// =========================
 export const metadata: Metadata = {
-  title: "Pedraum Brasil - Marketplace de Mineração e Britagem",
+  title: "Pedraum Brasil — Plataforma de Demandas de Mineração",
   description:
-    "Marketplace de máquinas, peças, serviços e soluções para o setor de mineração e britagem no Brasil.",
+    "A maior plataforma de demandas de mineração e britagem do Brasil. Publique, encontre e negocie soluções reais.",
+  metadataBase: new URL("https://pedraum.com.br"),
   icons: {
     icon: "/favicon.ico",
   },
-  metadataBase: new URL("https://pedraum.com.br"),
   openGraph: {
     title: "Pedraum Brasil",
     description:
-      "Conecte compradores e vendedores de máquinas, serviços e soluções para mineração e britagem.",
+      "A plataforma nº 1 para demandas reais de mineração e britagem.",
     url: "https://pedraum.com.br",
     siteName: "Pedraum Brasil",
     images: [
@@ -44,26 +51,55 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pedraum Brasil",
     description:
-      "Marketplace para mineração e britagem. Compre, venda e conecte com segurança.",
+      "Publique e encontre demandas reais de mineração e britagem.",
     images: ["/og-image.png"],
   },
 };
 
+// =========================
+// Viewport — trava zoom mobile
+// =========================
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false, // <-- CORRETO (boolean)
+};
+
+// =========================
+// Layout Global
+// =========================
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR">
-      <head />
-      <body className={`${inter.className} bg-[#F6F9FA] text-[#023047] antialiased`}>
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body
+        className={`${inter.className} bg-[#F6F9FA] text-[#023047] antialiased`}
+      >
+        {/* ===============================
+            HEADER — fixo, limpo e moderno
+        ================================= */}
         <Header />
-        <main className="min-h-screen">{children}</main>
+
+        {/* ===============================
+            CONTEÚDO PRINCIPAL
+        ================================= */}
+        <main className="min-h-screen w-full mx-auto">
+          {children}
+        </main>
+
+        {/* WhatsApp flutuante */}
         <WhatsappFloatButton />
+
+        {/* ===============================
+            FOOTER — institucional
+        ================================= */}
         <Footer />
 
-        {/* Tour guiado – fica no final para garantir que os alvos já estejam no DOM */}
+        {/* Onboarding — carregado sempre no final */}
         <OnboardingTour />
       </body>
     </html>

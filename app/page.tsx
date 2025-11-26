@@ -97,10 +97,7 @@ export default function HomePage() {
         <SuppliersServices />
       </div>
 
-      {/* Vitrine de máquinas (wrapper-alvo do tour) */}
-      <div className="mt-24 machines-section">
-        <MachinesShowcase />
-      </div>
+      
 
       {/* Depoimentos (wrapper-alvo do tour) */}
       <div className="mt-24 mb-24 testimonials-section">

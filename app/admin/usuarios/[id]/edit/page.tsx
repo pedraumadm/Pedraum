@@ -1,7 +1,6 @@
-// app/admin/usuarios/[id]/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react"; 
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -14,6 +13,9 @@ import {
   serverTimestamp,
   addDoc,
   collection,
+  query,
+  where,
+  getCountFromServer,
 } from "firebase/firestore";
 import { sendPasswordResetEmail, getIdToken } from "firebase/auth";
 import ImageUploader from "@/components/ImageUploader";
@@ -120,6 +122,12 @@ type PerfilForm = {
     ufs: string[];
     ticketMin?: number | null;
     ticketMax?: number | null;
+  };
+
+  /** ===== NOVO: Configuração de leads / demandas ===== */
+  leadConfig?: {
+    mode?: "free" | "paid";       // "free" => desbloqueios gratuitos, "paid" => via checkout
+    freeQuota?: number | null;    // opcional: limite de oportunidades grátis (degustação)
   };
 
   mpConnected?: boolean;
@@ -405,6 +413,15 @@ export default function AdminEditarUsuarioPage() {
 
   const [form, setForm] = useState<PerfilForm | null>(null);
 
+  /** NOVO: estatísticas de demandas / oportunidades desse fornecedor */
+  const [leadStats, setLeadStats] = useState({
+    loading: true,
+    total: 0,
+    unlocked: 0,
+    freeUnlocked: 0,
+    paidUnlocked: 0,
+  });
+
   // Taxonomia (apenas nível de categorias) — fallback defensivo
   const { categorias = [] as { nome: string }[], loading: taxLoading } = useTaxonomia();
   const categoriasOrdenadas = useMemo(
@@ -442,7 +459,7 @@ export default function AdminEditarUsuarioPage() {
           setLoading(false);
           return;
         }
-        const data = snap.data();
+        const data = snap.data() as any;
 
         const baseAgenda = Object.fromEntries(
           diasSemana.map((d) => [d.key, { ativo: d.key !== "dom", das: "08:00", ate: "18:00" }]),
@@ -454,6 +471,11 @@ export default function AdminEditarUsuarioPage() {
           : data.portfolioPdfUrl
           ? [data.portfolioPdfUrl]
           : [];
+
+        const leadConfig = (data.leadConfig as PerfilForm["leadConfig"]) || {
+          mode: "free",
+          freeQuota: null,
+        };
 
         setForm({
           id,
@@ -508,6 +530,9 @@ export default function AdminEditarUsuarioPage() {
             ticketMax: data.leadPreferencias?.ticketMax ?? null,
           },
 
+          /** NOVO: config de leads / demandas */
+          leadConfig,
+
           mpConnected: !!data.mpConnected,
           mpStatus: data.mpStatus || "desconectado",
           categoryLimit: Number((data as any)?.categoryLimit ?? 3),
@@ -539,33 +564,102 @@ export default function AdminEditarUsuarioPage() {
     })();
   }, [id]);
 
+  /** NOVO: carrega estatísticas de demandas desse fornecedor */
+  useEffect(() => {
+    if (!form?.id) return;
+
+    (async () => {
+      try {
+        setLeadStats((prev) => ({ ...prev, loading: true }));
+
+        // Todas as oportunidades enviadas para este fornecedor
+        const baseQ = query(
+          collection(db, "demandAssignments"),
+          where("supplierId", "==", form.id)
+        );
+        const totalSnap = await getCountFromServer(baseQ as any);
+        const total = totalSnap.data().count || 0;
+
+        // Somente as desbloqueadas
+        const unlockedQ = query(
+          collection(db, "demandAssignments"),
+          where("supplierId", "==", form.id),
+          where("status", "==", "unlocked")
+        );
+        const unlockedSnap = await getCountFromServer(unlockedQ as any);
+        const unlocked = unlockedSnap.data().count || 0;
+
+        // Desbloqueadas grátis
+        let freeUnlocked = 0;
+        try {
+          const freeQ = query(
+            collection(db, "demandAssignments"),
+            where("supplierId", "==", form.id),
+            where("status", "==", "unlocked"),
+            where("billingType", "==", "free")
+          );
+          const freeSnap = await getCountFromServer(freeQ as any);
+          freeUnlocked = freeSnap.data().count || 0;
+        } catch {
+          freeUnlocked = 0;
+        }
+
+        // Desbloqueadas pagas
+        let paidUnlocked = 0;
+        try {
+          const paidQ = query(
+            collection(db, "demandAssignments"),
+            where("supplierId", "==", form.id),
+            where("status", "==", "unlocked"),
+            where("billingType", "==", "paid")
+          );
+          const paidSnap = await getCountFromServer(paidQ as any);
+          paidUnlocked = paidSnap.data().count || 0;
+        } catch {
+          paidUnlocked = 0;
+        }
+
+        setLeadStats({
+          loading: false,
+          total,
+          unlocked,
+          freeUnlocked,
+          paidUnlocked,
+        });
+      } catch (e) {
+        console.error("Erro ao carregar estatísticas de demandas:", e);
+        setLeadStats((prev) => ({ ...prev, loading: false }));
+      }
+    })();
+  }, [form?.id]);
+
   function setField<K extends keyof PerfilForm>(key: K, value: PerfilForm[K]) {
     if (!form) return;
     setForm({ ...form, [key]: value });
   }
 
   // ====== Editor local de categoria (sem sub), iguais ao /perfil ======
-const [selCategoria, setSelCategoria] = useState("");
-const [vendaProdutosAtivo, setVendaProdutosAtivo] = useState(false);
-const [vendaProdutosObs, setVendaProdutosObs] = useState("");
-const [vendaPecasAtivo, setVendaPecasAtivo] = useState(false);
-const [vendaPecasObs, setVendaPecasObs] = useState("");
-const [servicosAtivo, setServicosAtivo] = useState(false);
-const [servicosObs, setServicosObs] = useState("");
-const editorRef = useRef<HTMLDivElement | null>(null);
-const [editorOpen, setEditorOpen] = useState(false);
+  const [selCategoria, setSelCategoria] = useState("");
+  const [vendaProdutosAtivo, setVendaProdutosAtivo] = useState(false);
+  const [vendaProdutosObs, setVendaProdutosObs] = useState("");
+  const [vendaPecasAtivo, setVendaPecasAtivo] = useState(false);
+  const [vendaPecasObs, setVendaPecasObs] = useState("");
+  const [servicosAtivo, setServicosAtivo] = useState(false);
+  const [servicosObs, setServicosObs] = useState("");
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
-const nomesCategoriasTodos = useMemo(() => (categorias || []).map((c) => c.nome), [categorias]);
+  const nomesCategoriasTodos = useMemo(() => (categorias || []).map((c) => c.nome), [categorias]);
 
-const atingiuLimite = useMemo(() => {
-  const lim = Number(form?.categoryLimit ?? 3);
-  return (form?.atuacaoBasica?.length || 0) >= lim;
-}, [form?.atuacaoBasica?.length, form?.categoryLimit]);
+  const atingiuLimite = useMemo(() => {
+    const lim = Number(form?.categoryLimit ?? 3);
+    return (form?.atuacaoBasica?.length || 0) >= lim;
+  }, [form?.atuacaoBasica?.length, form?.categoryLimit]);
 
-const selecionadaJaExiste = useMemo(() => {
-  const k = normCat(selCategoria);
-  return !!form?.atuacaoBasica?.find((a) => normCat(a.categoria) === k);
-}, [form?.atuacaoBasica, selCategoria]);
+  const selecionadaJaExiste = useMemo(() => {
+    const k = normCat(selCategoria);
+    return !!form?.atuacaoBasica?.find((a) => normCat(a.categoria) === k);
+  }, [form?.atuacaoBasica, selCategoria]);
 
   const intelPreview = useMemo(() => {
     if (!selCategoria) return null;
@@ -590,63 +684,63 @@ const selecionadaJaExiste = useMemo(() => {
   ]);
 
   function resetEditorCategoria() {
-  setSelCategoria("");
-  setVendaProdutosAtivo(false);
-  setVendaProdutosObs("");
-  setVendaPecasAtivo(false);
-  setVendaPecasObs("");
-  setServicosAtivo(false);
-  setServicosObs("");
-}
-
-function carregarEditorDeUmaCategoria(cat: AtuacaoBasicaPorCategoria) {
-  setSelCategoria(cat.categoria);
-  setVendaProdutosAtivo(!!cat.vendaProdutos?.ativo);
-  setVendaProdutosObs(cat.vendaProdutos?.obs || "");
-  setVendaPecasAtivo(!!cat.vendaPecas?.ativo);
-  setVendaPecasObs(cat.vendaPecas?.obs || "");
-  setServicosAtivo(!!cat.servicos?.ativo);
-  setServicosObs(cat.servicos?.obs || "");
-  setEditorOpen(true);
-  setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-}
-
-function addOuAtualizaCategoriaBasica() {
-  if (!form) return;
-  const categoria = selCategoria.trim();
-  if (!categoria) { setMsg("Selecione uma categoria."); return; }
-
-  if (vendaProdutosAtivo && !vendaProdutosObs.trim()) { setMsg("Descreva o que vende em 'Vendo produtos'."); return; }
-  if (vendaPecasAtivo && !vendaPecasObs.trim()) { setMsg("Descreva quais peças você vende."); return; }
-  if (servicosAtivo && !servicosObs.trim()) { setMsg("Descreva quais serviços você presta."); return; }
-
-  const novo: AtuacaoBasicaPorCategoria = {
-    categoria,
-    vendaProdutos: { ativo: vendaProdutosAtivo, obs: vendaProdutosObs.trim() },
-    vendaPecas: { ativo: vendaPecasAtivo, obs: vendaPecasObs.trim() },
-    servicos: { ativo: servicosAtivo, obs: servicosObs.trim() },
-  };
-
-  const atual = form.atuacaoBasica || [];
-  const existe = atual.find((a) => a.categoria === categoria);
-  const limite = Number(form.categoryLimit ?? 3);
-  const jaNoLimite = atual.length >= limite;
-
-  if (!existe && jaNoLimite) {
-    setMsg(`Você atingiu o limite de ${limite} categoria(s).`);
-    return;
+    setSelCategoria("");
+    setVendaProdutosAtivo(false);
+    setVendaProdutosObs("");
+    setVendaPecasAtivo(false);
+    setVendaPecasObs("");
+    setServicosAtivo(false);
+    setServicosObs("");
   }
 
-  const atuacaoBasica = existe
-    ? atual.map((a) => (a.categoria === categoria ? novo : a))
-    : [...atual, novo];
+  function carregarEditorDeUmaCategoria(cat: AtuacaoBasicaPorCategoria) {
+    setSelCategoria(cat.categoria);
+    setVendaProdutosAtivo(!!cat.vendaProdutos?.ativo);
+    setVendaProdutosObs(cat.vendaProdutos?.obs || "");
+    setVendaPecasAtivo(!!cat.vendaPecas?.ativo);
+    setVendaPecasObs(cat.vendaPecas?.obs || "");
+    setServicosAtivo(!!cat.servicos?.ativo);
+    setServicosObs(cat.servicos?.obs || "");
+    setEditorOpen(true);
+    setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
 
-  setForm({ ...form, atuacaoBasica });
-  setMsg(existe ? "Categoria atualizada." : "Categoria adicionada.");
-  setTimeout(() => setMsg(""), 2500);
-  resetEditorCategoria();
-  setEditorOpen(false);
-}
+  function addOuAtualizaCategoriaBasica() {
+    if (!form) return;
+    const categoria = selCategoria.trim();
+    if (!categoria) { setMsg("Selecione uma categoria."); return; }
+
+    if (vendaProdutosAtivo && !vendaProdutosObs.trim()) { setMsg("Descreva o que vende em 'Vendo produtos'."); return; }
+    if (vendaPecasAtivo && !vendaPecasObs.trim()) { setMsg("Descreva quais peças você vende."); return; }
+    if (servicosAtivo && !servicosObs.trim()) { setMsg("Descreva quais serviços você presta."); return; }
+
+    const novo: AtuacaoBasicaPorCategoria = {
+      categoria,
+      vendaProdutos: { ativo: vendaProdutosAtivo, obs: vendaProdutosObs.trim() },
+      vendaPecas: { ativo: vendaPecasAtivo, obs: vendaPecasObs.trim() },
+      servicos: { ativo: servicosAtivo, obs: servicosObs.trim() },
+    };
+
+    const atual = form.atuacaoBasica || [];
+    const existe = atual.find((a) => a.categoria === categoria);
+    const limite = Number(form.categoryLimit ?? 3);
+    const jaNoLimite = atual.length >= limite;
+
+    if (!existe && jaNoLimite) {
+      setMsg(`Você atingiu o limite de ${limite} categoria(s).`);
+      return;
+    }
+
+    const atuacaoBasica = existe
+      ? atual.map((a) => (a.categoria === categoria ? novo : a))
+      : [...atual, novo];
+
+    setForm({ ...form, atuacaoBasica });
+    setMsg(existe ? "Categoria atualizada." : "Categoria adicionada.");
+    setTimeout(() => setMsg(""), 2500);
+    resetEditorCategoria();
+    setEditorOpen(false);
+  }
 
 
   function removerCategoriaBasica(categoria: string) {
@@ -780,6 +874,15 @@ function addOuAtualizaCategoriaBasica() {
           ufs: form.leadPreferencias?.ufs || [],
           ticketMin: form.leadPreferencias?.ticketMin ?? null,
           ticketMax: form.leadPreferencias?.ticketMax ?? null,
+        },
+
+        /** ===== NOVO: Config de leads / demandas ===== */
+        leadConfig: {
+          mode: form.leadConfig?.mode || "free",
+          freeQuota:
+            form.leadConfig?.freeQuota === undefined || form.leadConfig?.freeQuota === null
+              ? null
+              : Number(form.leadConfig.freeQuota),
         },
 
         // MP
@@ -1029,269 +1132,267 @@ function addOuAtualizaCategoriaBasica() {
         </div>
 
         {/* Atuação — layout idêntico ao /perfil */}
-<div className="card">
-  <div className="card-title">Atuação por Categoria</div>
+        <div className="card">
+          <div className="card-title">Atuação por Categoria</div>
 
-  {/* contador/limite no topo */}
-  <div style={{ marginBottom: 14, fontSize: 13, color: "#334155", fontWeight: 800 }}>
-    Categorias: <b>{form.atuacaoBasica.length}/{Number(form.categoryLimit ?? 3)}</b>
-    {atingiuLimite && (
-      <span style={{ color: "#b91c1c", marginLeft: 8 }}>
-        (Limite atingido)
-      </span>
-    )}
-  </div>
-
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-    {/* Editor da categoria */}
-    <div>
-      <div className="label">Categoria</div>
-      <select
-        className="input"
-        value={selCategoria}
-        onChange={(e) => {
-          setSelCategoria(e.target.value);
-          if (e.target.value) {
-            setEditorOpen(true);
-            setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-          }
-        }}
-        disabled={taxLoading}
-      >
-        <option value="">{taxLoading ? "Carregando categorias..." : "Selecionar categoria..."}</option>
-        {nomesCategoriasTodos.map((c) => (
-          <option
-            key={c}
-            value={c}
-            disabled={atingiuLimite && !form.atuacaoBasica.find(a => a.categoria === c)}
-          >
-            {c}
-          </option>
-        ))}
-      </select>
-
-      {/* aviso de limite como no perfil */}
-      {atingiuLimite && selCategoria && !selecionadaJaExiste && (
-        <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 6, fontWeight: 800 }}>
-          Você já tem {Number(form.categoryLimit ?? 3)} categoria(s). Remova alguma para adicionar outra.
-        </div>
-      )}
-
-      {/* EDITOR */}
-      <div ref={editorRef}>
-        {!selCategoria ? (
-          <div className="rounded-xl border p-4 mt-3" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
-            <div style={{ fontWeight: 800, color: "#334155" }}>
-              Selecione uma categoria para configurar as opções.
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-2xl border p-0 mt-3 overflow-hidden" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
-            {/* header compacto com toggle */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                padding: "10px 12px",
-                background: "#eef6ff",
-                borderBottom: "1px solid #e6ebf2",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 900, color: "#023047" }}>Categoria:</span>
-                <span className="pill" style={{ background: "#eaf2ff", borderColor: "#dbe7ff", color: "#0f1a2a" }}>
-                  {selCategoria}
-                </span>
-                {atingiuLimite && !selecionadaJaExiste && (
-                  <span className="pill" style={{ background: "#fff1f2", borderColor: "#ffe0e6", color: "#be123c" }}>
-                    Limite atingido
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                className="btn-sec"
-                onClick={() => setEditorOpen((v) => !v)}
-                title={editorOpen ? "Fechar editor" : "Abrir editor"}
-              >
-                {editorOpen ? "Fechar editor" : "Abrir editor"}
-              </button>
-            </div>
-
-            {editorOpen && (
-              <div className="p-4">
-                <div className="label" style={{ marginBottom: 8 }}>
-                  O que o usuário faz nessa categoria?
-                </div>
-
-                {/* Vendo produtos (dinâmico) */}
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={vendaProdutosAtivo}
-                    onChange={(e) => setVendaProdutosAtivo(e.target.checked)}
-                  />
-                  <span>{labelProdutos(selCategoria)}</span>
-                </label>
-                {vendaProdutosAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder={phProdutos(selCategoria)}
-                    value={vendaProdutosObs}
-                    onChange={(e) => setVendaProdutosObs(e.target.value)}
-                  />
-                )}
-
-                <div style={{ height: 10 }} />
-
-                {/* Vendo peças (dinâmico) */}
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={vendaPecasAtivo}
-                    onChange={(e) => setVendaPecasAtivo(e.target.checked)}
-                  />
-                  <span>{labelPecas(selCategoria)}</span>
-                </label>
-                {vendaPecasAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder={phPecas(selCategoria)}
-                    value={vendaPecasObs}
-                    onChange={(e) => setVendaPecasObs(e.target.value)}
-                  />
-                )}
-
-                <div style={{ height: 10 }} />
-
-                {/* Presto serviços (dinâmico) */}
-                <label className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={servicosAtivo}
-                    onChange={(e) => setServicosAtivo(e.target.checked)}
-                  />
-                  <span>{labelServicos(selCategoria)}</span>
-                </label>
-                {servicosAtivo && (
-                  <textarea
-                    className="input mt-2"
-                    rows={3}
-                    placeholder={phServicos(selCategoria)}
-                    value={servicosObs}
-                    onChange={(e) => setServicosObs(e.target.value)}
-                  />
-                )}
-
-                <div className="flex gap-8 mt-3">
-                  <button
-                    type="button"
-                    className="btn-sec"
-                    onClick={addOuAtualizaCategoriaBasica}
-                    disabled={!selCategoria || ( atingiuLimite && !selecionadaJaExiste )}
-                    title={
-                      atingiuLimite && !selecionadaJaExiste
-                        ? `Limite de ${Number(form.categoryLimit ?? 3)} atingido`
-                        : "Adicionar/Atualizar"
-                    }
-                  >
-                    <Plus size={14} /> {selecionadaJaExiste ? "Atualizar categoria" : "Adicionar categoria"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-sec"
-                    onClick={() => { resetEditorCategoria(); setEditorOpen(false); }}
-                  >
-                    Limpar e fechar
-                  </button>
-                </div>
-              </div>
+          {/* contador/limite no topo */}
+          <div style={{ marginBottom: 14, fontSize: 13, color: "#334155", fontWeight: 800 }}>
+            Categorias: <b>{form.atuacaoBasica.length}/{Number(form.categoryLimit ?? 3)}</b>
+            {atingiuLimite && (
+              <span style={{ color: "#b91c1c", marginLeft: 8 }}>
+                (Limite atingido)
+              </span>
             )}
           </div>
-        )}
-      </div>
-    </div>
 
-    {/* Lista de categorias adicionadas (chips iguais ao /perfil) */}
-    <div>
-      <div className="label">Categorias adicionadas</div>
-      {(!form.atuacaoBasica || form.atuacaoBasica.length === 0) ? (
-        <div className="rounded-xl border p-4" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
-          Nenhuma categoria adicionada ainda. (Opcional)
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {form.atuacaoBasica.map((a) => (
-            <div
-              key={a.categoria}
-              className="rounded-xl border p-3"
-              style={{ borderColor: "#e6ebf2", background: "#f8fbff" }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div style={{ fontWeight: 900, color: "#023047" }}>{a.categoria}</div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn-sec"
-                    title="Editar"
-                    onClick={() => carregarEditorDeUmaCategoria(a)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            {/* Editor da categoria */}
+            <div>
+              <div className="label">Categoria</div>
+              <select
+                className="input"
+                value={selCategoria}
+                onChange={(e) => {
+                  setSelCategoria(e.target.value);
+                  if (e.target.value) {
+                    setEditorOpen(true);
+                    setTimeout(() => editorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                  }
+                }}
+                disabled={taxLoading}
+              >
+                <option value="">{taxLoading ? "Carregando categorias..." : "Selecionar categoria..."}</option>
+                {nomesCategoriasTodos.map((c) => (
+                  <option
+                    key={c}
+                    value={c}
+                    disabled={atingiuLimite && !form.atuacaoBasica.find(a => a.categoria === c)}
                   >
-                    <Edit3 size={14} /> Editar
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-sec"
-                    title="Remover"
-                    onClick={() => removerCategoriaBasica(a.categoria)}
-                  >
-                    <Trash2 size={14} /> Remover
-                  </button>
+                    {c}
+                  </option>
+                ))}
+              </select>
+
+              {/* aviso de limite como no perfil */}
+              {atingiuLimite && selCategoria && !selecionadaJaExiste && (
+                <div style={{ color: "#b91c1c", fontSize: 12, marginTop: 6, fontWeight: 800 }}>
+                  Você já tem {Number(form.categoryLimit ?? 3)} categoria(s). Remova alguma para adicionar outra.
                 </div>
-              </div>
+              )}
 
-              {/* Chips com rótulos dinâmicos */}
-              <div className="chips" style={{ marginTop: 8 }}>
-                <span className="chip" style={{ opacity: a.vendaProdutos.ativo ? 1 : 0.5 }}>
-                  {/** opcional: <Check size={14} /> */}
-                  {labelProdutos(a.categoria)}{" "}
-                  {a.vendaProdutos.ativo ? "— " + a.vendaProdutos.obs : "(não aplica)"}
-                </span>
-                <span className="chip" style={{ opacity: a.vendaPecas.ativo ? 1 : 0.5 }}>
-                  {labelPecas(a.categoria)}{" "}
-                  {a.vendaPecas.ativo ? "— " + a.vendaPecas.obs : "(não aplica)"}
-                </span>
-                <span className="chip" style={{ opacity: a.servicos.ativo ? 1 : 0.5 }}>
-                  {labelServicos(a.categoria)}{" "}
-                  {a.servicos.ativo ? "— " + a.servicos.obs : "(não aplica)"}
-                </span>
+              {/* EDITOR */}
+              <div ref={editorRef}>
+                {!selCategoria ? (
+                  <div className="rounded-xl border p-4 mt-3" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
+                    <div style={{ fontWeight: 800, color: "#334155" }}>
+                      Selecione uma categoria para configurar as opções.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border p-0 mt-3 overflow-hidden" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
+                    {/* header compacto com toggle */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 10,
+                        padding: "10px 12px",
+                        background: "#eef6ff",
+                        borderBottom: "1px solid #e6ebf2",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 900, color: "#023047" }}>Categoria:</span>
+                        <span className="pill" style={{ background: "#eaf2ff", borderColor: "#dbe7ff", color: "#0f1a2a" }}>
+                          {selCategoria}
+                        </span>
+                        {atingiuLimite && !selecionadaJaExiste && (
+                          <span className="pill" style={{ background: "#fff1f2", borderColor: "#ffe0e6", color: "#be123c" }}>
+                            Limite atingido
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        onClick={() => setEditorOpen((v) => !v)}
+                        title={editorOpen ? "Fechar editor" : "Abrir editor"}
+                      >
+                        {editorOpen ? "Fechar editor" : "Abrir editor"}
+                      </button>
+                    </div>
+
+                    {editorOpen && (
+                      <div className="p-4">
+                        <div className="label" style={{ marginBottom: 8 }}>
+                          O que o usuário faz nessa categoria?
+                        </div>
+
+                        {/* Vendo produtos (dinâmico) */}
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={vendaProdutosAtivo}
+                            onChange={(e) => setVendaProdutosAtivo(e.target.checked)}
+                          />
+                          <span>{labelProdutos(selCategoria)}</span>
+                        </label>
+                        {vendaProdutosAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder={phProdutos(selCategoria)}
+                            value={vendaProdutosObs}
+                            onChange={(e) => setVendaProdutosObs(e.target.value)}
+                          />
+                        )}
+
+                        <div style={{ height: 10 }} />
+
+                        {/* Vendo peças (dinâmico) */}
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={vendaPecasAtivo}
+                            onChange={(e) => setVendaPecasAtivo(e.target.checked)}
+                          />
+                          <span>{labelPecas(selCategoria)}</span>
+                        </label>
+                        {vendaPecasAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder={phPecas(selCategoria)}
+                            value={vendaPecasObs}
+                            onChange={(e) => setVendaPecasObs(e.target.value)}
+                          />
+                        )}
+
+                        <div style={{ height: 10 }} />
+
+                        {/* Presto serviços (dinâmico) */}
+                        <label className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={servicosAtivo}
+                            onChange={(e) => setServicosAtivo(e.target.checked)}
+                          />
+                          <span>{labelServicos(selCategoria)}</span>
+                        </label>
+                        {servicosAtivo && (
+                          <textarea
+                            className="input mt-2"
+                            rows={3}
+                            placeholder={phServicos(selCategoria)}
+                            value={servicosObs}
+                            onChange={(e) => setServicosObs(e.target.value)}
+                          />
+                        )}
+
+                        <div className="flex gap-8 mt-3">
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            onClick={addOuAtualizaCategoriaBasica}
+                            disabled={!selCategoria || ( atingiuLimite && !selecionadaJaExiste )}
+                            title={
+                              atingiuLimite && !selecionadaJaExiste
+                                ? `Limite de ${Number(form.categoryLimit ?? 3)} atingido`
+                                : "Adicionar/Atualizar"
+                            }
+                          >
+                            <Plus size={14} /> {selecionadaJaExiste ? "Atualizar categoria" : "Adicionar categoria"}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            onClick={() => { resetEditorCategoria(); setEditorOpen(false); }}
+                          >
+                            Limpar e fechar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          ))}
-        </div>
-      )}
-      {form.atuacaoBasica?.length > 0 && (
-        <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
-          <b>{form.atuacaoBasica.length}</b> categoria(s) selecionada(s).
-        </div>
-      )}
-      {form.categoriasLocked && (
-        <div className="lock-banner" style={{ marginTop: 10 }}>
-          <Lock size={14} /> Conjunto de <b>CATEGORIAS</b> travado. (apenas aviso visual)
-        </div>
-      )}
-    </div>
-  </div>
 
-  <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
-    <b>Dica:</b> você pode adicionar várias categorias (limite atual: {Number(form.categoryLimit ?? 3)}). Se marcar uma opção,
-    descreva o que faz.
-  </div>
-</div>
+            {/* Lista de categorias adicionadas (chips iguais ao /perfil) */}
+            <div>
+              <div className="label">Categorias adicionadas</div>
+              {(!form.atuacaoBasica || form.atuacaoBasica.length === 0) ? (
+                <div className="rounded-xl border p-4" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
+                  Nenhuma categoria adicionada ainda. (Opcional)
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  {form.atuacaoBasica.map((a) => (
+                    <div
+                      key={a.categoria}
+                      className="rounded-xl border p-3"
+                      style={{ borderColor: "#e6ebf2", background: "#f8fbff" }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div style={{ fontWeight: 900, color: "#023047" }}>{a.categoria}</div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            title="Editar"
+                            onClick={() => carregarEditorDeUmaCategoria(a)}
+                          >
+                            <Edit3 size={14} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-sec"
+                            title="Remover"
+                            onClick={() => removerCategoriaBasica(a.categoria)}
+                          >
+                            <Trash2 size={14} /> Remover
+                          </button>
+                        </div>
+                      </div>
 
+                      {/* Chips com rótulos dinâmicos */}
+                      <div className="chips" style={{ marginTop: 8 }}>
+                        <span className="chip" style={{ opacity: a.vendaProdutos.ativo ? 1 : 0.5 }}>
+                          {labelProdutos(a.categoria)}{" "}
+                          {a.vendaProdutos.ativo ? "— " + a.vendaProdutos.obs : "(não aplica)"}
+                        </span>
+                        <span className="chip" style={{ opacity: a.vendaPecas.ativo ? 1 : 0.5 }}>
+                          {labelPecas(a.categoria)}{" "}
+                          {a.vendaPecas.ativo ? "— " + a.vendaPecas.obs : "(não aplica)"}
+                        </span>
+                        <span className="chip" style={{ opacity: a.servicos.ativo ? 1 : 0.5 }}>
+                          {labelServicos(a.categoria)}{" "}
+                          {a.servicos.ativo ? "— " + a.servicos.obs : "(não aplica)"}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {form.atuacaoBasica?.length > 0 && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
+                  <b>{form.atuacaoBasica.length}</b> categoria(s) selecionada(s).
+                </div>
+              )}
+              {form.categoriasLocked && (
+                <div className="lock-banner" style={{ marginTop: 10 }}>
+                  <Lock size={14} /> Conjunto de <b>CATEGORIAS</b> travado. (apenas aviso visual)
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8, fontSize: 12, color: "#334155" }}>
+            <b>Dica:</b> você pode adicionar várias categorias (limite atual: {Number(form.categoryLimit ?? 3)}). Se marcar uma opção,
+            descreva o que faz.
+          </div>
+        </div>
 
         {/* Cobertura */}
         <div className="card">
@@ -1606,14 +1707,46 @@ function addOuAtualizaCategoriaBasica() {
                 </div>
               )}
 
-              <label className="checkbox" style={{ marginTop: 8 }}>
-                <input type="checkbox" checked={!!form.requirePasswordChange} onChange={(e) => setField("requirePasswordChange", e.target.checked)} />
-                <span>Exigir troca de senha no próximo login</span>
-              </label>
+             
             </div>
-
-            {/* Coluna 2 — Financeiro + Patrocínio */}
+<div className="divider" />
+            {/* Coluna 2 — Leads/Demandas + Financeiro + Patrocínio */}
             <div className="panel-section">
+             
+              {/* NOVO BLOCO: Leads / Demandas */}
+              <div className="section-title">Leads / Demandas do Fornecedor</div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
+                  gap: 8,
+                  marginBottom: 10,
+                  fontSize: 13,
+                }}
+              >
+                <div className="badge" style={{ justifyContent: "space-between" }}>
+                  <span>Enviadas</span>
+                  <b>{leadStats.loading ? "…" : leadStats.total}</b>
+                </div>
+                <div className="badge" style={{ justifyContent: "space-between" }}>
+                  <span>Desbloqueadas</span>
+                  <b>{leadStats.loading ? "…" : leadStats.unlocked}</b>
+                </div>
+                <div className="badge badge-success" style={{ justifyContent: "space-between" }}>
+                  <span>Grátis</span>
+                  <b>{leadStats.loading ? "…" : leadStats.freeUnlocked}</b>
+                </div>
+                <div className="badge badge-warn" style={{ justifyContent: "space-between" }}>
+                  <span>Pagas</span>
+                  <b>{leadStats.loading ? "…" : leadStats.paidUnlocked}</b>
+                </div>
+              </div>
+
+
+              <div className="divider" />
+
+              {/* Financeiro */}
               <div className="section-title">Financeiro</div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1849,22 +1982,6 @@ function addOuAtualizaCategoriaBasica() {
         .btn-sec { background: #f7f9fc; color: #2563eb; border: 1px solid #e0ecff; font-weight: 800; border-radius: 10px; padding: 8px 12px; }
         .btn-gradient { background: linear-gradient(90deg, #fb8500, #fb8500); color: #fff; font-weight: 900; border: none; border-radius: 14px; padding: 14px 26px; font-size: 1.08rem; box-shadow: 0 4px 18px #fb850033; }
         .lock-banner { display: flex; align-items: center; gap: 8px; background: #fff7ed; border: 1px solid #ffedd5; color: #9a3412; padding: 8px 10px; border-radius: 10px; font-weight: 800; }
-
-        /* Accordion categorias */
-        .cat-acc { border: 1px solid #e6ebf2; border-radius: 12px; background: #f8fbff; overflow: hidden; }
-        .cat-acc + .cat-acc { margin-top: 10px; }
-        .cat-acc__summary { list-style: none; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; padding: 10px 12px; cursor: pointer; }
-        .cat-acc__summary::-webkit-details-marker { display: none; }
-        .cat-acc__title { font-weight: 900; color: #023047; }
-        .cat-acc__chips { display: flex; gap: 6px; flex-wrap: wrap; }
-        .cat-acc__actions { display: inline-flex; gap: 6px; }
-        .cat-acc__body { border-top: 1px dashed #e6ebf2; background: #fff; padding: 12px; }
-        .frases-list { margin-left: 4px; display: grid; gap: 6px; color: #334155; }
-
-        @media (max-width: 780px) {
-          .cat-acc__summary { grid-template-columns: 1fr; }
-          .cat-acc__actions { justify-content: flex-start; }
-        }
 
         @media (max-width: 650px) {
           .card { padding: 18px 14px; border-radius: 14px; }

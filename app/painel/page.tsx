@@ -214,7 +214,6 @@ export default function PainelUnificado() {
         const s = await getDoc(doc(db, "usuarios", u.uid));
         setNome(s.exists() ? ((s.data() as any)?.nome ?? "") : "");
       } catch {
-        setNome("");
       } finally {
         setAuthChecking(false);
       }
@@ -310,135 +309,84 @@ export default function PainelUnificado() {
     return "U";
   }, [nome, user?.email]);
 
- /** ===== Registro dos passos do TOUR (grupo: painel, order: 1) ===== */
-useEffect(() => {
-  const steps = [
-    {
-      id: "painel-welcome",
-      target: "[data-tour='painel-welcome']",
-      title: "Seu Painel",
-      content: "Aqui você acompanha tudo: oportunidades, mensagens, notificações e seus cadastros.",
-      placement: "bottom",
-    },
-    {
-      id: "painel-quick-links",
-      target: "[data-tour='painel-quick-links']",
-      title: "Acesso rápido",
-      content: "Atalhos úteis para navegar: Oportunidades, Notificações e Serviços.",
-      placement: "bottom",
-    },
-    {
-      id: "painel-metrics",
-      target: "[data-tour='painel-metrics']",
-      title: "Indicadores",
-      content: "Resumo das suas métricas. Vermelho destaca itens que pedem sua atenção (ex.: novas mensagens).",
-      placement: "left",
-    },
-    {
-      id: "tile-oportunidades",
-      target: "[data-tour='tile-oportunidades']",
-      title: "Demandas recebidas",
-      content: "As demandas que chegaram até você. Desbloqueie e inicie o atendimento.",
-      placement: "top",
-    },
-    {
-      id: "tile-minhas-demandas",
-      target: "[data-tour='tile-minhas-demandas']",
-      title: "Minhas Demandas",
-      content: "Suas demandas publicadas. Edite status, arquivos e visibilidade.",
-      placement: "top",
-    },
-    {
-      id: "tile-produtos",
-      target: "[data-tour='tile-produtos']",
-      title: "Produtos & Máquinas",
-      content: "Gerencie suas publicações de produtos e máquinas na vitrine.",
-      placement: "top",
-    },
-    {
-      id: "tile-servicos",
-      target: "[data-tour='tile-servicos']",
-      title: "Meus Serviços",
-      content: "Cadastre e edite serviços oferecidos (instalações, manutenção, etc.).",
-      placement: "top",
-    },
-    {
-      id: "tile-leads",
-      target: "[data-tour='tile-leads']",
-      title: "Contatos Interessados",
-      content: "Clientes que demonstraram interesse nas suas ofertas. Converta em negócio.",
-      placement: "top",
-    },
-    {
-      id: "tile-mensagens",
-      target: "[data-tour='tile-mensagens']",
-      title: "Mensagens",
-      content: "Converse direto com clientes. As não lidas aparecem primeiro no contador.",
-      placement: "top",
-    },
-    {
-      id: "tile-notificacoes",
-      target: "[data-tour='tile-notificacoes']",
-      title: "Notificações",
-      content: "Avisos sobre propostas, desbloqueios e interações importantes.",
-      placement: "top",
-    },
-    {
-      id: "tile-propostas",
-      target: "[data-tour='tile-propostas']",
-      title: "Minhas Propostas",
-      content: "Acompanhe propostas enviadas/recebidas e seus respectivos status.",
-      placement: "top",
-    },
-    {
-      id: "tile-sugestoes",
-      target: "[data-tour='tile-sugestoes']",
-      title: "Sugestões",
-      content: "Mande ideias. Usamos esse canal para priorizar melhorias na plataforma.",
-      placement: "top",
-    },
-    {
-      id: "tile-perfil",
-      target: "[data-tour='tile-perfil']",
-      title: "Meu Perfil",
-      content: "Atualize logo, contatos, cidades e categorias para aparecer melhor nas buscas.",
-      placement: "top",
-    },
-    {
-      id: "tile-ajuda",
-      target: "[data-tour='tile-ajuda']",
-      title: "Central de Ajuda",
-      content: "FAQ, suporte e tickets. Se precisar, estamos por aqui.",
-      placement: "top",
-    },
-    {
-      id: "tile-financeiro",
-      target: "[data-tour='tile-financeiro']",
-      title: "Financeiro",
-      content: "Área para faturas e pagamentos (em breve).",
-      placement: "top",
-    },
-    {
-      id: "tile-sair",
-      target: "[data-tour='tile-sair']",
-      title: "Sair",
-      content: "Encerra sua sessão com segurança.",
-      placement: "left",
-    },
-  ];
+  /** ===== Registro dos passos do TOUR (grupo: painel, order: 1) ===== */
+  useEffect(() => {
+    const steps = [
+      {
+        id: "painel-welcome",
+        target: "[data-tour='painel-welcome']",
+        title: "Seu Painel",
+        content: "Aqui você acompanha tudo: oportunidades, suas demandas, mensagens e notificações.",
+        placement: "bottom",
+      },
+      {
+        id: "painel-quick-links",
+        target: "[data-tour='painel-quick-links']",
+        title: "Acesso rápido",
+        content: "Atalhos úteis para navegar: Oportunidades, Notificações e Minhas Demandas.",
+        placement: "bottom",
+      },
+      {
+        id: "painel-metrics",
+        target: "[data-tour='painel-metrics']",
+        title: "Indicadores",
+        content: "Resumo das suas métricas. Vermelho destaca itens que pedem sua atenção (ex.: novas mensagens).",
+        placement: "left",
+      },
+      {
+        id: "tile-oportunidades",
+        target: "[data-tour='tile-oportunidades']",
+        title: "Oportunidades para você",
+        content: "Demandas que chegaram até você para responder e atender.",
+        placement: "top",
+      },
+      {
+        id: "tile-minhas-demandas",
+        target: "[data-tour='tile-minhas-demandas']",
+        title: "Minhas Demandas",
+        content: "Suas demandas publicadas. Edite status, arquivos e visibilidade.",
+        placement: "top",
+      },
+      {
+        id: "tile-perfil",
+        target: "[data-tour='tile-perfil']",
+        title: "Meu Perfil",
+        content: "Atualize logo, contatos, cidades e categorias para aparecer melhor nas buscas.",
+        placement: "top",
+      },
+      {
+        id: "tile-sugestoes",
+        target: "[data-tour='tile-sugestoes']",
+        title: "Sugestões",
+        content: "Mande ideias. Usamos esse canal para priorizar melhorias na plataforma.",
+        placement: "top",
+      },
+      {
+        id: "tile-ajuda",
+        target: "[data-tour='tile-ajuda']",
+        title: "Central de Ajuda",
+        content: "FAQ, suporte e tickets. Se precisar, estamos por aqui.",
+        placement: "top",
+      },
+      {
+        id: "tile-sair",
+        target: "[data-tour='tile-sair']",
+        title: "Sair",
+        content: "Encerra sua sessão com segurança.",
+        placement: "left",
+      },
+    ];
 
-  // pequeno atraso: garante que o OnboardingTour já está escutando o evento
-  const t = setTimeout(() => {
-    window.dispatchEvent(
-      new CustomEvent("pedraum:tour-register", {
-        detail: { group: "painel", order: 1, steps },
-      }),
-    );
-  }, 500);
+    const t = setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("pedraum:tour-register", {
+          detail: { group: "painel", order: 1, steps },
+        }),
+      );
+    }, 500);
 
-  return () => clearTimeout(t);
-}, []);
-
+    return () => clearTimeout(t);
+  }, []);
 
   // ===== Loader enquanto verifica auth =====
   if (authChecking) {
@@ -546,9 +494,9 @@ useEffect(() => {
                 data-tour="painel-quick-links"
                 style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}
               >
-                <QuickLink href="/dashboard/oportunidades" label="Ver Oportunidades" />
+                <QuickLink href="/dashboard/oportunidades" label="Ver oportunidades" />
                 <QuickLink href="/notificacoes" label="Notificações" />
-                <QuickLink href="/meus-servicos" label="Meus Serviços" />
+                <QuickLink href="/minhas-demandas" label="Minhas demandas" />
               </div>
             </div>
 
@@ -557,13 +505,36 @@ useEffect(() => {
               data-tour="painel-metrics"
               style={{ display: "flex", gap: 11, flexWrap: "wrap", justifyContent: "flex-end" }}
             >
-              <MetricBadge icon={<Target size={17} />} value={loadingMetrics ? "..." : metrics.oportunidades} label="oportunidades" color="#2563eb" />
-              <MetricBadge icon={<ClipboardList size={15} />} value={loadingMetrics ? "..." : metrics.emAtendimento} label="em atendimento" color="#059669" />
-              <MetricBadge icon={<Layers size={17} />} value={loadingMetrics ? "..." : metrics.produtos + metrics.maquinas} label="produtos" color="#FB8500" />
-              <MetricBadge icon={<Briefcase size={15} />} value={loadingMetrics ? "..." : metrics.servicos} label="serviços" color="#219ebc" />
-              <MetricBadge icon={<Inbox size={15} />} value={loadingMetrics ? "..." : metrics.leads} label="contatos" color="#FB8500" />
-              <MetricBadge icon={<MessageCircle size={15} />} value={loadingMetrics ? "..." : metrics.mensagens} label="mensagens" color="#2563eb" />
-              <MetricBadge icon={<Bell size={15} />} value={loadingMetrics ? "..." : metrics.notificacoes} label="notificações" color="#FB8500" />
+              <MetricBadge
+                icon={<Target size={17} />}
+                value={loadingMetrics ? "..." : metrics.oportunidades}
+                label="oportunidades"
+                color="#2563eb"
+              />
+              <MetricBadge
+                icon={<ClipboardList size={15} />}
+                value={loadingMetrics ? "..." : metrics.emAtendimento}
+                label="em atendimento"
+                color="#059669"
+              />
+              <MetricBadge
+                icon={<Layers size={17} />}
+                value={loadingMetrics ? "..." : metrics.demandas}
+                label="minhas demandas"
+                color="#FB8500"
+              />
+              <MetricBadge
+                icon={<MessageCircle size={15} />}
+                value={loadingMetrics ? "..." : metrics.mensagens}
+                label="mensagens"
+                color="#2563eb"
+              />
+              <MetricBadge
+                icon={<Bell size={15} />}
+                value={loadingMetrics ? "..." : metrics.notificacoes}
+                label="notificações"
+                color="#FB8500"
+              />
             </div>
           </div>
         </div>
@@ -576,76 +547,45 @@ useEffect(() => {
             gap: 28,
           }}
         >
+          {/* Oportunidades */}
           <div data-tour="tile-oportunidades">
-            <div data-tour="tile-oportunidades" className="painel-oportunidades"></div>
             <Tile
               href="/dashboard/oportunidades"
               color="#2563eb"
               bg="#f3f7ff"
               icon={<Target size={36} />}
-              title="Demandas"
-              desc="Novas demandas enviadas para você. Desbloqueie e atenda!"
+              title="Oportunidades para você"
+              desc="Demandas enviadas para o seu perfil. Desbloqueie e atenda."
               badge={loadingMetrics ? undefined : metrics.oportunidades}
             />
           </div>
 
+          {/* Minhas Demandas */}
           <div data-tour="tile-minhas-demandas">
-            <div data-tour="tile-minhas-demandas" className="painel-minhas-demandas"></div>
             <Tile
               href="/minhas-demandas"
               color="#219ebc"
               bg="#e0f7fa"
               icon={<ClipboardList size={36} />}
-              title="Minhas Demandas"
-              desc="Gerencie suas Demandas publicadas."
+              title="Minhas demandas"
+              desc="Gerencie as demandas que você publicou na plataforma."
               badge={loadingMetrics ? undefined : metrics.demandas}
             />
           </div>
- <div data-tour="tile-perfil">
-  <div data-tour="tile-perfil"></div>
-            <Tile href="/perfil" color="#2563eb" bg="#f3f7ff" icon={<Users size={36} />} title="Meu Perfil" desc="Gerencie seus dados pessoais e de empresa." />
-          </div>
-          <div data-tour="tile-produtos">
-            <div data-tour="tile-produtos" className="painel-produtos"></div>
+
+          {/* Meu Perfil */}
+          <div data-tour="tile-perfil">
             <Tile
-              href="/meus-produtos"
-              color="#FB8500"
-              bg="#fff7ed"
-              icon={<Layers size={36} />}
-              title="Meus Produtos/Máquinas"
-              desc="Gerencie seus produtos e máquinas."
-              badge={loadingMetrics ? undefined : metrics.produtos + metrics.maquinas}
+              href="/perfil"
+              color="#2563eb"
+              bg="#f3f7ff"
+              icon={<Users size={36} />}
+              title="Meu perfil"
+              desc="Atualize seus dados pessoais, empresa, contatos e áreas de atuação."
             />
           </div>
 
-          <div data-tour="tile-servicos">
-            <div data-tour="tile-servicos" className="painel-servicos"></div>
-            <Tile
-              href="/meus-servicos"
-              color="#219ebc"
-              bg="#e0f7fa"
-              icon={<Briefcase size={36} />}
-              title="Meus Serviços"
-              desc="Gerencie serviços e soluções oferecidas."
-              badge={loadingMetrics ? undefined : metrics.servicos}
-            />
-          </div>
-
-          <div data-tour="tile-leads">
-            
-            <div data-tour="tile-leads"></div>
-            <Tile
-              href="/meus-leads"
-              color="#FB8500"
-              bg="#fff7ed"
-              icon={<Inbox size={36} />}
-              title="Contatos Interessados"
-              desc="Veja clientes interessados nas suas ofertas."
-              badge={loadingMetrics ? undefined : metrics.leads}
-            />
-          </div>
-
-
+          {/* Sugestões */}
           <div data-tour="tile-sugestoes">
             <Tile
               href="/sugestoes"
@@ -653,19 +593,21 @@ useEffect(() => {
               bg="#fff7ed"
               icon={<Lightbulb size={36} />}
               title="Sugestões"
-              desc="Envie ideias para melhorar a plataforma."
+              desc="Envie ideias e feedbacks para melhorar a plataforma."
               badge={loadingMetrics ? undefined : metrics.sugestoes}
             />
           </div>
 
-          {/* informativos */}
-          
+          {/* Central de Ajuda */}
           <div data-tour="tile-ajuda">
-            <Tile href="/ajuda" color="#059669" bg="#ecfdf5" icon={<LifeBuoy size={36} />} title="Central de Ajuda" desc="FAQ, suporte e abertura de tickets." />
-          </div>
-
-          <div data-tour="tile-financeiro">
-            <Tile href="/financeiro" color="#6d28d9" bg="#f9fafb" icon={<Wallet2 size={36} />} title="Financeiro" desc="Pagamentos e notas (em breve)." />
+            <Tile
+              href="/ajuda"
+              color="#059669"
+              bg="#ecfdf5"
+              icon={<LifeBuoy size={36} />}
+              title="Central de ajuda"
+              desc="FAQ, suporte e abertura de tickets quando precisar."
+            />
           </div>
 
           {/* Sair */}
@@ -698,7 +640,9 @@ useEffect(() => {
               <span style={{ color: "#E85D04", fontWeight: 800, fontSize: 19 }}>
                 {loadingLogout ? "Saindo..." : "Sair"}
               </span>
-              <span style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}>Encerrar sessão na plataforma.</span>
+              <span style={{ color: "#495668", fontSize: ".97rem", marginTop: 1 }}>
+                Encerrar sessão na plataforma.
+              </span>
             </button>
           </div>
         </div>
@@ -751,7 +695,9 @@ function MetricBadge({
     >
       <span style={{ color, display: "flex", alignItems: "center" }}>{icon}</span>
       <span>{value}</span>
-      <span style={{ marginLeft: 2, color: "#5a7b8b", fontWeight: 500, fontSize: ".91em" }}>{label}</span>
+      <span style={{ marginLeft: 2, color: "#5a7b8b", fontWeight: 500, fontSize: ".91em" }}>
+        {label}
+      </span>
     </div>
   );
 }
@@ -800,9 +746,20 @@ function InfoBubble({ text, color = "#023047" }: { text: string; color?: string 
             color: "#334155",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 4,
+            }}
+          >
             <strong style={{ color: "#023047", fontSize: ".98rem" }}>O que é isto?</strong>
-            <button onClick={() => setOpen(false)} aria-label="Fechar" style={{ background: "transparent", border: 0, cursor: "pointer" }}>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="Fechar"
+              style={{ background: "transparent", border: 0, cursor: "pointer" }}
+            >
               <X size={16} />
             </button>
           </div>
@@ -887,7 +844,15 @@ function Tile({
         >
           {title}
         </span>
-        <span style={{ color: "#64748b", fontSize: "1.02rem", textAlign: "center", marginTop: 1, lineHeight: 1.35 }}>
+        <span
+          style={{
+            color: "#64748b",
+            fontSize: "1.02rem",
+            textAlign: "center",
+            marginTop: 1,
+            lineHeight: 1.35,
+          }}
+        >
           {desc}
         </span>
 
@@ -896,9 +861,19 @@ function Tile({
 
       <style jsx>{`
         @keyframes pulse-badge {
-          0% { transform: scale(1); box-shadow: 0 0 0 0 #e6394655; }
-          70% { transform: scale(1.09); box-shadow: 0 0 0 8px #e6394600; }
-          100% { transform: scale(1); box-shadow: 0 0 0 0 #e6394600; }
+          0% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 #e6394655;
+          }
+          70% {
+            transform: scale(1.09);
+            box-shadow: 0 0 0 8px #e6394600;
+          }
+          100% {
+            transform: scale(1);
+            box-shadow: 0 0 0 0 #e6394600;
+          }
+        }
       `}</style>
     </Link>
   );

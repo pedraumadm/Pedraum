@@ -52,20 +52,7 @@ const CARDS = [
     link: "/admin/usuarios",
     color: "#2563eb",
   },
-  {
-    label: "Produtos",
-    icon: TrendingUp,
-    key: "produtos",
-    link: "/admin/produtos",
-    color: "#fb8500",
-  },
-  {
-    label: "Serviços",
-    icon: Briefcase,
-    key: "services",
-    link: "/admin/services",
-    color: "#219ebc",
-  },
+ 
   {
     label: "Demandas",
     icon: ClipboardList,
@@ -73,13 +60,7 @@ const CARDS = [
     link: "/admin/demandas",
     color: "#023047",
   },
-  {
-    label: "Leads",
-    icon: ListChecks,
-    key: "leads",
-    link: "/admin/leads",
-    color: "#00b4d8",
-  },
+
   {
     label: "Sugestões",
     icon: Lightbulb,
@@ -88,13 +69,6 @@ const CARDS = [
     color: "#fbbf24",
   },
 
-  {
-    label: "Blog",
-    icon: Newspaper,
-    key: "blog",
-    link: "/admin/blog",
-    color: "#ffc300",
-  },
 ];
 
 const RECENT_COLLECTIONS = [
@@ -662,27 +636,14 @@ function AdminDashboard({ adminInfo }: { adminInfo: any }) {
                   marginBottom: 7,
                 }}
               >
+               
                 <Link
-                  href="/create-produto"
-                  style={quickBtn("#fb8500", "#fff")}
-                >
-                  + Novo Produto
-                </Link>
-                <Link
-                  href="/create-service"
-                  style={quickBtn("#219ebc", "#fff")}
-                >
-                  + Novo Serviço
-                </Link>
-                <Link
-                  href="/admin/blog/create"
+                  href="/create-demanda"
                   style={quickBtn("#2563eb", "#fff")}
                 >
-                  + Novo Post Blog
+                  + Nova demanda
                 </Link>
-                <Link href="/admin/leads" style={quickBtn("#00b4d8", "#fff")}>
-                  Ver Leads
-                </Link>
+               
                 <Link
                   href="/admin/usuarios"
                   style={quickBtn("#2563eb", "#fff")}
