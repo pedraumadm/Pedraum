@@ -21,6 +21,7 @@ import {
   onSnapshot,
   arrayRemove,
   arrayUnion,
+  increment,
   setDoc,
     getCountFromServer,
 } from "firebase/firestore";
@@ -54,6 +55,7 @@ import {
 import ImageUploader from "@/components/ImageUploader";
 import nextDynamic from "next/dynamic";
 import { useTaxonomia } from "@/hooks/useTaxonomia";
+
 
 // Lazy (iguais ao create)
 const PDFUploader = nextDynamic(() => import("@/components/PDFUploader"), { ssr: false }) as any;
@@ -118,6 +120,7 @@ type Assignment = {
     soldCount?: number;
   };
   paymentStatus?: PaymentStatus;
+  billingType?: "free" | "paid";
   createdAt?: any;
   updatedAt?: any;
   unlockedByAdmin?: boolean;
@@ -155,9 +158,11 @@ type Demanda = {
   contatoEmail?: string;
   contatoWhatsappE164?: string;
   contatoWhatsappMasked?: string;
+  liberacoesCount?: number;
 };
 
 /* ================== Constantes e Helpers ================== */
+
 const UFS = [
   "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO",
 ] as const;
@@ -367,11 +372,17 @@ export default function EditDemandaPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
 
+  // ⬇⬇ AQUI: estados para cidades do IBGE
+  const [cidades, setCidades] = useState<string[]>([]);
+  const [carregandoCidades, setCarregandoCidades] = useState(false);
+  // ⬆⬆
+
   const [form, setForm] = useState<{
     titulo: string;
     descricao: string;
     categoria: string;
     subcategoria: string;
+     subcategoriaOutrosTexto: string; //
     estado: string;
     cidade: string;
     prazo: string;
@@ -386,6 +397,7 @@ export default function EditDemandaPage() {
     descricao: "",
     categoria: "",
     subcategoria: "",
+     subcategoriaOutrosTexto: "", // ⬅ NOVO
     estado: "",
     cidade: "",
     prazo: "",
@@ -402,6 +414,7 @@ export default function EditDemandaPage() {
   const [precoPadraoReais, setPrecoPadraoReais] = useState<string>("19,90");
   const [precoEnvioReais, setPrecoEnvioReais] = useState<string>("");
   const [unlockCap, setUnlockCap] = useState<number | null>(null);
+  const [liberacoesCount, setLiberacoesCount] = useState<number>(0); // 👈 NOVO
 
   // Usuários
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -423,7 +436,46 @@ export default function EditDemandaPage() {
     () => categorias.find((c) => c.nome === form.categoria)?.subcategorias ?? [],
     [categorias, form.categoria]
   );
+ useEffect(() => {
+    let abort = false;
 
+    async function fetchCidades(uf: string) {
+      if (!uf || uf === "BRASIL") {
+        setCidades([]);
+        return;
+      }
+
+      setCarregandoCidades(true);
+      try {
+        const res = await fetch(
+          `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`
+        );
+        const data = await res.json();
+
+        if (abort) return;
+
+        const nomes = (Array.isArray(data) ? data : [])
+          .map((m: any) => m?.nome)
+          .filter(Boolean)
+          .sort((a: string, b: string) => a.localeCompare(b, "pt-BR"));
+
+        setCidades(nomes);
+      } catch (e) {
+        console.error("Erro ao carregar cidades do IBGE:", e);
+        setCidades([]);
+      } finally {
+        if (!abort) {
+          setCarregandoCidades(false);
+        }
+      }
+    }
+
+    fetchCidades(form.estado || "");
+
+    return () => {
+      abort = true;
+    };
+  }, [form.estado]);
   /* ================== Carregar Demanda ================== */
   useEffect(() => {
     async function fetchDemanda() {
@@ -442,21 +494,25 @@ export default function EditDemandaPage() {
       const rawWpp = d.contatoWhatsappE164 || d.autorWhatsapp || d.whatsapp || "";
       const d55 = normalizeBRWhatsappDigits(rawWpp);
 
-      setForm({
-        titulo: d.titulo || "",
-        descricao: d.descricao || "",
-        categoria: d.categoria || "",
-        subcategoria: d.subcategoria || "",
-        estado: d.estado || "",
-        cidade: d.cidade || "",
-        prazo: d.prazo || "",
-        orcamento: d.orcamento != null ? String(d.orcamento) : "",
-        whatsapp: d.whatsapp || "",
-        observacoes: d.observacoes || "",
-        contatoNome: d.contatoNome || d.autorNome || "",
-        contatoEmail: (d.contatoEmail || d.autorEmail || "").toLowerCase(),
-        contatoWhatsappMasked: d55 ? maskFrom55Digits(d55) : "",
-      });
+      const isOutros = (d.categoria || "") === "Outros";
+
+setForm({
+  titulo: d.titulo || "",
+  descricao: d.descricao || "",
+  categoria: d.categoria || "",
+  subcategoria: isOutros ? "" : d.subcategoria || "",
+  subcategoriaOutrosTexto: isOutros ? (d.subcategoria || "") : "",
+  estado: d.estado || "",
+  cidade: d.cidade || "",
+  prazo: d.prazo || "",
+  orcamento: d.orcamento != null ? String(d.orcamento) : "",
+  whatsapp: d.whatsapp || "",
+  observacoes: d.observacoes || "",
+  contatoNome: d.contatoNome || d.autorNome || "",
+  contatoEmail: (d.contatoEmail || d.autorEmail || "").toLowerCase(),
+  contatoWhatsappMasked: d55 ? maskFrom55Digits(d55) : "",
+});
+
 
       setTags(d.tags || []);
       setImagens(d.imagens || []);
@@ -468,6 +524,7 @@ export default function EditDemandaPage() {
           ? new Date(d.createdAt.seconds * 1000).toLocaleString("pt-BR")
           : ""
       );
+setLiberacoesCount(d.liberacoesCount ?? 0);
 
       const cents = d?.pricingDefault?.amount ?? 1990;
       setPrecoPadraoReais((cents / 100).toFixed(2).replace(".", ","));
@@ -633,8 +690,17 @@ export default function EditDemandaPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) {
     const { name, value } = e.target;
-    if (name === "categoria") {
-      setForm((f) => ({ ...f, categoria: value, subcategoria: "" }));
+  if (name === "categoria") {
+    setForm((f) => ({
+      ...f,
+      categoria: value,
+      subcategoria: "",
+      subcategoriaOutrosTexto: "", // ⬅ zera o texto de Outros
+    }));
+    return;
+    }
+    if (name === "estado") {
+      setForm((f) => ({ ...f, estado: value, cidade: "" }));
       return;
     }
     setForm((f) => ({ ...f, [name]: value }));
@@ -714,12 +780,16 @@ export default function EditDemandaPage() {
         setSalvando(false);
         return;
       }
+const subcategoriaFinal =
+  form.categoria === "Outros"
+    ? (form.subcategoriaOutrosTexto || "").trim()
+    : form.subcategoria;
 
       await updateDoc(doc(db, "demandas", demandaId), {
         titulo: form.titulo,
         descricao: form.descricao,
         categoria: form.categoria,
-        subcategoria: form.subcategoria,
+        subcategoria: subcategoriaFinal,
         estado: form.estado,
         cidade: form.cidade,
         prazo: form.prazo,
@@ -808,6 +878,7 @@ export default function EditDemandaPage() {
         const isFree = isUserFreeDemand(u);
         const amount = isFree ? 0 : centsBase;
         const paymentStatus: PaymentStatus = isFree ? "paid" : "pending";
+const billingType: "free" | "paid" = isFree ? "free" : "paid";
 
         const aRef = doc(db, "demandAssignments", `${demandaId}_${uid}`);
         batch.set(
@@ -824,6 +895,7 @@ export default function EditDemandaPage() {
               soldCount: 0,
             },
             paymentStatus,
+            billingType,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           },
@@ -853,27 +925,45 @@ export default function EditDemandaPage() {
     }
   }
   async function unlockAssignment(supplierId: string) {
-    try {
-      const curUnlocked = assignments.filter((a) => a.status === "unlocked").length;
-      if (unlockCap != null && curUnlocked >= unlockCap) {
-        alert(`Limite de desbloqueios atingido (${unlockCap}).`);
-        return;
-      }
-      await updateDoc(doc(db, "demandAssignments", `${demandaId}_${supplierId}`), {
-        status: "unlocked",
-        unlockedByAdmin: true,
-        unlockedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        paymentStatus: "paid",
-      });
-      await updateDoc(doc(db, "demandas", demandaId), {
-        liberadoPara: arrayUnion(supplierId),
-        updatedAt: serverTimestamp(),
-      });
-    } catch {
-      alert("Erro ao liberar contato.");
+  try {
+    const curUnlocked = assignments.filter((a) => a.status === "unlocked").length;
+    if (unlockCap != null && curUnlocked >= unlockCap) {
+      alert(`Limite de desbloqueios atingido (${unlockCap}).`);
+      return;
     }
+
+    // descobrir se é free ou pago
+    const existing = assignments.find((x) => x.supplierId === supplierId);
+    let billingType: "free" | "paid" = "paid";
+
+    if (existing?.billingType) {
+      billingType = existing.billingType;
+    } else {
+      const u = usuarios.find((usr) => usr.id === supplierId);
+      billingType = isUserFreeDemand(u || undefined) ? "free" : "paid";
+    }
+
+    await updateDoc(doc(db, "demandAssignments", `${demandaId}_${supplierId}`), {
+      status: "unlocked",
+      unlockedByAdmin: true,
+      unlockedAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      paymentStatus: "paid",
+
+      // NOVO
+      billingType,
+    });
+
+    await updateDoc(doc(db, "demandas", demandaId), {
+      liberadoPara: arrayUnion(supplierId),
+       liberacoesCount: increment(1),
+      updatedAt: serverTimestamp(),
+    });
+  } catch {
+    alert("Erro ao liberar contato.");
   }
+}
+
   async function cancelAssignment(supplierId: string) {
     if (!window.confirm("Cancelar o envio? O fornecedor não poderá pagar/desbloquear.")) return;
     try {
@@ -952,31 +1042,37 @@ export default function EditDemandaPage() {
     }
     try {
       const u = profileCache[uid] || usuarios.find((user) => user.id === uid);
-      const isFree = isUserFreeDemand(u);
-      const amount = isFree ? 0 : centsBase;
-      const paymentStatus: PaymentStatus = isFree ? "paid" : "pending";
+const isFree = isUserFreeDemand(u);
+const amount = isFree ? 0 : centsBase;
+const paymentStatus: PaymentStatus = isFree ? "paid" : "pending";
 
-      const ref = doc(db, "demandAssignments", `${demandaId}_${uid}`);
-      await setDoc(
-        ref,
-        {
-          demandId: demandaId,
-          supplierId: uid,
-          status: "sent" as AssignmentStatus,
-          pricing: {
-            amount,
-            currency: "BRL",
-            exclusive: false,
-            cap: unlockCap ?? null,
-            soldCount: 0,
-          },
-          paymentStatus,
-          notes: (profileNote || "").trim(),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+/** NOVO */
+const billingType: "free" | "paid" = isFree ? "free" : "paid";
+
+const ref = doc(db, "demandAssignments", `${demandaId}_${uid}`);
+await setDoc(
+  ref,
+  {
+    demandId: demandaId,
+    supplierId: uid,
+    status: "sent" as AssignmentStatus,
+    pricing: {
+      amount,
+      currency: "BRL",
+      exclusive: false,
+      cap: unlockCap ?? null,
+      soldCount: 0,
+    },
+    paymentStatus,
+    billingType, // NOVO
+
+    notes: (profileNote || "").trim(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  },
+  { merge: true }
+);
+
       alert("Demanda enviada ao usuário.");
       setOpenProfileUserId(null);
     } catch (e: any) {
@@ -1128,6 +1224,12 @@ export default function EditDemandaPage() {
               </div>
             )}
           </div>
+<div className="flex items-center gap-2 text-sm text-gray-700">
+  <span className="font-semibold">Liberações:</span>
+  <span className="text-blue-600 font-bold">
+    {liberacoesCount}
+  </span>
+</div>
 
           {/* Status (pill) */}
           <div
@@ -1182,88 +1284,123 @@ export default function EditDemandaPage() {
             />
 
             {/* Taxonomia */}
-            <div style={twoCols}>
-              <div style={{ flex: 1 }}>
-                <label style={label}>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Layers size={16} /> Categoria
-                  </span>
-                </label>
-                <select
-                  name="categoria"
-                  value={form.categoria}
-                  onChange={handleChange}
-                  required
-                  style={input}
-                  disabled={taxLoading}
-                >
-                  <option value="">
-                    {taxLoading ? "Carregando..." : "Selecione"}
-                  </option>
-                  {categorias.map((c) => (
-                    <option key={c.slug || c.nome} value={c.nome}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
+<div style={twoCols}>
+  <div style={{ flex: 1 }}>
+    <label style={label}>
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <Layers size={16} /> Categoria
+      </span>
+    </label>
+    <select
+      name="categoria"
+      value={form.categoria}
+      onChange={handleChange}
+      required
+      style={input}
+      disabled={taxLoading}
+    >
+      <option value="">
+        {taxLoading ? "Carregando..." : "Selecione"}
+      </option>
+      {categorias.map((c) => (
+        <option key={c.slug || c.nome} value={c.nome}>
+          {c.nome}
+        </option>
+      ))}
+    </select>
 
-                <select
-                  name="subcategoria"
-                  value={form.subcategoria}
-                  onChange={handleChange}
-                  required
-                  style={input}
-                  disabled={!form.categoria}
-                >
-                  <option value="">
-                    {form.categoria
-                      ? "Selecione a subcategoria"
-                      : "Selecione a categoria"}
-                  </option>
-                  {subsForm.map((s) => (
-                    <option key={s.slug || s.nome} value={s.nome}>
-                      {s.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+    {form.categoria === "Outros" ? (
+  <textarea
+    name="subcategoriaOutrosTexto"
+    value={form.subcategoriaOutrosTexto}
+    onChange={handleChange}
+    required
+    placeholder="Descreva o que você precisa / o que vende"
+    style={{ ...input, minHeight: 80 }}
+  />
+) : (
+  <select
+    name="subcategoria"
+    value={form.subcategoria}
+    onChange={handleChange}
+    required
+    style={input}
+    disabled={!form.categoria}
+  >
+    <option value="">
+      {form.categoria
+        ? "Selecione a subcategoria"
+        : "Selecione a categoria"}
+    </option>
+    {subsForm.map((s) => (
+      <option key={s.slug || s.nome} value={s.nome}>
+        {s.nome}
+      </option>
+    ))}
+  </select>
+)}
 
-            <div style={twoCols}>
-              <div style={{ flex: 1 }}>
-                <label style={label}>Estado (UF)</label>
-                <select
-                  name="estado"
-                  value={form.estado}
-                  onChange={handleChange}
-                  required
-                  style={input}
-                >
-                  <option value="">Selecione</option>
-                  {UFS.map((uf) => (
-                    <option key={uf} value={uf}>
-                      {uf}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={label}>Cidade</label>
-                <input
-                  name="cidade"
-                  value={form.cidade}
-                  onChange={handleChange}
-                  placeholder="Ex.: Belo Horizonte"
-                  style={input}
-                />
-              </div>
-            </div>
+  </div>
+</div>
+
+{/* Localização */}
+<div style={twoCols}>
+  <div style={{ flex: 1 }}>
+    <label style={label}>Estado (UF)</label>
+    <select
+      name="estado"
+      value={form.estado}
+      onChange={handleChange}
+      required
+      style={input}
+    >
+      <option value="">Selecione o estado</option>
+      {UFS.map((uf) => (
+        <option key={uf} value={uf}>
+          {uf}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div style={{ flex: 1 }}>
+    <label style={label}>Cidade</label>
+    <select
+      name="cidade"
+      value={form.cidade}
+      onChange={handleChange}
+      style={input}
+      disabled={
+        !form.estado ||
+        form.estado === "BRASIL" ||
+        carregandoCidades ||
+        !cidades.length
+      }
+    >
+      <option value="">
+        {!form.estado
+          ? "Selecione o estado"
+          : form.estado === "BRASIL"
+          ? "Brasil inteiro (sem cidade específica)"
+          : carregandoCidades
+          ? "Carregando cidades..."
+          : "Selecione a cidade"}
+      </option>
+
+      {cidades.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
+  </div>
+</div>
 
             {/* Anexos */}
             <label style={label}>

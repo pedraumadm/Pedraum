@@ -92,13 +92,7 @@ export default function Header() {
         icon: <ClipboardList size={16} />,
         className: "nav-demandas",
       },
-      {
-        href: "/sobre",
-        label: "Como Funciona",
-        desc: "Entenda em poucos minutos como a plataforma de demandas Pedraum funciona.",
-        icon: <HelpCircle size={16} />,
-        className: "nav-como-funciona",
-      },
+     
       {
         href: painelHref,
         label: "Painel",

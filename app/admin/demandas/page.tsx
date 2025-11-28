@@ -59,6 +59,7 @@ type Demanda = {
   visibilidade?: "publica" | "oculta";
   preco?: number;
   cobrancaStatus?: "pendente" | "pago" | "isento";
+  liberacoesCount?: number;
 };
 
 const STATUS_META: Record<
@@ -937,6 +938,20 @@ function AdminDemandasPage() {
                       Criado: {fmtDate(d.createdAt)}
                     </span>
                   </div>
+<div style={{ marginTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+  <span
+    style={{
+      fontSize: "0.8rem",
+      background: "#e0ecff",
+      color: "#1d4ed8",
+      borderRadius: 999,
+      padding: "3px 10px",
+      fontWeight: 800,
+    }}
+  >
+    Liberações: {d.liberacoesCount ?? 0}
+  </span>
+</div>
 
                   <div className="card-actions">
                     <Link

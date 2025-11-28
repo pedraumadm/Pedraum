@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react";
+import { useAfterSaveRedirect } from "@/hooks/useAfterSaveRedirect";
 
 /** ============ SSR/ISR ============ */
 export const dynamic = "force-dynamic";
@@ -86,6 +87,7 @@ function sanitizeWhatsapp(s: string) {
 /* ================== Página interna ================== */
 function CreateDemandaContent() {
   const router = useRouter();
+  const goAfterSave = useAfterSaveRedirect("/demandas");
 
   const [imagens, setImagens] = useState<string[]>([]);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -286,10 +288,14 @@ function CreateDemandaContent() {
 
         try {
           localStorage.removeItem(RASCUNHO_KEY);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
 
         setSuccess("Recebemos sua demanda! Nossa equipe vai revisar e publicar.");
-        setTimeout(() => router.push("/demandas"), 900);
+
+        // 🔁 Padrão global: depois de salvar, voltar/lista
+        goAfterSave();
       } catch (err) {
         console.error(err);
         setError("Erro ao cadastrar. Tente novamente em instantes.");
@@ -297,7 +303,7 @@ function CreateDemandaContent() {
         setSubmitting(false);
       }
     },
-    [form, imagens, pdfUrl, router, submitting],
+    [form, imagens, pdfUrl, submitting, goAfterSave],
   );
 
   /* ---------- UI ---------- */

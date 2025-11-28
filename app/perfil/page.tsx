@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import { db, auth } from "@/firebaseConfig";
 import { doc, updateDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import ImageUploader from "@/components/ImageUploader";
+import { useAfterSaveRedirect } from "@/hooks/useAfterSaveRedirect";
 import {
   ChevronLeft,
   Loader,
@@ -165,7 +166,7 @@ export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-
+ const goAfterSave = useAfterSaveRedirect("/painel"); 
   // === Limite de categorias (padrão 3, override via Firestore: usuarios/{uid}.categoryLimit)
   const [categoryLimit, setCategoryLimit] = useState<number>(3);
 
@@ -451,63 +452,73 @@ useEffect(() => {
     setServicosObs(cat.servicos?.obs || "");
   }
 
-  // === Gate de inclusão: permite atualizar uma existente mesmo no limite; bloqueia NOVA quando já atingiu
-  function addOuAtualizaCategoria() {
-    const categoria = selCategoria.trim();
-    if (!categoria) {
-      setMsg("Selecione uma categoria.");
-      return;
+function addOuAtualizaCategoria() {
+  const categoria = selCategoria.trim();
+  if (!categoria) {
+    setMsg("Selecione uma categoria.");
+    return;
+  }
+
+  // ✅ Regra 1: se selecionou categoria, é obrigado a marcar pelo menos um checkbox
+  const algumMarcado = vendaProdutosAtivo || vendaPecasAtivo || servicosAtivo;
+  if (!algumMarcado) {
+    setMsg(
+      "Marque pelo menos uma opção (Vendo produtos, Vendo peças ou Presto serviços) para essa categoria."
+    );
+    return;
+  }
+
+  // ✅ Regra 2: se marcou checkbox, é obrigado a escrever
+  if (vendaProdutosAtivo && !vendaProdutosObs.trim()) {
+    setMsg("Descreva o que você vende em 'Vendo produtos'.");
+    return;
+  }
+  if (vendaPecasAtivo && !vendaPecasObs.trim()) {
+    setMsg("Descreva quais peças você vende.");
+    return;
+  }
+  if (servicosAtivo && !servicosObs.trim()) {
+    setMsg("Descreva quais serviços você presta.");
+    return;
+  }
+
+  const novo: AtuacaoBasicaPorCategoria = {
+    categoria,
+    vendaProdutos: { ativo: vendaProdutosAtivo, obs: vendaProdutosObs.trim() },
+    vendaPecas: { ativo: vendaPecasAtivo, obs: vendaPecasObs.trim() },
+    servicos: { ativo: servicosAtivo, obs: servicosObs.trim() },
+  };
+
+  setForm((f) => {
+    const existe = f.atuacaoBasica.find((a) => a.categoria === categoria);
+    const jaNoLimite = f.atuacaoBasica.length >= categoryLimit;
+
+    if (!existe && jaNoLimite) {
+      setMsg(`Você atingiu o limite de ${categoryLimit} categoria(s).`);
+      return f; // não altera
     }
 
-    // validações de descrição quando ativo
-    if (vendaProdutosAtivo && !vendaProdutosObs.trim()) {
-      setMsg("Descreva o que vende em 'Vendo produtos'.");
-      return;
-    }
-    if (vendaPecasAtivo && !vendaPecasObs.trim()) {
-      setMsg("Descreva quais peças você vende.");
-      return;
-    }
-    if (servicosAtivo && !servicosObs.trim()) {
-      setMsg("Descreva quais serviços você presta.");
-      return;
-    }
-
-    const novo: AtuacaoBasicaPorCategoria = {
-      categoria,
-      vendaProdutos: { ativo: vendaProdutosAtivo, obs: vendaProdutosObs.trim() },
-      vendaPecas: { ativo: vendaPecasAtivo, obs: vendaPecasObs.trim() },
-      servicos: { ativo: servicosAtivo, obs: servicosObs.trim() },
-    };
-
-    setForm((f) => {
-      const existe = f.atuacaoBasica.find((a) => a.categoria === categoria);
-      const jaNoLimite = f.atuacaoBasica.length >= categoryLimit;
-
-      if (!existe && jaNoLimite) {
-        setMsg(`Você atingiu o limite de ${categoryLimit} categoria(s).`);
-        return f; // não altera
-      }
-
-      if (!existe) {
-        setMsg("Categoria adicionada.");
-        setTimeout(() => setMsg(""), 2500);
-        resetEditorCategoria();
-        setEditorOpen(false);
-        return { ...f, atuacaoBasica: [...f.atuacaoBasica, novo] };
-      }
-
-      // atualização de existente é sempre permitida
-      setMsg("Categoria atualizada.");
+    if (!existe) {
+      setMsg("Categoria adicionada.");
       setTimeout(() => setMsg(""), 2500);
       resetEditorCategoria();
       setEditorOpen(false);
-      return {
-        ...f,
-        atuacaoBasica: f.atuacaoBasica.map((a) => (a.categoria === categoria ? novo : a)),
-      };
-    });
-  }
+      return { ...f, atuacaoBasica: [...f.atuacaoBasica, novo] };
+    }
+
+    // atualização de existente
+    setMsg("Categoria atualizada.");
+    setTimeout(() => setMsg(""), 2500);
+    resetEditorCategoria();
+    setEditorOpen(false);
+    return {
+      ...f,
+      atuacaoBasica: f.atuacaoBasica.map((a) => (a.categoria === categoria ? novo : a)),
+    };
+  });
+}
+
+
 
   function removerCategoria(categoria: string) {
     setForm((f) => ({
@@ -520,101 +531,207 @@ useEffect(() => {
     }
   }
 
-  /* ================= Salvar ================= */
-  async function salvar(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!userId) return;
+ async function salvar(e?: React.FormEvent) {
+  e?.preventDefault();
+  if (!userId) return;
 
-    setSaving(true);
-    setMsg("");
+  setSaving(true);
+  setMsg("");
 
-    try {
-      // Validação leve
-      for (const a of form.atuacaoBasica) {
-        if (a.vendaProdutos.ativo && !a.vendaProdutos.obs?.trim()) {
-          setMsg(`Descreva o que vende em "Vendo produtos" para ${a.categoria}.`);
-          setSaving(false);
-          return;
-        }
-        if (a.vendaPecas.ativo && !a.vendaPecas.obs?.trim()) {
-          setMsg(`Descreva "Quais peças" para ${a.categoria}.`);
-          setSaving(false);
-          return;
-        }
-        if (a.servicos.ativo && !a.servicos.obs?.trim()) {
-          setMsg(`Descreva "Que serviços" para ${a.categoria}.`);
-          setSaving(false);
-          return;
-        }
+  try {
+    // ===========================
+    // 1) Validar EDITOR ATUAL
+    // ===========================
+    const editorCategoria = selCategoria.trim();
+    const editorAlgumMarcado =
+      vendaProdutosAtivo || vendaPecasAtivo || servicosAtivo;
+
+    if (editorCategoria) {
+      // ❌ Tem categoria selecionada mas nenhum checkbox marcado
+      if (!editorAlgumMarcado) {
+        setMsg(
+          `Na categoria "${editorCategoria}", selecione pelo menos uma opção (Vendo produtos, Vendo peças ou Presto serviços) ou limpe a categoria antes de salvar.`
+        );
+        setSaving(false);
+        return;
       }
 
-      // Campos derivados simples para pesquisa: lista de categorias distintas
-      const categoriasDistintas = Array.from(
-        new Set(form.atuacaoBasica.map((a) => a.categoria).filter(Boolean)),
-      );
-
-      // campos de busca auxiliares
-      const categoriesAll = categoriasDistintas;
-      const ufsSearch = buildUfsSearch(form.atendeBrasil, form.ufsAtendidas);
-
-      // telefone
-      const wDigits55 = form.telefone ? toDigits55FromFree(form.telefone) : "";
-      const wE164 = wDigits55 ? `+${wDigits55}` : "";
-
-      await updateDoc(doc(db, "usuarios", userId), {
-        nome: form.nome,
-        telefone: form.telefone || "",
-        whatsapp: wDigits55 || "",
-        whatsappE164: wE164 || "",
-        cidade: form.estado === "BRASIL" ? "" : form.cidade || "",
-        estado: form.estado || "",
-        cpf_cnpj: form.cpf_cnpj || "",
-        bio: form.bio || "",
-        avatar: form.avatar || "",
-
-        prestaServicos: form.prestaServicos,
-        vendeProdutos: form.vendeProdutos,
-
-        /** NOVO principal */
-        atuacaoBasica: form.atuacaoBasica,
-
-        /** compatibilidade mínima */
-        categoriasAtuacao: categoriasDistintas,
-        categorias: categoriasDistintas,
-
-        /** buscas auxiliares */
-        categoriesAll,
-        ufsSearch,
-
-        atendeBrasil: form.atendeBrasil,
-        ufsAtendidas: form.atendeBrasil
-          ? ["BRASIL"]
-          : Array.from(new Set((form.ufsAtendidas || []).map((u) => String(u).trim().toUpperCase()))),
-
-        portfolioImagens: form.portfolioImagens,
-        portfolioPdfUrl: pdfUrl || null,
-
-        agenda: form.agenda,
-        leadPreferencias: {
-          categorias: form.leadPreferencias.categorias,
-          ufs: form.leadPreferencias.ufs,
-          ticketMin: form.leadPreferencias.ticketMin ?? null,
-          ticketMax: form.leadPreferencias.ticketMax ?? null,
-        },
-        mpConnected: !!form.mpConnected,
-        mpStatus: form.mpStatus || "desconectado",
-        atualizadoEm: serverTimestamp(),
-      });
-
-      setMsg("Perfil atualizado com sucesso!");
-    } catch (err) {
-      console.error(err);
-      setMsg("Erro ao salvar alterações.");
-    } finally {
-      setSaving(false);
-      setTimeout(() => setMsg(""), 4000);
+      // ❌ Tem checkbox marcado sem texto
+      if (vendaProdutosAtivo && !vendaProdutosObs.trim()) {
+        setMsg(
+          `Descreva o que você vende em "Vendo produtos" para ${editorCategoria}.`
+        );
+        setSaving(false);
+        return;
+      }
+      if (vendaPecasAtivo && !vendaPecasObs.trim()) {
+        setMsg(
+          `Descreva quais peças você vende para ${editorCategoria}.`
+        );
+        setSaving(false);
+        return;
+      }
+      if (servicosAtivo && !servicosObs.trim()) {
+        setMsg(
+          `Descreva quais serviços você presta para ${editorCategoria}.`
+        );
+        setSaving(false);
+        return;
+      }
     }
+
+    // ===========================
+    // 2) Montar lista FINAL de categorias (incluindo o editor atual)
+    // ===========================
+    let atuacaoBasicaFinal: AtuacaoBasicaPorCategoria[] = [...form.atuacaoBasica];
+
+    if (editorCategoria) {
+      const novo: AtuacaoBasicaPorCategoria = {
+        categoria: editorCategoria,
+        vendaProdutos: { ativo: vendaProdutosAtivo, obs: vendaProdutosObs.trim() },
+        vendaPecas: { ativo: vendaPecasAtivo, obs: vendaPecasObs.trim() },
+        servicos: { ativo: servicosAtivo, obs: servicosObs.trim() },
+      };
+
+      const idxExistente = atuacaoBasicaFinal.findIndex(
+        (a) => a.categoria === editorCategoria,
+      );
+      const jaNoLimite = atuacaoBasicaFinal.length >= categoryLimit;
+
+      // Novo + já no limite => bloqueia
+      if (idxExistente === -1 && jaNoLimite) {
+        setMsg(
+          `Você atingiu o limite de ${categoryLimit} categoria(s). Remova alguma ou fale com o suporte/adm.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      if (idxExistente === -1) {
+        atuacaoBasicaFinal.push(novo);
+      } else {
+        atuacaoBasicaFinal[idxExistente] = novo;
+      }
+    }
+
+    // ===========================
+    // 3) Validar CATEGORIAS SALVAS (lista final)
+    // ===========================
+    for (const a of atuacaoBasicaFinal) {
+      const produtosAtivo = !!a.vendaProdutos?.ativo;
+      const pecasAtivo = !!a.vendaPecas?.ativo;
+      const servicosAtivo = !!a.servicos?.ativo;
+
+      const algumMarcado = produtosAtivo || pecasAtivo || servicosAtivo;
+
+      // ❌ Não permite categoria salva sem nenhuma atuação marcada
+      if (!algumMarcado) {
+        setMsg(
+          `Na categoria "${a.categoria}", marque pelo menos uma opção (produtos, peças ou serviços) ou remova essa categoria.`
+        );
+        setSaving(false);
+        return;
+      }
+
+      // ❌ Se marcado, tem que ter texto
+      if (produtosAtivo && !a.vendaProdutos.obs?.trim()) {
+        setMsg(
+          `Descreva o que vende em "Vendo produtos" para ${a.categoria}.`
+        );
+        setSaving(false);
+        return;
+      }
+      if (pecasAtivo && !a.vendaPecas.obs?.trim()) {
+        setMsg(`Descreva "Quais peças" para ${a.categoria}.`);
+        setSaving(false);
+        return;
+      }
+      if (servicosAtivo && !a.servicos.obs?.trim()) {
+        setMsg(`Descreva "Que serviços" para ${a.categoria}.`);
+        setSaving(false);
+        return;
+      }
+    }
+
+    // ===========================
+    // 4) Campos derivados com base na lista FINAL
+    // ===========================
+    const categoriasDistintas = Array.from(
+      new Set(atuacaoBasicaFinal.map((a) => a.categoria).filter(Boolean)),
+    );
+
+    const categoriesAll = categoriasDistintas;
+    const ufsSearch = buildUfsSearch(form.atendeBrasil, form.ufsAtendidas);
+
+    const wDigits55 = form.telefone ? toDigits55FromFree(form.telefone) : "";
+    const wE164 = wDigits55 ? `+${wDigits55}` : "";
+
+    // ===========================
+    // 5) Salvar no Firestore
+    // ===========================
+    await updateDoc(doc(db, "usuarios", userId), {
+      nome: form.nome,
+      telefone: form.telefone || "",
+      whatsapp: wDigits55 || "",
+      whatsappE164: wE164 || "",
+      cidade: form.estado === "BRASIL" ? "" : form.cidade || "",
+      estado: form.estado || "",
+      cpf_cnpj: form.cpf_cnpj || "",
+      bio: form.bio || "",
+      avatar: form.avatar || "",
+
+      prestaServicos: form.prestaServicos,
+      vendeProdutos: form.vendeProdutos,
+
+      // ✅ Usa a lista FINAL aqui
+      atuacaoBasica: atuacaoBasicaFinal,
+
+      categoriasAtuacao: categoriasDistintas,
+      categorias: categoriasDistintas,
+
+      categoriesAll,
+      ufsSearch,
+
+      atendeBrasil: form.atendeBrasil,
+      ufsAtendidas: form.atendeBrasil
+        ? ["BRASIL"]
+        : Array.from(
+            new Set(
+              (form.ufsAtendidas || []).map((u) =>
+                String(u).trim().toUpperCase(),
+              ),
+            ),
+          ),
+
+      portfolioImagens: form.portfolioImagens,
+      portfolioPdfUrl: pdfUrl || null,
+
+      agenda: form.agenda,
+      leadPreferencias: {
+        categorias: form.leadPreferencias.categorias,
+        ufs: form.leadPreferencias.ufs,
+        ticketMin: form.leadPreferencias.ticketMin ?? null,
+        ticketMax: form.leadPreferencias.ticketMax ?? null,
+      },
+      mpConnected: !!form.mpConnected,
+      mpStatus: form.mpStatus || "desconectado",
+      atualizadoEm: serverTimestamp(),
+    });
+
+    // Opcional: sincronizar estado local antes de sair
+    setForm((f) => ({ ...f, atuacaoBasica: atuacaoBasicaFinal }));
+
+    setMsg("Perfil atualizado com sucesso!");
+    goAfterSave();
+  } catch (err) {
+    console.error(err);
+    setMsg("Erro ao salvar alterações.");
+  } finally {
+    setSaving(false);
+    setTimeout(() => setMsg(""), 4000);
   }
+}
+
 
   function buildUfsSearch(atendeBrasil: boolean, ufsAtendidas: string[] = []) {
     const arr = (ufsAtendidas || []).map((u) => String(u).trim().toUpperCase());

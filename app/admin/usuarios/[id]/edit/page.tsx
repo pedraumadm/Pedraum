@@ -829,6 +829,21 @@ export default function AdminEditarUsuarioPage() {
       const wDigits55 = form.telefone ? toDigits55FromFree(form.telefone) : "";
       const wE164 = wDigits55 ? `+${wDigits55}` : "";
 
+ const bc = new BroadcastChannel("admin-users");
+bc.postMessage({
+  type: "user-updated",
+  id: form.id, // usamos o id do próprio formulário
+  patch: {
+    isPatrocinador: form.isPatrocinador,
+    patrocinadorDesde: form.patrocinadorDesde,
+    patrocinadorAte: form.patrocinadorAte,
+    role: form.isPatrocinador ? "patrocinador" : "usuario",
+    tipo: form.isPatrocinador ? "patrocinador" : "usuario",
+  },
+});
+bc.close();
+
+
       await updateDoc(doc(db, "usuarios", form.id), {
         // Identidade
         nome: form.nome,

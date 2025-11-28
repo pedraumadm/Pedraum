@@ -30,6 +30,7 @@ import {
   Ban,
   ShieldCheck,
 } from "lucide-react";
+import { useAfterSaveRedirect } from "@/hooks/useAfterSaveRedirect";
 
 /** ======= SSR ======= */
 export const dynamic = "force-dynamic";
@@ -67,16 +68,59 @@ const DESC_MAX = 4000;
 const DESC_MIN = 10;
 
 /** ======= Utils ======= */
-function toDate(ts?: Timestamp | null) { try { return ts ? ts.toDate() : null; } catch { return null; } }
-function fmt(d: Date | null) { return d ? d.toLocaleString("pt-BR") : "—"; }
+function toDate(ts?: Timestamp | null) {
+  try {
+    return ts ? ts.toDate() : null;
+  } catch {
+    return null;
+  }
+}
+function fmt(d: Date | null) {
+  return d ? d.toLocaleString("pt-BR") : "—";
+}
 function statusInfo(status?: StatusT) {
   switch (status) {
-    case "approved":   return { label: "Aprovada",     color: "#065f46", bg: "#ecfdf5", icon: CircleCheck, desc: "Sua demanda foi aprovada e pode ser exibida no feed." };
-    case "in_progress":return { label: "Em andamento", color: "#1d4ed8", bg: "#eff6ff", icon: Clock,       desc: "Sua demanda está em andamento pela nossa equipe." };
-    case "rejected":   return { label: "Rejeitada",    color: "#991b1b", bg: "#fef2f2", icon: XCircle,     desc: "Sua demanda foi rejeitada na curadoria." };
-    case "closed":     return { label: "Encerrada",    color: "#334155", bg: "#f1f5f9", icon: Ban,         desc: "Demanda concluída/encerrada." };
+    case "approved":
+      return {
+        label: "Aprovada",
+        color: "#065f46",
+        bg: "#ecfdf5",
+        icon: CircleCheck,
+        desc: "Sua demanda foi aprovada e pode ser exibida no feed.",
+      };
+    case "in_progress":
+      return {
+        label: "Em andamento",
+        color: "#1d4ed8",
+        bg: "#eff6ff",
+        icon: Clock,
+        desc: "Sua demanda está em andamento pela nossa equipe.",
+      };
+    case "rejected":
+      return {
+        label: "Rejeitada",
+        color: "#991b1b",
+        bg: "#fef2f2",
+        icon: XCircle,
+        desc: "Sua demanda foi rejeitada na curadoria.",
+      };
+    case "closed":
+      return {
+        label: "Encerrada",
+        color: "#334155",
+        bg: "#f1f5f9",
+        icon: Ban,
+        desc: "Demanda concluída/encerrada.",
+      };
     case "pending":
-    default:           return { label: "Em curadoria", color: "#92400e", bg: "#fffbeb", icon: CircleDot,   desc: "Aguardando revisão do administrador antes de ir ao feed." };
+    default:
+      return {
+        label: "Em curadoria",
+        color: "#92400e",
+        bg: "#fffbeb",
+        icon: CircleDot,
+        desc: "Aguardando revisão do administrador antes de ir ao feed.",
+      };
   }
 }
 function StatusHeader({
@@ -260,6 +304,9 @@ function EditDemandaContent() {
   const router = useRouter();
   const { id = "" } = (useParams() as { id?: string });
 
+  // 🔁 redirect padrão após salvar
+  const goAfterSave = useAfterSaveRedirect("/minhas-demandas");
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -271,13 +318,18 @@ function EditDemandaContent() {
 
   // carrega em tempo real
   useEffect(() => {
-    if (!id) { setLoading(false); return; }
+    if (!id) {
+      setLoading(false);
+      return;
+    }
     const ref = doc(db, "demandas", id);
     const unsub = onSnapshot(
       ref,
       (snap) => {
         if (!snap.exists()) {
-          setError("Demanda não encontrada."); setLoading(false); return;
+          setError("Demanda não encontrada.");
+          setLoading(false);
+          return;
         }
         const d = snap.data() as DocumentData;
 
@@ -312,56 +364,77 @@ function EditDemandaContent() {
 
         setLoading(false);
       },
-      (err) => { console.error(err); setError("Erro ao carregar a demanda."); setLoading(false); },
+      (err) => {
+        console.error(err);
+        setError("Erro ao carregar a demanda.");
+        setLoading(false);
+      },
     );
     return () => unsub();
   }, [id]);
 
   const sInfo = statusInfo(meta.status);
-  const StatusIcon = sInfo.icon;
-
   const descLen = descricao?.length ?? 0;
   const descPct = Math.min(100, Math.round((descLen / DESC_MAX) * 100));
-  const canEdit = meta.status === "pending"; // regra de ouro: só edita descrição enquanto em curadoria
+  const canEdit = meta.status === "pending"; // regra: só edita enquanto em curadoria
   const changed = descricao !== (view.descricao ?? "");
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null); setSuccess(null);
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      setError(null);
+      setSuccess(null);
 
-    const user = auth.currentUser;
-    if (!user) { setError("Você precisa estar logado para editar a demanda."); return; }
+      const user = auth.currentUser;
+      if (!user) {
+        setError("Você precisa estar logado para editar a demanda.");
+        return;
+      }
 
-    if (!canEdit) { setError("Edição bloqueada. A demanda não está mais em curadoria."); return; }
-    if (!descricao || descricao.trim().length < DESC_MIN) {
-      setError(`Descreva com pelo menos ${DESC_MIN} caracteres o que você precisa.`); return;
-    }
-    if (!changed) { setSuccess("Nada para salvar."); return; }
+      if (!canEdit) {
+        setError("Edição bloqueada. A demanda não está mais em curadoria.");
+        return;
+      }
+      if (!descricao || descricao.trim().length < DESC_MIN) {
+        setError(`Descreva com pelo menos ${DESC_MIN} caracteres o que você precisa.`);
+        return;
+      }
+      if (!changed) {
+        setSuccess("Nada para salvar.");
+        return;
+      }
 
-    try {
-      setSaving(true);
+      try {
+        setSaving(true);
 
-      // gera keywords simples como no create
-      const searchBase = descricao
-        .toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+        // gera keywords simples como no create
+        const searchBase = descricao
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^\w\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
 
-      await updateDoc(doc(db, "demandas", id), {
-        descricao: descricao.trim(),
-        searchKeywords: searchBase ? searchBase.split(" ").slice(0, 80) : [],
-        updatedAt: serverTimestamp(),
-      });
+        await updateDoc(doc(db, "demandas", id), {
+          descricao: descricao.trim(),
+          searchKeywords: searchBase ? searchBase.split(" ").slice(0, 80) : [],
+          updatedAt: serverTimestamp(),
+        });
 
-      setSuccess("Descrição atualizada com sucesso!");
-      // nada de redirect; mantém na página para ele ver o banner/timeline em tempo real
-    } catch (err) {
-      console.error(err);
-      setError("Erro ao salvar. Tente novamente.");
-    } finally {
-      setSaving(false);
-    }
-  }, [id, canEdit, descricao, changed]);
+        setSuccess("Descrição atualizada com sucesso!");
+
+        // 🔁 depois de salvar, volta para a listagem/minhas demandas
+        goAfterSave();
+      } catch (err) {
+        console.error(err);
+        setError("Erro ao salvar. Tente novamente.");
+      } finally {
+        setSaving(false);
+      }
+    },
+    [id, canEdit, descricao, changed, goAfterSave],
+  );
 
   if (loading) {
     return (
@@ -402,9 +475,8 @@ function EditDemandaContent() {
         </div>
       </div>
 
-      {/* STATUS HEADER (novo) */}
-<StatusHeader meta={meta} sInfo={sInfo} />
-
+      {/* STATUS HEADER */}
+      <StatusHeader meta={meta} sInfo={sInfo} />
 
       {/* Card principal */}
       <section
@@ -440,10 +512,15 @@ function EditDemandaContent() {
         {!canEdit && (
           <div
             style={{
-              display: "flex", alignItems: "center", gap: 10,
-              background: "#fff7ed", color: "#9a3412",
-              border: "1.6px solid #fed7aa", padding: "10px 12px",
-              borderRadius: 12, marginBottom: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              background: "#fff7ed",
+              color: "#9a3412",
+              border: "1.6px solid #fed7aa",
+              padding: "10px 12px",
+              borderRadius: 12,
+              marginBottom: 12,
             }}
           >
             <Info className="w-5 h-5" />
@@ -474,76 +551,141 @@ function EditDemandaContent() {
                   className="h-2 rounded-full"
                   style={{
                     width: `${descPct}%`,
-                    background: descLen >= DESC_MIN ? "linear-gradient(90deg,#219ebc,#fb8500)" : "#f59e0b",
+                    background:
+                      descLen >= DESC_MIN
+                        ? "linear-gradient(90deg,#219ebc,#fb8500)"
+                        : "#f59e0b",
                   }}
                 />
               </div>
-              <div style={smallInfoStyle}>{descLen}/{DESC_MAX}</div>
+              <div style={smallInfoStyle}>
+                {descLen}/{DESC_MAX}
+              </div>
             </div>
           </div>
 
           {/* Ficha (somente leitura) */}
-          <div className="rounded-2xl border p-4" style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}>
-            <div className="font-black tracking-tight mb-2" style={{ color: "#023047" }}>Ficha da demanda (visualização)</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8, color: "#334155" }}>
-              <div><strong>Título:</strong> {view.titulo || "—"}</div>
+          <div
+            className="rounded-2xl border p-4"
+            style={{ borderColor: "#e6ebf2", background: "#f8fafc" }}
+          >
+            <div
+              className="font-black tracking-tight mb-2"
+              style={{ color: "#023047" }}
+            >
+              Ficha da demanda (visualização)
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr",
+                gap: 8,
+                color: "#334155",
+              }}
+            >
+              <div>
+                <strong>Título:</strong> {view.titulo || "—"}
+              </div>
               <div>
                 <strong>Categoria:</strong> {view.categoria || "—"} •{" "}
                 <strong>Subcategoria/Texto:</strong>{" "}
                 {view.categoria === "Outros"
-                  ? (view.outraCategoriaTexto || "—")
-                  : (view.subcategoria || "—")}
+                  ? view.outraCategoriaTexto || "—"
+                  : view.subcategoria || "—"}
               </div>
-              <div><strong>Prazo:</strong> {view.prazo || "—"}</div>
-              <div><strong>Local:</strong> {view.cidade ? `${view.cidade}${view.estado ? `, ${view.estado}` : ""}` : (view.estado || "—")}</div>
+              <div>
+                <strong>Prazo:</strong> {view.prazo || "—"}
+              </div>
+              <div>
+                <strong>Local:</strong>{" "}
+                {view.cidade
+                  ? `${view.cidade}${view.estado ? `, ${view.estado}` : ""}`
+                  : view.estado || "—"}
+              </div>
               <div>
                 <strong>Autor:</strong>{" "}
-                {[view.autorNome, view.autorEmail, view.autorWhatsapp].filter(Boolean).join(" • ") || "—"}
+                {[view.autorNome, view.autorEmail, view.autorWhatsapp]
+                  .filter(Boolean)
+                  .join(" • ") || "—"}
               </div>
             </div>
 
             {/* anexos somente leitura */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               {/* imagens */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
-                <div className="px-4 pt-4 pb-2 flex items-center gap-2">
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{ borderColor: "#e6ebf2", background: "#fff" }}
+              >
+                <div className="px-4 pt-4 pb-2 flex items-center gap: 2">
                   <ImageIcon className="w-4 h-4 text-sky-700" />
                   <strong className="text-[#0f172a]">Imagens</strong>
                 </div>
                 <div className="px-4 pb-4">
                   {view.imagens && view.imagens.length > 0 ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(3,1fr)",
+                        gap: 8,
+                      }}
+                    >
                       {view.imagens.map((src, i) => (
-                        <a key={i} href={src} target="_blank" rel="noreferrer"
-                           className="block rounded-md overflow-hidden border"
-                           style={{ borderColor: "#e5e7eb" }}>
+                        <a
+                          key={i}
+                          href={src}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block rounded-md overflow-hidden border"
+                          style={{ borderColor: "#e5e7eb" }}
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt={`Imagem ${i+1}`} style={{ width: "100%", height: 90, objectFit: "cover" }} />
+                          <img
+                            src={src}
+                            alt={`Imagem ${i + 1}`}
+                            style={{
+                              width: "100%",
+                              height: 90,
+                              objectFit: "cover",
+                            }}
+                          />
                         </a>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Nenhuma imagem anexada.</p>
+                    <p className="text-xs text-slate-500">
+                      Nenhuma imagem anexada.
+                    </p>
                   )}
                 </div>
               </div>
 
               {/* pdf */}
-              <div className="rounded-xl border overflow-hidden" style={{ borderColor: "#e6ebf2", background: "#fff" }}>
+              <div
+                className="rounded-xl border overflow-hidden"
+                style={{ borderColor: "#e6ebf2", background: "#fff" }}
+              >
                 <div className="px-4 pt-4 pb-2 flex items-center gap-2">
                   <FileText className="w-4 h-4 text-orange-600" />
                   <strong className="text-[#0f172a]">Arquivo PDF</strong>
                 </div>
                 <div className="px-4 pb-4 space-y-3">
                   {view.pdfUrl ? (
-                    <div className="rounded-lg border overflow-hidden" style={{ height: 260 }}>
+                    <div
+                      className="rounded-lg border overflow-hidden"
+                      style={{ height: 260 }}
+                    >
                       <DrivePDFViewer
-                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(view.pdfUrl)}`}
+                        fileUrl={`/api/pdf-proxy?file=${encodeURIComponent(
+                          view.pdfUrl,
+                        )}`}
                         height={260}
                       />
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-500">Nenhum PDF anexado.</p>
+                    <p className="text-xs text-slate-500">
+                      Nenhum PDF anexado.
+                    </p>
                   )}
                 </div>
               </div>
@@ -551,8 +693,16 @@ function EditDemandaContent() {
           </div>
 
           {/* alertas */}
-          {error && <div style={errorStyle} role="alert">{error}</div>}
-          {success && <div style={successStyle} role="status" aria-live="polite">{success}</div>}
+          {error && (
+            <div style={errorStyle} role="alert">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div style={successStyle} role="status" aria-live="polite">
+              {success}
+            </div>
+          )}
 
           {/* ações */}
           <div style={{ display: "flex", gap: 10 }}>
@@ -560,9 +710,10 @@ function EditDemandaContent() {
               type="submit"
               disabled={!canEdit || saving || !changed}
               style={{
-                background: (!canEdit || saving || !changed)
-                  ? "linear-gradient(90deg,#94a3b8,#94a3b8)"
-                  : "linear-gradient(90deg,#fb8500,#219ebc)",
+                background:
+                  !canEdit || saving || !changed
+                    ? "linear-gradient(90deg,#94a3b8,#94a3b8)"
+                    : "linear-gradient(90deg,#fb8500,#219ebc)",
                 color: "#fff",
                 border: "none",
                 borderRadius: 13,
@@ -570,13 +721,18 @@ function EditDemandaContent() {
                 fontWeight: 800,
                 fontSize: 18,
                 boxShadow: "0 8px 40px rgba(251,133,0,0.25)",
-                cursor: (!canEdit || saving || !changed) ? "not-allowed" : "pointer",
+                cursor:
+                  !canEdit || saving || !changed ? "not-allowed" : "pointer",
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 10,
               }}
             >
-              {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
+              {saving ? (
+                <Loader2 className="animate-spin w-5 h-5" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
               {saving ? "Salvando..." : "Salvar descrição"}
             </button>
 
@@ -606,7 +762,13 @@ function EditDemandaContent() {
 /** ======= Wrapper Suspense ======= */
 export default function EditDemandaPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Carregando…</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          Carregando…
+        </div>
+      }
+    >
       <EditDemandaContent />
     </Suspense>
   );
@@ -614,18 +776,51 @@ export default function EditDemandaPage() {
 
 /** ======= estilos ======= */
 const labelStyle: React.CSSProperties = {
-  fontWeight: 800, color: "#023047", marginBottom: 4, display: "flex", alignItems: "center", gap: 6, fontSize: 14,
+  fontWeight: 800,
+  color: "#023047",
+  marginBottom: 4,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 14,
 };
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "13px 14px", borderRadius: 12, border: "1.6px solid #e5e7eb",
-  fontSize: 16, color: "#0f172a", background: "#f8fafc", fontWeight: 600, marginBottom: 6, outline: "none", marginTop: 2, minHeight: 46,
+  width: "100%",
+  padding: "13px 14px",
+  borderRadius: 12,
+  border: "1.6px solid #e5e7eb",   // ✅ aqui
+  fontSize: 16,
+  color: "#0f172a",
+  background: "#f8fafc",
+  fontWeight: 600,
+  marginBottom: 6,
+  outline: "none",
+  marginTop: 2,
+  minHeight: 46,
 };
-const smallInfoStyle: React.CSSProperties = { fontSize: 12, color: "#64748b", marginTop: 4 };
+
+const smallInfoStyle: React.CSSProperties = {
+  fontSize: 12,
+  color: "#64748b",
+  marginTop: 4,
+};
+
 const errorStyle: React.CSSProperties = {
-  background: "#fff7f7", color: "#d90429", border: "1.5px solid #ffe5e5", padding: "12px 0", borderRadius: 11,
-  textAlign: "center", fontWeight: 700,
+  background: "#fff7f7",
+  color: "#d90429",
+  border: "1.5px solid #ffe5e5",
+  padding: "12px 0",
+  borderRadius: 11,
+  textAlign: "center",
+  fontWeight: 700,
 };
+
 const successStyle: React.CSSProperties = {
-  background: "#f7fafc", color: "#16a34a", border: "1.5px solid #c3f3d5", padding: "12px 0", borderRadius: 11,
-  textAlign: "center", fontWeight: 700,
+  background: "#f7fafc",
+  color: "#16a34a",
+  border: "1.5px solid #c3f3d5",   // ✅ e aqui
+  padding: "12px 0",
+  borderRadius: 11,
+  textAlign: "center",
+  fontWeight: 700,
 };

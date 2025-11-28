@@ -75,6 +75,7 @@ type UsuarioDoc = {
   id: string;
   nome?: string;
   email?: string;
+  
 
   role?: "admin" | "usuario" | "patrocinador";
   tipo?: "admin" | "usuario" | "patrocinador";
@@ -114,6 +115,11 @@ type UsuarioDoc = {
   consumo30d?: number;
 
   searchPrefixes?: string[];
+  
+    isPatrocinador?: boolean;
+  patrocinadorDesde?: any;
+  patrocinadorAte?: any;
+
 };
 
 function asRole(u: UsuarioDoc): "admin" | "usuario" | "patrocinador" {

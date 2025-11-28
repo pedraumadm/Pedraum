@@ -57,13 +57,13 @@ export const metadata: Metadata = {
 };
 
 // =========================
-// Viewport — trava zoom mobile
+// Viewport — trava zoom mobile (Next.js)
 // =========================
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false, // <-- CORRETO (boolean)
+  userScalable: false,
 };
 
 // =========================
@@ -75,7 +75,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html
+      lang="pt-BR"
+      suppressHydrationWarning
+      // Extra: ajuda a reduzir gestos de zoom/double-tap em alguns browsers
+      style={{
+        touchAction: "manipulation",
+        // evita alguns comportamentos de zoom/scroll estranho em mobile
+        overscrollBehaviorY: "none",
+      }}
+    >
+      <head>
+        {/* META extra para garantir bloqueio de zoom em mais navegadores */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+        />
+
+        {/* (Opcional) melhora comportamento em alguns devices antigos */}
+        <meta name="HandheldFriendly" content="true" />
+        <meta name="MobileOptimized" content="320" />
+      </head>
+
       <body
         className={`${inter.className} bg-[#F6F9FA] text-[#023047] antialiased`}
       >
