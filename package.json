@@ -51,7 +51,9 @@
     "swiper": "^11.2.8",
     "tailwindcss": "^4.1.8",
     "uploadthing": "^7.7.4",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^15.5.4",
@@ -60,8 +62,6 @@
     "@typescript-eslint/parser": "^8.46.2",
     "cross-env": "^10.1.0",
     "eslint-plugin-prettier": "^5.5.4",
-    "prettier": "^3.6.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "prettier": "^3.6.2"
   }
 }
